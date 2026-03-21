@@ -141,29 +141,30 @@ export function VideoPlayer({
   ]);
 
   return (
-    <div className="overflow-hidden rounded-[32px] border border-white/10 bg-black/30 shadow-[0_24px_60px_rgba(0,0,0,0.24)]">
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/40">
       <div className="relative aspect-video bg-black">
         {sourceUrl ? (
-          <video className="h-full w-full bg-black object-contain" controls playsInline src={sourceUrl} />
+          <video autoPlay className="h-full w-full bg-black object-contain" controls playsInline src={sourceUrl} />
         ) : (
           <div className="flex h-full items-center justify-center p-8 text-center">
-            <div className="max-w-lg rounded-[28px] border border-white/10 bg-black/40 p-8 backdrop-blur">
+            <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-black/45 p-6 backdrop-blur">
+              <div className="mb-4 h-1.5 w-full animate-pulse rounded-full bg-white/10" />
               {error ? (
-                <AlertTriangle className="mx-auto size-12 text-amber-300" />
+                <AlertTriangle className="mx-auto size-9 text-amber-300" />
               ) : (
-                <LockKeyhole className="mx-auto size-12 text-cyan-100" />
+                <LockKeyhole className="mx-auto size-9 text-cyan-100" />
               )}
-              <h2 className="mt-4 text-2xl font-semibold text-white">
+              <h2 className="mt-3 text-lg font-semibold text-white">
                 {error ? "Playback unavailable" : "Secure playback"}
               </h2>
-              <p className="mt-3 text-sm leading-7 text-slate-300">{error ?? status ?? "Preparing stream..."}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">{error ?? status ?? "Preparing stream..."}</p>
               {status ? (
-                <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">
+                <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
                   <Loader2 className="size-4 animate-spin text-cyan-200" />
                   {status}
                 </div>
               ) : (
-                <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">
+                <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
                   <PlayCircle className="size-4 text-cyan-200" />
                   {storageMode === "walrus" ? "Walrus + Seal" : "Direct stream"}
                 </div>
