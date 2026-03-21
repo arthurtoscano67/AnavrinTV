@@ -4,6 +4,12 @@ import { fromHex } from "@mysten/sui/utils";
 import { getPolicyPackageId } from "@/lib/anavrin-config";
 import { calculateVideoStorageExpiry } from "@/lib/platform-settings";
 import { getPlatformSettings, getVideos, persistUploadRecord } from "@/lib/db";
+import {
+  DISCOVERY_PAGE_SIZE,
+  applyDiscoveryFilters,
+  collectDiscoveryTopics,
+  paginateVideos,
+} from "@/lib/discovery-feed";
 import type { VideoVisibility, WalletMode } from "@/lib/types";
 import { videoPolicyCapType, videoPolicyType } from "@/lib/video-policy";
 import {
@@ -14,6 +20,12 @@ import {
 
 export const runtime = "nodejs";
 const BLOB_MAX_DURATION_SECONDS = 30;
+
+function parseIntegerParam(value: string | null, fallback: number, min: number, max: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(parsed)));
+}
 
 function parseVisibility(value: string | null): VideoVisibility {
   if (value === "private" || value === "draft" || value === "public") return value;
@@ -27,13 +39,60 @@ function parseWalletMode(value: string | null): WalletMode {
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
+  const query = searchParams.get("q") ?? undefined;
+  const rawCategory = searchParams.get("category");
+  const category = rawCategory?.trim() ? rawCategory.trim() : undefined;
+  const topicParam = searchParams.get("topic");
+  const topic = topicParam?.trim() ? topicParam.trim() : category && category !== "All" ? category : undefined;
+  const tag = searchParams.get("tag") ?? undefined;
+  const sort = searchParams.get("sort") ?? undefined;
+  const includeDiscoveryPayload =
+    searchParams.get("paginated") === "true" ||
+    searchParams.has("offset") ||
+    searchParams.has("limit") ||
+    searchParams.has("topic") ||
+    searchParams.has("tag") ||
+    searchParams.has("sort");
+
   const videos = await getVideos({
     ownerAddress: searchParams.get("ownerAddress") ?? undefined,
     publicOnly: searchParams.get("publicOnly") !== "false",
-    query: searchParams.get("q") ?? undefined,
-    category: searchParams.get("category") ?? undefined,
+    query,
+    category,
     includeDrafts: searchParams.get("includeDrafts") === "true",
   });
+
+  if (includeDiscoveryPayload) {
+    const filtered = applyDiscoveryFilters(videos, {
+      query,
+      category,
+      topic,
+      tag,
+      sort,
+    });
+    const offset = parseIntegerParam(searchParams.get("offset"), 0, 0, Number.MAX_SAFE_INTEGER);
+    const limit = parseIntegerParam(searchParams.get("limit"), DISCOVERY_PAGE_SIZE, 1, 60);
+    const page = paginateVideos(filtered, offset, limit);
+
+    return NextResponse.json({
+      videos: page.videos,
+      page: {
+        offset: page.offset,
+        limit: page.limit,
+        total: page.total,
+        hasMore: page.hasMore,
+        nextOffset: page.nextOffset,
+      },
+      topics: collectDiscoveryTopics(videos),
+      filters: {
+        q: query ?? "",
+        category: category ?? "",
+        topic: topic ?? "All",
+        tag: tag ?? "",
+        sort: sort ?? "",
+      },
+    });
+  }
 
   return NextResponse.json({ videos });
 }

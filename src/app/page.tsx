@@ -1,118 +1,67 @@
-import Link from "next/link";
-import { ArrowRight, Filter } from "lucide-react";
+import { VideoFeed } from "@/components/discovery/video-feed";
+import type { DiscoveryFilters } from "@/components/discovery/types";
+import { getVideos } from "@/lib/db";
+import {
+  DISCOVERY_PAGE_SIZE,
+  applyDiscoveryFilters,
+  collectDiscoveryTopics,
+  paginateVideos,
+} from "@/lib/discovery-feed";
 
-import { VideoCard } from "@/components/video-card";
-import { browseTopics } from "@/lib/seed";
-import { formatBytes, formatCompact } from "@/lib/format";
-import { getMetrics, getVideos } from "@/lib/db";
+type SearchParams = Record<string, string | string[] | undefined>;
 
-function SectionBlock({
-  label,
-  title,
-  description,
-  actionHref,
-  actionLabel,
-  videos,
-}: {
-  label: string;
-  title: string;
-  description: string;
-  actionHref: string;
-  actionLabel: string;
-  videos: Awaited<ReturnType<typeof getVideos>>;
-}) {
-  return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="max-w-3xl">
-          <p className="section-label">{label}</p>
-          <h2 className="mt-2 text-2xl font-semibold text-white md:text-3xl">{title}</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-300 md:text-base">{description}</p>
-        </div>
-
-        <Link href={actionHref} className="chip transition hover:border-white/15 hover:bg-white/8 hover:text-white">
-          {actionLabel}
-          <ArrowRight className="size-4" />
-        </Link>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-        {videos.map((video) => (
-          <VideoCard key={video.id} video={video} compact />
-        ))}
-      </div>
-    </section>
-  );
+function firstValue(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value ?? "";
 }
 
-export default async function HomePage() {
-  const [videos, metrics] = await Promise.all([getVideos({ publicOnly: true }), getMetrics()]);
-  const recommended = videos.slice(0, 8);
-  const trending = [...videos].sort((a, b) => b.views - a.views).slice(0, 8);
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
+  const q = firstValue(params.q).trim();
+  const category = firstValue(params.category).trim();
+  const topicParam = firstValue(params.topic).trim();
+  const tag = firstValue(params.tag).trim();
+  const sort = firstValue(params.sort).trim();
+  const topic = topicParam || (category && category !== "All" ? category : "All");
 
-  const stats = [
-    { label: "Visitors today", value: formatCompact(metrics.visitorsToday) },
-    { label: "Active streams", value: formatCompact(metrics.activeStreams) },
-    { label: "Uploads today", value: formatCompact(metrics.uploadsToday) },
-    { label: "Encrypted storage", value: formatBytes(metrics.storageUsedBytes) },
-  ];
+  const allVideos = await getVideos({ publicOnly: true });
+  const filteredVideos = applyDiscoveryFilters(allVideos, {
+    query: q || null,
+    category: category || null,
+    topic: topic || null,
+    tag: tag || null,
+    sort: sort || null,
+  });
+  const page = paginateVideos(filteredVideos, 0, DISCOVERY_PAGE_SIZE);
+
+  const filters: DiscoveryFilters = {
+    q,
+    category,
+    topic,
+    tag,
+    sort,
+  };
 
   return (
-    <div className="space-y-6">
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="max-w-3xl">
-            <p className="section-label">Home</p>
-            <h1 className="mt-2 text-2xl font-semibold text-white md:text-3xl">Browse the public feed.</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-300 md:text-base">
-              Dense rows, familiar cards, and quick access to public uploads, creators, and creator tools.
-            </p>
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            {stats.map((stat) => (
-              <div key={stat.label} className="kpi">
-                <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">{stat.label}</p>
-                <p className="mt-2 text-lg font-semibold text-white">{stat.value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Link href="/browse" className="chip transition hover:border-white/15 hover:bg-white/8 hover:text-white">
-            <Filter className="size-4" />
-            All videos
-          </Link>
-          {browseTopics.map((topic) => (
-            <Link
-              key={topic}
-              href={`/browse?category=${encodeURIComponent(topic)}`}
-              className="chip transition hover:border-white/15 hover:bg-white/8 hover:text-white"
-            >
-              {topic}
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <SectionBlock
-        label="Recommended"
-        title="Watch next"
-        description="Fresh public uploads with the same dense browse feel you'd expect from a desktop video app."
-        actionHref="/browse"
-        actionLabel="Browse all"
-        videos={recommended}
-      />
-
-      <SectionBlock
-        label="Trending"
-        title="Most watched right now"
-        description="High-view videos from the public catalog, ordered for quick scanning."
-        actionHref="/browse"
-        actionLabel="View feed"
-        videos={trending}
-      />
-    </div>
+    <VideoFeed
+      description="Scroll the public feed, switch categories instantly, and keep discovery momentum without pagination breaks."
+      initialFilters={filters}
+      initialPage={{
+        offset: page.offset,
+        limit: page.limit,
+        total: page.total,
+        hasMore: page.hasMore,
+        nextOffset: page.nextOffset,
+      }}
+      initialTopics={collectDiscoveryTopics(allVideos)}
+      initialVideos={page.videos}
+      label="Home"
+      persistenceKey="home"
+      title="Discover videos"
+    />
   );
 }
