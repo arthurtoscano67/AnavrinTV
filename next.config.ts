@@ -1,7 +1,19 @@
 import type { NextConfig } from "next";
 
 const IS_GITHUB_PAGES = process.env.GITHUB_PAGES === "true";
-const GITHUB_PAGES_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH?.trim() || "/AnavrinTV";
+const rawBasePath = process.env.NEXT_PUBLIC_BASE_PATH?.trim();
+
+function resolvePagesBasePath() {
+  if (!rawBasePath) return "/AnavrinTV";
+  if (rawBasePath === "/" || rawBasePath.toLowerCase() === "root" || rawBasePath.toLowerCase() === "none") {
+    return undefined;
+  }
+  const withLeadingSlash = rawBasePath.startsWith("/") ? rawBasePath : `/${rawBasePath}`;
+  const cleaned = withLeadingSlash.replace(/\/+$/, "");
+  return cleaned === "/" ? undefined : cleaned;
+}
+
+const GITHUB_PAGES_BASE_PATH = resolvePagesBasePath();
 
 const nextConfig: NextConfig = {
   output: IS_GITHUB_PAGES ? "export" : "standalone",
