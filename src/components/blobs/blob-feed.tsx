@@ -201,6 +201,9 @@ export function BlobFeed() {
       const parsed = raw ? (JSON.parse(raw) as Partial<BlobUserState>) : {};
       setUserState({
         ...createBlobUserState(),
+        likedAdjustments: parsed.likedAdjustments ?? {},
+        likedIds: parsed.likedIds ?? {},
+        followedHandles: parsed.followedHandles ?? {},
         shareAdjustments: parsed.shareAdjustments ?? {},
         commentDrafts: parsed.commentDrafts ?? {},
         commentsByBlobId: parsed.commentsByBlobId ?? {},
@@ -217,6 +220,9 @@ export function BlobFeed() {
         storageKey,
         JSON.stringify({
           muted: userState.muted,
+          likedAdjustments: userState.likedAdjustments,
+          likedIds: userState.likedIds,
+          followedHandles: userState.followedHandles,
           shareAdjustments: userState.shareAdjustments,
           commentDrafts: userState.commentDrafts,
           commentsByBlobId: userState.commentsByBlobId,
@@ -225,7 +231,16 @@ export function BlobFeed() {
     } catch {
       // Ignore storage failures in privacy-restricted environments.
     }
-  }, [storageKey, userState.commentDrafts, userState.commentsByBlobId, userState.muted, userState.shareAdjustments]);
+  }, [
+    storageKey,
+    userState.commentDrafts,
+    userState.commentsByBlobId,
+    userState.followedHandles,
+    userState.likedAdjustments,
+    userState.likedIds,
+    userState.muted,
+    userState.shareAdjustments,
+  ]);
 
   const orderedBlobs = useMemo(() => rankBlobFeed(liveBlobs && liveBlobs.length ? liveBlobs : blobSeed), [liveBlobs]);
   const currentBlobId = searchParams.get("blob");
@@ -292,12 +307,24 @@ export function BlobFeed() {
     return userState.commentsByBlobId[currentBlob.id] ?? currentBlob.comments;
   }, [currentBlob, userState.commentsByBlobId]);
   const currentDraft = currentBlob ? userState.commentDrafts[currentBlob.id] ?? "" : "";
-  const visibleBlob = currentBlob
-    ? {
-        ...currentBlob,
-        sharesCount: Math.max(0, currentBlob.sharesCount + (userState.shareAdjustments[currentBlob.id] ?? 0)),
-      }
-    : null;
+
+  function creatorFollowKey(blob: BlobItem) {
+    return (blob.creatorAddress || blob.creatorHandle || blob.id).trim().toLowerCase();
+  }
+
+  function applyUserStateToBlob(blob: BlobItem) {
+    const likedOverride = userState.likedIds[blob.id];
+    const likesDelta = userState.likedAdjustments[blob.id] ?? 0;
+    const followedOverride = userState.followedHandles[creatorFollowKey(blob)];
+
+    return {
+      ...blob,
+      likedByUser: typeof likedOverride === "boolean" ? likedOverride : blob.likedByUser,
+      followedByUser: typeof followedOverride === "boolean" ? followedOverride : blob.followedByUser,
+      likesCount: Math.max(0, blob.likesCount + likesDelta),
+      sharesCount: Math.max(0, blob.sharesCount + (userState.shareAdjustments[blob.id] ?? 0)),
+    };
+  }
 
   const visibleCount = orderedBlobs.length;
   const progressPercent = visibleCount ? ((currentLogicalIndex + 1) / visibleCount) * 100 : 0;
@@ -487,14 +514,26 @@ export function BlobFeed() {
 
     const blobId = currentBlob.id;
     const videoId = currentBlob.videoId ?? null;
-    const desiredLiked = !currentBlob.likedByUser;
-    const previousLikes = currentBlob.likesCount;
-    const previousLiked = currentBlob.likedByUser;
+    const previousLiked = typeof userState.likedIds[blobId] === "boolean" ? userState.likedIds[blobId] : currentBlob.likedByUser;
+    const previousLikesDelta = userState.likedAdjustments[blobId] ?? 0;
+    const previousLikes = Math.max(0, currentBlob.likesCount + previousLikesDelta);
+    const desiredLiked = !previousLiked;
 
     updateLiveBlob(blobId, {
       likedByUser: desiredLiked,
       likesCount: Math.max(0, previousLikes + (desiredLiked ? 1 : -1)),
     });
+    updateUserState((current) => ({
+      ...current,
+      likedIds: {
+        ...current.likedIds,
+        [blobId]: desiredLiked,
+      },
+      likedAdjustments: {
+        ...current.likedAdjustments,
+        [blobId]: (current.likedAdjustments[blobId] ?? 0) + (desiredLiked ? 1 : -1),
+      },
+    }));
     setLikePulseKey((current) => current + 1);
 
     try {
@@ -521,11 +560,36 @@ export function BlobFeed() {
         likedByUser: typeof data.liked === "boolean" ? data.liked : desiredLiked,
         likesCount: Number.isFinite(data.likes) ? Number(data.likes) : Math.max(0, previousLikes + (desiredLiked ? 1 : -1)),
       });
+      updateUserState((current) => {
+        const next = {
+          ...current,
+          likedIds: {
+            ...current.likedIds,
+            [blobId]: typeof data.liked === "boolean" ? data.liked : desiredLiked,
+          },
+          likedAdjustments: {
+            ...current.likedAdjustments,
+            [blobId]: 0,
+          },
+        };
+        return next;
+      });
     } catch (error) {
       updateLiveBlob(blobId, {
         likedByUser: previousLiked,
-        likesCount: previousLikes,
+        likesCount: Math.max(0, currentBlob.likesCount + previousLikesDelta),
       });
+      updateUserState((current) => ({
+        ...current,
+        likedIds: {
+          ...current.likedIds,
+          [blobId]: previousLiked,
+        },
+        likedAdjustments: {
+          ...current.likedAdjustments,
+          [blobId]: previousLikesDelta,
+        },
+      }));
       setToast(error instanceof Error ? error.message : "Could not update like.");
     } finally {
       setPendingLike(false);
@@ -582,8 +646,28 @@ export function BlobFeed() {
   async function handleToggleFollow() {
     if (!currentBlob || !currentBlob.followable) return;
     if (pendingFollow) return;
-    if (!account?.address || !currentBlob.videoId) {
+    const actorAddress = account?.address ?? null;
+    const followKey = creatorFollowKey(currentBlob);
+    const previousFollowed =
+      typeof userState.followedHandles[followKey] === "boolean"
+        ? userState.followedHandles[followKey]
+        : currentBlob.followedByUser;
+    const desiredFollowed = !previousFollowed;
+
+    if (!actorAddress && currentBlob.videoId) {
       requestConnectFlow("Connect a wallet to follow creators.");
+      return;
+    }
+
+    if (!currentBlob.videoId) {
+      updateUserState((current) => ({
+        ...current,
+        followedHandles: {
+          ...current.followedHandles,
+          [followKey]: desiredFollowed,
+        },
+      }));
+      setToast(desiredFollowed ? `Following ${currentBlob.creatorName}.` : `Unfollowed ${currentBlob.creatorName}.`);
       return;
     }
 
@@ -591,12 +675,17 @@ export function BlobFeed() {
 
     const blobId = currentBlob.id;
     const videoId = currentBlob.videoId;
-    const desiredFollowed = !currentBlob.followedByUser;
-    const previousFollowed = currentBlob.followedByUser;
 
     updateLiveBlob(blobId, {
       followedByUser: desiredFollowed,
     });
+    updateUserState((current) => ({
+      ...current,
+      followedHandles: {
+        ...current.followedHandles,
+        [followKey]: desiredFollowed,
+      },
+    }));
 
     try {
       const response = await fetch(`/api/blobs/${encodeURIComponent(videoId)}/follow`, {
@@ -605,7 +694,7 @@ export function BlobFeed() {
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          address: account.address,
+          address: actorAddress,
           followed: desiredFollowed,
         }),
       });
@@ -616,11 +705,25 @@ export function BlobFeed() {
       updateLiveBlob(blobId, {
         followedByUser: typeof data.followed === "boolean" ? data.followed : desiredFollowed,
       });
+      updateUserState((current) => ({
+        ...current,
+        followedHandles: {
+          ...current.followedHandles,
+          [followKey]: typeof data.followed === "boolean" ? data.followed : desiredFollowed,
+        },
+      }));
       setToast(desiredFollowed ? `Following ${currentBlob.creatorName}.` : `Unfollowed ${currentBlob.creatorName}.`);
     } catch (error) {
       updateLiveBlob(blobId, {
         followedByUser: previousFollowed,
       });
+      updateUserState((current) => ({
+        ...current,
+        followedHandles: {
+          ...current.followedHandles,
+          [followKey]: previousFollowed,
+        },
+      }));
       setToast(error instanceof Error ? error.message : "Could not update follow state.");
     } finally {
       setPendingFollow(false);
@@ -820,7 +923,7 @@ export function BlobFeed() {
     );
   }
 
-  const canRender = Boolean(visibleBlob);
+  const canRender = Boolean(currentBlob);
 
   return (
     <section
@@ -1104,7 +1207,8 @@ export function BlobFeed() {
         {feedWindow.map(({ blob, virtualIndex }) => {
           const isActive = virtualIndex === activeIndex;
           const shouldLoad = Math.abs(virtualIndex - activeIndex) <= 2;
-          const renderBlob = isActive && visibleBlob ? visibleBlob : blob;
+          const baseBlob = isActive && currentBlob ? currentBlob : blob;
+          const renderBlob = applyUserStateToBlob(baseBlob);
           const liked = Boolean(renderBlob.likedByUser);
           const followed = Boolean(renderBlob.followedByUser);
           const isCreatorOwner =
@@ -1112,7 +1216,7 @@ export function BlobFeed() {
             Boolean(renderBlob.creatorAddress) &&
             account?.address.toLowerCase() === renderBlob.creatorAddress?.toLowerCase();
           const commentDraft = userState.commentDrafts[blob.id] ?? "";
-          const comments = isActive ? currentComments : blob.comments;
+          const comments = isActive ? currentComments : renderBlob.comments;
 
           return (
             <article key={`${blob.id}-${virtualIndex}`} className="flex h-full w-full items-center justify-center px-0 md:px-6 md:py-6">
