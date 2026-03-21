@@ -144,7 +144,7 @@ export function VideoPlayer({
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/40">
       <div className="relative aspect-video bg-black">
         {sourceUrl ? (
-          <video autoPlay className="h-full w-full bg-black object-contain" controls playsInline src={sourceUrl} />
+          <video autoPlay className="h-full w-full bg-black object-contain" controls playsInline preload="metadata" src={sourceUrl} />
         ) : (
           <div className="flex h-full items-center justify-center p-8 text-center">
             <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-black/45 p-6 backdrop-blur">

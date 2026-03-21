@@ -6,8 +6,11 @@ import {
   ArrowLeft,
   ChevronDown,
   Copy,
+  Gift,
+  MessageCircleMore,
   Loader2,
   LogOut,
+  PlusSquare,
   Settings,
   UserRound,
 } from "lucide-react";
@@ -112,8 +115,13 @@ export function BlobFeed() {
   const [pendingFollow, setPendingFollow] = useState(false);
   const [pendingCreate, setPendingCreate] = useState(false);
   const [pendingWalletAction, setPendingWalletAction] = useState<"copy" | "disconnect" | null>(null);
+  const [isLandscapeMobile, setIsLandscapeMobile] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const gestureRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const wheelLockRef = useRef(0);
+  const pullStartRef = useRef<{ x: number; y: number } | null>(null);
   const commentsFetchNonceRef = useRef<Record<string, number>>({});
   const identityMenuRef = useRef<HTMLDivElement | null>(null);
   const walletMenuRef = useRef<HTMLDivElement | null>(null);
@@ -185,6 +193,8 @@ export function BlobFeed() {
       } finally {
         if (active) {
           setLoadingFeed(false);
+          setRefreshing(false);
+          setPullDistance(0);
         }
       }
     }
@@ -194,7 +204,26 @@ export function BlobFeed() {
     return () => {
       active = false;
     };
-  }, [account?.address, feedQueryString]);
+  }, [account?.address, feedQueryString, refreshNonce]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(orientation: landscape)");
+    const updateOrientation = () => {
+      setIsLandscapeMobile(media.matches && window.innerWidth <= 1024);
+    };
+
+    updateOrientation();
+    media.addEventListener("change", updateOrientation);
+    window.addEventListener("orientationchange", updateOrientation);
+    window.addEventListener("resize", updateOrientation);
+
+    return () => {
+      media.removeEventListener("change", updateOrientation);
+      window.removeEventListener("orientationchange", updateOrientation);
+      window.removeEventListener("resize", updateOrientation);
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -447,6 +476,13 @@ export function BlobFeed() {
     const normalizedTag = tag.replace(/^#/, "").trim();
     if (!normalizedTag) return;
     router.push(`/blobs?q=${encodeURIComponent(normalizedTag)}`);
+  }
+
+  function triggerRefresh() {
+    if (refreshing || loadingFeed) return;
+    setRefreshing(true);
+    setLoadingFeed(true);
+    setRefreshNonce((current) => current + 1);
   }
 
   function openTipModal() {
@@ -1023,7 +1059,7 @@ export function BlobFeed() {
   return (
     <section
       aria-label="Blobs"
-      className="relative h-[100dvh] overflow-hidden bg-[#02040b] text-white"
+      className="relative h-[100dvh] max-h-[100dvh] overflow-x-hidden overflow-y-hidden overscroll-y-contain bg-[#02040b] text-white"
       onKeyDown={(event) => {
       if (commentsOpen || tipOpen || shareOpen) {
           if (event.key === "Escape") {
@@ -1085,16 +1121,53 @@ export function BlobFeed() {
         wheelLockRef.current = now;
         moveFeed(event.deltaY > 0 ? 1 : -1);
       }}
+      onTouchStart={(event) => {
+        if (commentsOpen || tipOpen || shareOpen || isInteractiveTarget(event.target) || loadingFeed) return;
+        const touch = event.touches[0];
+        if (!touch) return;
+        if (touch.clientY > 140) return;
+        pullStartRef.current = { x: touch.clientX, y: touch.clientY };
+      }}
+      onTouchMove={(event) => {
+        const start = pullStartRef.current;
+        if (!start || commentsOpen || tipOpen || shareOpen || loadingFeed) return;
+        const touch = event.touches[0];
+        if (!touch) return;
+        const deltaX = touch.clientX - start.x;
+        const deltaY = touch.clientY - start.y;
+        if (deltaY <= 0 || Math.abs(deltaX) > Math.abs(deltaY)) {
+          setPullDistance(0);
+          return;
+        }
+        event.preventDefault();
+        setPullDistance(Math.min(96, deltaY * 0.45));
+      }}
+      onTouchEnd={() => {
+        const shouldRefresh = pullDistance >= 72;
+        pullStartRef.current = null;
+        setPullDistance(0);
+        if (shouldRefresh) {
+          triggerRefresh();
+        }
+      }}
+      onTouchCancel={() => {
+        pullStartRef.current = null;
+        setPullDistance(0);
+      }}
+      style={{
+        paddingTop: "env(safe-area-inset-top)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
       tabIndex={0}
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(2,6,23,0.04),rgba(2,6,23,0.82))]" />
 
-      <header className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-3 px-4 pt-4 md:px-6 md:pt-6">
+      <header className="pointer-events-none fixed inset-x-0 top-0 z-30 flex items-start justify-between gap-2 px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.35rem)] md:px-6 md:pt-6">
         <div ref={identityMenuRef} className="pointer-events-auto relative flex items-center gap-2">
           <button
             aria-label="Back"
             data-blob-interactive="true"
-            className="grid size-11 place-items-center rounded-full border border-white/10 bg-black/35 text-white backdrop-blur-xl transition hover:border-white/20 hover:bg-black/45 active:scale-[0.98]"
+            className="grid min-h-11 min-w-11 place-items-center rounded-full border border-white/15 bg-[rgba(6,10,24,0.68)] text-white backdrop-blur-xl transition hover:border-white/25 hover:bg-[rgba(6,10,24,0.78)] active:scale-[0.98]"
             onClick={handleBackNavigation}
             title="Back"
             type="button"
@@ -1107,7 +1180,7 @@ export function BlobFeed() {
             aria-haspopup="menu"
             aria-label="Profile"
             data-blob-interactive="true"
-            className="grid size-11 place-items-center rounded-full border border-white/10 bg-white/8 text-[10px] font-semibold tracking-[0.28em] text-white backdrop-blur-xl transition hover:border-white/20 hover:bg-white/15 active:scale-[0.98]"
+            className="grid min-h-11 min-w-11 place-items-center rounded-full border border-white/15 bg-white/10 text-[10px] font-semibold tracking-[0.28em] text-white backdrop-blur-xl transition hover:border-white/25 hover:bg-white/15 active:scale-[0.98]"
             onClick={() => setIdentityMenuOpen((open) => !open)}
             title="Profile"
             type="button"
@@ -1117,7 +1190,7 @@ export function BlobFeed() {
 
           <button
             data-blob-interactive="true"
-            className="inline-flex items-center rounded-full border border-white/10 bg-black/35 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-xl transition hover:border-white/20 hover:bg-black/45 active:scale-[0.98]"
+            className={`inline-flex min-h-11 items-center rounded-full border border-white/15 bg-[rgba(6,10,24,0.68)] px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-xl transition hover:border-white/25 hover:bg-[rgba(6,10,24,0.78)] active:scale-[0.98] ${isLandscapeMobile ? "hidden" : ""}`}
             onClick={handleGoHome}
             title="Blobs feed"
             type="button"
@@ -1170,7 +1243,7 @@ export function BlobFeed() {
 
         <div className="pointer-events-auto flex items-center gap-2">
           <span
-            className="hidden rounded-full border border-white/10 bg-black/35 px-3 py-2 text-[10px] uppercase tracking-[0.3em] text-slate-300 backdrop-blur-xl md:inline-flex"
+            className={`hidden rounded-full border border-white/15 bg-[rgba(6,10,24,0.68)] px-3 py-2 text-[10px] uppercase tracking-[0.3em] text-slate-300 backdrop-blur-xl md:inline-flex ${isLandscapeMobile ? "md:hidden" : ""}`}
             title="Current position in feed"
           >
             {visibleCount ? `${currentLogicalIndex + 1} / ${visibleCount}` : "0 / 0"}
@@ -1179,7 +1252,7 @@ export function BlobFeed() {
           <button
             aria-busy={pendingCreate}
             data-blob-interactive="true"
-            className="hidden items-center gap-2 rounded-full border border-white/10 bg-black/35 px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-white backdrop-blur-xl transition hover:border-cyan-300/25 hover:bg-black/45 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 md:inline-flex"
+            className={`hidden min-h-11 items-center gap-2 rounded-full border border-white/15 bg-[rgba(6,10,24,0.68)] px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-white backdrop-blur-xl transition hover:border-cyan-300/35 hover:bg-[rgba(6,10,24,0.78)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 md:inline-flex ${isLandscapeMobile ? "md:hidden" : ""}`}
             disabled={pendingCreate}
             onClick={handleCreateBlob}
             title="Create Blob"
@@ -1194,7 +1267,7 @@ export function BlobFeed() {
               aria-expanded={walletMenuOpen}
               aria-haspopup="menu"
               data-blob-interactive="true"
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/35 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-xl transition hover:border-white/15 hover:bg-black/45 active:scale-[0.98]"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/15 bg-[rgba(6,10,24,0.68)] px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-xl transition hover:border-white/25 hover:bg-[rgba(6,10,24,0.78)] active:scale-[0.98]"
               onClick={() => {
                 if (!account?.address) {
                   connectModalRef.current?.show?.();
@@ -1282,7 +1355,10 @@ export function BlobFeed() {
       </header>
 
       {canRender ? (
-        <div className="absolute inset-x-0 top-[62px] z-20 px-4 md:top-[74px] md:px-6">
+        <div
+          className={`absolute inset-x-0 z-20 px-3 md:px-6 ${isLandscapeMobile ? "hidden" : ""}`}
+          style={{ top: "calc(env(safe-area-inset-top) + 3.3rem)" }}
+        >
           <div className="h-1 rounded-full bg-white/10">
             <div
               className="h-full rounded-full bg-[linear-gradient(90deg,rgba(87,221,255,0.95),rgba(99,102,241,0.92))]"
@@ -1293,10 +1369,26 @@ export function BlobFeed() {
       ) : null}
 
       <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute inset-x-0 z-20 flex justify-center transition-opacity duration-200 ${
+          pullDistance > 4 || refreshing ? "opacity-100" : "opacity-0"
+        }`}
+        style={{ top: "calc(env(safe-area-inset-top) + 4.1rem)" }}
+      >
+        <div
+          className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-[rgba(6,10,24,0.74)] px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-slate-200 backdrop-blur-xl"
+          style={{ transform: `translateY(${Math.max(0, pullDistance - 42)}px)` }}
+        >
+          {refreshing ? <Loader2 className="size-3.5 animate-spin text-cyan-200" /> : <ArrowLeft className="size-3.5 -rotate-90 text-cyan-200" />}
+          {refreshing ? "Refreshing" : "Pull to refresh"}
+        </div>
+      </div>
+
+      <div
         className={`relative h-full w-full ${transitioning ? "transition-transform duration-300 ease-out" : "transition-none"}`}
         onTransitionEnd={normalizeVirtualIndex}
         style={{
-          transform: `translate3d(0, ${-activeIndex * 100}%, 0)`,
+          transform: `translate3d(0, calc(${-activeIndex * 100}% + ${pullDistance}px), 0)`,
         }}
       >
         {feedWindow.map(({ blob, virtualIndex }) => {
@@ -1342,7 +1434,7 @@ export function BlobFeed() {
                   />
 
                   <div className="pointer-events-none absolute inset-0 z-20">
-                    <div className="absolute left-4 bottom-6 right-24 md:left-6 md:bottom-6">
+                    <div className={`absolute bottom-6 left-4 right-24 md:bottom-6 md:left-6 ${isLandscapeMobile ? "hidden" : ""}`}>
                       <BlobCreatorMeta
                         key={renderBlob.id}
                         blob={renderBlob}
@@ -1355,7 +1447,7 @@ export function BlobFeed() {
                       />
                     </div>
 
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 md:hidden">
+                    <div className={`absolute right-[max(0.5rem,env(safe-area-inset-right))] top-1/2 -translate-y-1/2 md:hidden ${commentsOpen || tipOpen || shareOpen ? "opacity-50" : ""}`}>
                       <BlobActions
                         blob={renderBlob}
                         bookmarked={bookmarked}
@@ -1406,6 +1498,55 @@ export function BlobFeed() {
         })}
       </div>
 
+      {!isLandscapeMobile ? (
+        <div
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-3 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] md:hidden"
+        >
+          <nav className="pointer-events-auto mx-auto grid max-w-[560px] grid-cols-4 gap-1.5 rounded-2xl border border-white/15 bg-[rgba(6,10,24,0.72)] p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+            <button
+              className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-transparent px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-200 transition hover:border-white/15 hover:bg-white/8"
+              data-blob-interactive="true"
+              onClick={handleBackNavigation}
+              type="button"
+            >
+              <ArrowLeft className="size-4" />
+              Back
+            </button>
+            <button
+              className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-transparent px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-200 transition hover:border-white/15 hover:bg-white/8 disabled:opacity-45"
+              data-blob-interactive="true"
+              disabled={!currentBlob}
+              onClick={() => setCommentsOpen(true)}
+              type="button"
+            >
+              <MessageCircleMore className="size-4" />
+              Comment
+            </button>
+            <button
+              aria-busy={pendingCreate}
+              className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-cyan-300/30 bg-cyan-300/16 px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100 transition hover:bg-cyan-300/24 disabled:opacity-45"
+              data-blob-interactive="true"
+              disabled={pendingCreate}
+              onClick={handleCreateBlob}
+              type="button"
+            >
+              {pendingCreate ? <Loader2 className="size-4 animate-spin" /> : <PlusSquare className="size-4" />}
+              Create
+            </button>
+            <button
+              className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-transparent px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-200 transition hover:border-white/15 hover:bg-white/8 disabled:opacity-45"
+              data-blob-interactive="true"
+              disabled={!currentBlob}
+              onClick={openTipModal}
+              type="button"
+            >
+              <Gift className="size-4" />
+              Tip
+            </button>
+          </nav>
+        </div>
+      ) : null}
+
       <BlobCommentsPanel
         blob={currentBlob}
         comments={currentComments}
@@ -1435,7 +1576,10 @@ export function BlobFeed() {
       />
 
       {toast ? (
-        <div className="pointer-events-none fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-full border border-white/10 bg-black/45 px-4 py-3 text-sm text-slate-100 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+        <div
+          className="pointer-events-none fixed left-1/2 z-40 -translate-x-1/2 rounded-full border border-white/10 bg-black/45 px-4 py-3 text-sm text-slate-100 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl"
+          style={{ bottom: isLandscapeMobile ? "max(1rem, env(safe-area-inset-bottom))" : "max(5rem, calc(env(safe-area-inset-bottom) + 4.4rem))" }}
+        >
           {toast}
         </div>
       ) : null}

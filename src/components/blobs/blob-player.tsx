@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Heart,
   Loader2,
   LockKeyhole,
+  Maximize2,
+  Smartphone,
   RotateCcw,
   Volume2,
   VolumeX,
@@ -63,18 +65,95 @@ export function BlobPlayer({
   const account = useCurrentAccount();
   const network = useCurrentNetwork();
   const currentClient = useCurrentClient() as AnavrinClient;
+  const playerShellRef = useRef<HTMLDivElement | null>(null);
+  const fullscreenHostRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const tapTimerRef = useRef<number | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
   const holdPauseRef = useRef(false);
   const lastPulseKeyRef = useRef(likePulseKey);
+  const scrollRestoreRef = useRef(0);
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [heartPulse, setHeartPulse] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
+  const [gestureUnlocked, setGestureUnlocked] = useState(false);
+  const [landscapeViewport, setLandscapeViewport] = useState(false);
+  const [fullscreenActive, setFullscreenActive] = useState(false);
+  const [fullscreenPending, setFullscreenPending] = useState(false);
+  const [showRotatePrompt, setShowRotatePrompt] = useState(false);
+  const [fullscreenHint, setFullscreenHint] = useState<string | null>(null);
+
+  function isIosMobile() {
+    if (typeof navigator === "undefined") return false;
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  }
+
+  const tryLockLandscape = useCallback(async () => {
+    const orientationApi = (screen as Screen & { orientation?: { lock?: (orientation: string) => Promise<void> } }).orientation;
+    if (!orientationApi?.lock) return;
+    try {
+      await orientationApi.lock("landscape");
+    } catch {
+      // Browser can reject lock outside fullscreen or unsupported contexts.
+    }
+  }, []);
+
+  const requestLandscapeFullscreen = useCallback(async () => {
+    const host = fullscreenHostRef.current;
+    const video = videoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+    if (!host || !video) return false;
+    if (typeof window !== "undefined") {
+      scrollRestoreRef.current = window.scrollY || window.pageYOffset || 0;
+    }
+
+    setFullscreenPending(true);
+    setFullscreenHint(null);
+
+    try {
+      if (document.fullscreenElement !== host && host.requestFullscreen) {
+        await host.requestFullscreen();
+      }
+      setFullscreenActive(true);
+      setShowRotatePrompt(false);
+      return true;
+    } catch {
+      if (isIosMobile() && typeof video.webkitEnterFullscreen === "function") {
+        try {
+          video.webkitEnterFullscreen();
+          setFullscreenActive(true);
+          setShowRotatePrompt(false);
+          return true;
+        } catch {
+          // fall through to rotate prompt.
+        }
+      }
+      setFullscreenHint("Rotate to landscape and tap Fullscreen.");
+      setShowRotatePrompt(true);
+      return false;
+    } finally {
+      setFullscreenPending(false);
+    }
+  }, []);
+
+  const exitFullscreenIfNeeded = useCallback(async () => {
+    try {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+    } catch {
+      // Ignore exit failures.
+    }
+  }, []);
+
+  async function handleFullscreenButton() {
+    setGestureUnlocked(true);
+    await tryLockLandscape();
+    await requestLandscapeFullscreen();
+  }
 
   useEffect(() => {
     const video = videoRef.current;
@@ -226,6 +305,69 @@ export function BlobPlayer({
   }, [likePulseKey]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(orientation: landscape)");
+    const updateLandscape = () => {
+      const compactMobileLandscape = media.matches && window.innerWidth <= 1024;
+      setLandscapeViewport(compactMobileLandscape);
+    };
+
+    updateLandscape();
+    media.addEventListener("change", updateLandscape);
+    window.addEventListener("orientationchange", updateLandscape);
+    window.addEventListener("resize", updateLandscape);
+
+    return () => {
+      media.removeEventListener("change", updateLandscape);
+      window.removeEventListener("orientationchange", updateLandscape);
+      window.removeEventListener("resize", updateLandscape);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const host = fullscreenHostRef.current;
+      const activeFullscreen = Boolean(host && document.fullscreenElement && (document.fullscreenElement === host || host.contains(document.fullscreenElement)));
+      setFullscreenActive(activeFullscreen);
+      if (!activeFullscreen && typeof window !== "undefined") {
+        window.scrollTo(0, scrollRestoreRef.current);
+      }
+    };
+
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!active || !gestureUnlocked || !sourceUrl) return;
+    if (landscapeViewport) {
+      void requestLandscapeFullscreen();
+      return;
+    }
+    setShowRotatePrompt(true);
+  }, [active, gestureUnlocked, landscapeViewport, requestLandscapeFullscreen, sourceUrl]);
+
+  useEffect(() => {
+    if (landscapeViewport) return;
+    void exitFullscreenIfNeeded();
+  }, [exitFullscreenIfNeeded, landscapeViewport]);
+
+  useEffect(() => {
+    if (!active) {
+      setShowRotatePrompt(false);
+    }
+  }, [active]);
+
+  useEffect(() => {
+    if (fullscreenActive) {
+      setShowRotatePrompt(false);
+      setFullscreenHint(null);
+    }
+  }, [fullscreenActive]);
+
+  useEffect(() => {
     return () => {
       if (tapTimerRef.current) {
         window.clearTimeout(tapTimerRef.current);
@@ -274,35 +416,43 @@ export function BlobPlayer({
   }
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[#020617]">
+    <div ref={playerShellRef} className="relative h-full w-full overflow-hidden bg-[#020617]">
       <PosterFallback blob={blob} />
 
-      {shouldLoad && !error ? (
-        <video
-          key={`${blob.id}-${retryToken}`}
-          ref={videoRef}
-          className="absolute inset-0 h-full w-full object-cover"
-          loop
-          muted={muted}
-          onEnded={() => {
-            if (active && !paused && videoRef.current) {
-              videoRef.current.currentTime = 0;
-              void videoRef.current.play().catch(() => undefined);
-            }
-          }}
-          onError={() => setError("Could not load this Blob")}
-          onLoadedData={() => setError(null)}
-          onTimeUpdate={() => {
-            const video = videoRef.current;
-            if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
-            setProgress(Math.min(1, video.currentTime / video.duration));
-          }}
-          playsInline
-          poster={blob.posterUrl ?? blob.thumbnailUrl}
-          preload={active ? "auto" : "metadata"}
-          src={sourceUrl ?? undefined}
-        />
-      ) : null}
+      <div
+        ref={fullscreenHostRef}
+        className="absolute inset-0 flex items-center justify-center bg-black"
+        style={landscapeViewport ? { height: "100dvh", width: "100vw" } : undefined}
+      >
+        <div className="relative aspect-video w-full max-h-full">
+          {shouldLoad && !error ? (
+            <video
+              key={`${blob.id}-${retryToken}`}
+              ref={videoRef}
+              className="absolute inset-0 h-full w-full object-contain"
+              loop
+              muted={muted}
+              onEnded={() => {
+                if (active && !paused && videoRef.current) {
+                  videoRef.current.currentTime = 0;
+                  void videoRef.current.play().catch(() => undefined);
+                }
+              }}
+              onError={() => setError("Could not load this Blob")}
+              onLoadedData={() => setError(null)}
+              onTimeUpdate={() => {
+                const video = videoRef.current;
+                if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
+                setProgress(Math.min(1, video.currentTime / video.duration));
+              }}
+              playsInline
+              poster={blob.posterUrl ?? blob.thumbnailUrl}
+              preload="metadata"
+              src={sourceUrl ?? undefined}
+            />
+          ) : null}
+        </div>
+      </div>
 
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.05)_0%,rgba(2,6,23,0.02)_20%,rgba(2,6,23,0.12)_68%,rgba(2,6,23,0.72)_100%)]" />
 
@@ -315,16 +465,29 @@ export function BlobPlayer({
 
       <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/60 to-transparent" />
 
-      <button
-        aria-label={muted ? "Unmute video" : "Mute video"}
-        data-blob-interactive="true"
-        className="absolute right-4 top-4 z-20 grid size-10 place-items-center rounded-full border border-white/10 bg-black/35 text-white backdrop-blur-md transition hover:border-white/20 hover:bg-black/45 md:right-6 md:top-6"
-        onClick={onToggleMute}
-        title={muted ? "Unmute" : "Mute"}
-        type="button"
-      >
-        {muted ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}
-      </button>
+      <div className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] z-20 flex items-center gap-2 md:right-6 md:top-6">
+        <button
+          aria-busy={fullscreenPending}
+          aria-label="Enter fullscreen"
+          data-blob-interactive="true"
+          className="grid min-h-11 min-w-11 place-items-center rounded-full border border-white/10 bg-black/45 text-white backdrop-blur-md transition hover:border-white/20 hover:bg-black/55"
+          onClick={handleFullscreenButton}
+          title="Fullscreen"
+          type="button"
+        >
+          {fullscreenPending ? <Loader2 className="size-5 animate-spin" /> : <Maximize2 className="size-5" />}
+        </button>
+        <button
+          aria-label={muted ? "Unmute video" : "Mute video"}
+          data-blob-interactive="true"
+          className="grid min-h-11 min-w-11 place-items-center rounded-full border border-white/10 bg-black/45 text-white backdrop-blur-md transition hover:border-white/20 hover:bg-black/55"
+          onClick={onToggleMute}
+          title={muted ? "Unmute" : "Mute"}
+          type="button"
+        >
+          {muted ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}
+        </button>
+      </div>
 
       <div
         aria-hidden="true"
@@ -372,6 +535,26 @@ export function BlobPlayer({
         </div>
       ) : null}
 
+      {active && sourceUrl && showRotatePrompt && !fullscreenActive ? (
+        <div className="pointer-events-none absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-20 w-[min(92vw,320px)] -translate-x-1/2">
+          <div className="pointer-events-auto rounded-2xl border border-white/15 bg-[rgba(6,10,24,0.72)] px-3 py-2.5 text-xs text-slate-100 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+            <div className="flex items-center gap-2">
+              <Smartphone className="size-4 shrink-0 text-cyan-200" />
+              <p className="min-w-0 flex-1 truncate">Rotate to fullscreen</p>
+              <button
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-cyan-300/30 bg-cyan-300/18 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-100 transition hover:bg-cyan-300/24"
+                data-blob-interactive="true"
+                onClick={handleFullscreenButton}
+                type="button"
+              >
+                Fullscreen
+              </button>
+            </div>
+            {fullscreenHint ? <p className="mt-1 text-[10px] leading-4 text-slate-300">{fullscreenHint}</p> : null}
+          </div>
+        </div>
+      ) : null}
+
       <div
         className="absolute inset-0 z-10"
         onPointerDown={(event) => {
@@ -391,6 +574,15 @@ export function BlobPlayer({
         onPointerUp={(event) => {
           if (!touchStartRef.current) return;
           clearLongPressTimer();
+          if (active) {
+            setGestureUnlocked(true);
+            void tryLockLandscape();
+            if (landscapeViewport) {
+              void requestLandscapeFullscreen();
+            } else {
+              setShowRotatePrompt(true);
+            }
+          }
           handleTap(event.clientX, event.clientY);
           touchStartRef.current = null;
           resumeHoldPause();
