@@ -1,4 +1,4 @@
-:HL["/AnavrinTV/_next/static/chunks/0l_00pp7rnauw.css","style"]
+:HL["/AnavrinTV/_next/static/chunks/0287c2p7g_bps.css","style"]
 :HL["/AnavrinTV/_next/static/media/0c89a48fa5027cee-s.p.0rd3rjvnnhw7n.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
 :HL["/AnavrinTV/_next/static/media/a343f882a40d2cc9-s.p.0kho-wj7-y-w1.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-0:{"tree":{"name":"","param":null,"prefetchHints":16,"slots":{"children":{"name":"video","param":null,"prefetchHints":0,"slots":{"children":{"name":"id","param":{"type":"d","key":"live-music-drop-night-harbor","siblings":null},"prefetchHints":0,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":0,"slots":null}}}}}}},"staleTime":300,"buildId":"HXPrHEhUZAbop1D9kVw22"}
+0:{"tree":{"name":"","param":null,"prefetchHints":16,"slots":{"children":{"name":"video","param":null,"prefetchHints":0,"slots":{"children":{"name":"id","param":{"type":"d","key":"live-music-drop-night-harbor","siblings":null},"prefetchHints":0,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":0,"slots":null}}}}}}},"staleTime":300,"buildId":"Q0V1kav79Hg17wZvQTshQ"}
