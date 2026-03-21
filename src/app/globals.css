@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
 @import "tailwindcss";
 
 :root {
@@ -187,5 +188,450 @@
 
   .glass-strong {
     @apply border border-white/20 bg-[var(--glass-strong)] backdrop-blur-xl;
+  }
+}
+
+/* ============================================================
+   ANAVRIN TV — YouTube-but-better theme
+   Imported after Tailwind base styles.
+   ============================================================ */
+
+/* ─── TOKENS ─── */
+:root {
+  --bg: #0f0f0f;
+  --surface: #1a1a1a;
+  --surface2: #232323;
+  --border: #2e2e2e;
+  --accent: #ff4444;
+  --accent2: #ff8c00;
+  --text1: #f1f1f1;
+  --text2: #aaaaaa;
+  --text3: #666666;
+  --radius: 12px;
+  --font: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ─── GLOBAL ─── */
+* {
+  font-family: var(--font) !important;
+}
+
+body {
+  background: var(--bg) !important;
+  color: var(--text1) !important;
+}
+
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* ============================================================
+   HEADER / NAVBAR
+   ============================================================ */
+header {
+  background: rgba(15, 15, 15, 0.97) !important;
+  backdrop-filter: blur(14px) !important;
+  border-bottom: 1px solid var(--border) !important;
+  box-shadow: 0 2px 24px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* ATV logo pill */
+header [href="/"] > span:first-child,
+header [href="/"] > div:first-child {
+  background: linear-gradient(135deg, #ff4444 0%, #ff8c00 100%) !important;
+  box-shadow: 0 0 18px rgba(255, 68, 68, 0.5) !important;
+  border-radius: 10px !important;
+  font-weight: 900 !important;
+  color: white !important;
+}
+
+/* Site name */
+header .font-semibold,
+header .font-bold,
+header .font-extrabold {
+  font-weight: 800 !important;
+  color: var(--text1) !important;
+  letter-spacing: -0.3px !important;
+}
+
+/* Tagline (SUI CREATOR DESK) */
+header .text-\[10px\],
+header .text-xs:not(input) {
+  color: var(--accent) !important;
+  letter-spacing: 2px !important;
+  font-weight: 700 !important;
+}
+
+/* Search bar */
+header input[type="text"],
+header input[type="search"],
+header input[placeholder] {
+  background: var(--surface2) !important;
+  border: 1.5px solid var(--border) !important;
+  border-radius: 100px !important;
+  color: var(--text1) !important;
+  font-size: 14px !important;
+  transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+
+header input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(255, 68, 68, 0.18) !important;
+  outline: none !important;
+}
+
+header input::placeholder {
+  color: var(--text3) !important;
+}
+
+header form {
+  border-radius: 100px !important;
+  overflow: hidden !important;
+}
+
+/* Create / Upload button */
+header a[href*="upload"] {
+  background: linear-gradient(135deg, var(--accent), var(--accent2)) !important;
+  color: white !important;
+  font-weight: 700 !important;
+  border-radius: 100px !important;
+  border: none !important;
+  box-shadow: 0 0 16px rgba(255, 68, 68, 0.35) !important;
+  transition: transform 0.15s, box-shadow 0.15s !important;
+}
+
+header a[href*="upload"]:hover {
+  transform: scale(1.05) !important;
+  box-shadow: 0 0 24px rgba(255, 68, 68, 0.55) !important;
+}
+
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+aside,
+nav[aria-label] {
+  background: var(--bg) !important;
+  border-right: 1px solid var(--border) !important;
+}
+
+aside a {
+  color: var(--text2) !important;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  transition: background 0.18s, color 0.18s !important;
+}
+
+aside a:hover {
+  background: var(--surface2) !important;
+  color: var(--text1) !important;
+}
+
+aside a[href="/"]:first-child,
+aside a[aria-current] {
+  background: linear-gradient(135deg, rgba(255, 68, 68, 0.15), rgba(255, 140, 0, 0.08)) !important;
+  color: var(--accent) !important;
+  border-left: 3px solid var(--accent) !important;
+}
+
+/* ============================================================
+   MAIN / PAGE BODY
+   ============================================================ */
+main {
+  background: var(--bg) !important;
+}
+
+/* Section label (HOME / RECOMMENDED / TRENDING) */
+.section-label {
+  color: var(--accent) !important;
+  font-weight: 800 !important;
+  letter-spacing: 3px !important;
+  font-size: 10px !important;
+  text-transform: uppercase !important;
+}
+
+/* Page headings */
+main h1 {
+  font-size: 30px !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.6px !important;
+  color: var(--text1) !important;
+  line-height: 1.15 !important;
+}
+
+main h2 {
+  font-size: 26px !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.5px !important;
+  color: var(--text1) !important;
+}
+
+main p {
+  color: var(--text2) !important;
+}
+
+/* Section spacing */
+main section {
+  margin-bottom: 40px !important;
+}
+
+.space-y-6 > * + * {
+  margin-top: 40px !important;
+}
+
+.space-y-4 > * + * {
+  margin-top: 16px !important;
+}
+
+/* Top hero flex — stack vertically so KPI grid goes full-width */
+.flex.flex-wrap.items-end.justify-between {
+  flex-direction: column !important;
+  gap: 20px !important;
+}
+
+.flex.flex-wrap.items-end.justify-between .max-w-3xl {
+  max-width: 100% !important;
+}
+
+/* ─── KPI STAT CARDS ─── */
+/* Force all 4 into one row */
+.grid.gap-2.sm\:grid-cols-2.xl\:grid-cols-4 {
+  grid-template-columns: repeat(4, 1fr) !important;
+  width: 100% !important;
+  gap: 12px !important;
+}
+
+.kpi {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  padding: 18px 20px !important;
+  position: relative !important;
+  overflow: hidden !important;
+  transition: border-color 0.22s, transform 0.18s, box-shadow 0.2s !important;
+}
+
+.kpi::before {
+  content: "" !important;
+  position: absolute !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px !important;
+  background: linear-gradient(90deg, var(--accent), var(--accent2)) !important;
+  opacity: 0 !important;
+  transition: opacity 0.2s !important;
+}
+
+.kpi:hover::before {
+  opacity: 1 !important;
+}
+
+.kpi:hover {
+  border-color: var(--accent) !important;
+  transform: translateY(-3px) !important;
+  box-shadow: 0 8px 30px rgba(255, 68, 68, 0.12) !important;
+}
+
+.kpi p:first-child {
+  color: var(--text3) !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 2.5px !important;
+  text-transform: uppercase !important;
+}
+
+.kpi p:last-child {
+  color: var(--text1) !important;
+  font-size: 24px !important;
+  font-weight: 900 !important;
+  margin-top: 8px !important;
+  letter-spacing: -1px !important;
+}
+
+/* ─── CATEGORY CHIPS ─── */
+a[href*="category="] {
+  display: inline-flex !important;
+  align-items: center !important;
+  background: #222 !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text2) !important;
+  border-radius: 100px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  padding: 7px 16px !important;
+  text-decoration: none !important;
+  transition: all 0.18s !important;
+  white-space: nowrap !important;
+}
+
+a[href*="category="]:hover {
+  background: #2e2e2e !important;
+  border-color: var(--accent) !important;
+  color: var(--text1) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* "All videos" chip (has SVG icon, links to /browse or /browse/) */
+a[href="/browse"]:has(svg),
+a[href="/browse/"]:has(svg) {
+  display: inline-flex !important;
+  align-items: center !important;
+  background: var(--accent) !important;
+  border: 1px solid var(--accent) !important;
+  color: white !important;
+  border-radius: 100px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  padding: 7px 16px !important;
+  text-decoration: none !important;
+  box-shadow: 0 0 14px rgba(255, 68, 68, 0.35) !important;
+}
+
+/* "Browse all" / "View feed" buttons */
+a[href="/browse"]:not(:has(svg)),
+a[href="/browse/"]:not(:has(svg)) {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  background: var(--surface2) !important;
+  border: 1.5px solid var(--border) !important;
+  color: var(--text2) !important;
+  border-radius: 100px !important;
+  padding: 8px 20px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  text-decoration: none !important;
+  transition: all 0.18s !important;
+}
+
+a[href="/browse"]:not(:has(svg)):hover,
+a[href="/browse/"]:not(:has(svg)):hover {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: white !important;
+}
+
+/* ============================================================
+   VIDEO CARDS
+   ============================================================ */
+
+/* Card grid — 2 columns, scales up on wider screens */
+.grid.gap-4.sm\:grid-cols-2.xl\:grid-cols-3.\32xl\:grid-cols-4 {
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 18px !important;
+}
+
+article {
+  border-radius: var(--radius) !important;
+  background: transparent !important;
+  transition: transform 0.22s !important;
+}
+
+article:hover {
+  transform: translateY(-5px) !important;
+}
+
+/* Thumbnail container */
+article .aspect-video {
+  border-radius: var(--radius) !important;
+  overflow: hidden !important;
+}
+
+article .aspect-video img {
+  transition: transform 0.4s !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+article:hover .aspect-video img {
+  transform: scale(1.04) !important;
+}
+
+/* Gradient overlay on thumbnail */
+article .aspect-video .absolute:first-child {
+  background: linear-gradient(180deg, rgba(5, 9, 18, 0.05) 0%, rgba(5, 9, 18, 0.6) 100%) !important;
+}
+
+/* Duration badge */
+article .aspect-video .absolute.bottom-3 {
+  background: rgba(0, 0, 0, 0.85) !important;
+  backdrop-filter: blur(6px) !important;
+  border-radius: 6px !important;
+  color: white !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.3px !important;
+}
+
+/* Avatar circle */
+article .size-9 {
+  border-radius: 50% !important;
+  background: linear-gradient(135deg, var(--accent), var(--accent2)) !important;
+  border: none !important;
+  box-shadow: 0 0 10px rgba(255, 68, 68, 0.3) !important;
+}
+
+/* Video title */
+article .line-clamp-2 {
+  color: var(--text1) !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  line-height: 1.35 !important;
+  transition: color 0.18s !important;
+}
+
+article:hover .line-clamp-2 {
+  color: var(--accent) !important;
+}
+
+/* Channel / meta text */
+article .text-slate-300 {
+  color: var(--text3) !important;
+  font-size: 12px !important;
+}
+
+article .text-slate-400 {
+  color: var(--text3) !important;
+  font-size: 12px !important;
+}
+
+/* ─── ENTRANCE ANIMATIONS ─── */
+main > div > section {
+  animation: fadeUp 0.4s ease both;
+}
+
+main > div > section:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+main > div > section:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
