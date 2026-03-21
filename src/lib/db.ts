@@ -23,6 +23,7 @@ import type {
   BlobCommentRecord,
   BlobFollowRecord,
   BlobLikeRecord,
+  VideoBookmarkRecord,
   ReportRecord,
   PlatformSettings,
   SiteMetrics,
@@ -285,6 +286,15 @@ function normalizeDb(db: Partial<Database> & { videos?: Partial<VideoRecord>[]; 
         createdAt: report.createdAt ?? timestamp(),
       }))
     : [];
+  const videoBookmarks = Array.isArray(db.videoBookmarks)
+    ? db.videoBookmarks.map((record) =>
+        normalizeVideoBookmarkRecord({
+          ...(record ?? {}),
+          videoId: record.videoId ?? "",
+          userAddress: record.userAddress ?? "0x0",
+        }),
+      )
+    : [];
   const blobLikes = Array.isArray(db.blobLikes)
     ? db.blobLikes.map((record) =>
         normalizeBlobLikeRecord({
@@ -323,6 +333,7 @@ function normalizeDb(db: Partial<Database> & { videos?: Partial<VideoRecord>[]; 
     videos,
     reports,
     accounts,
+    videoBookmarks,
     blobLikes,
     blobFollows,
     blobComments,
@@ -486,6 +497,17 @@ function normalizeBlobCommentRecord(
     body: record.body?.trim() || "",
     createdAt: record.createdAt ?? timestamp(),
     pinned: Boolean(record.pinned),
+  };
+}
+
+function normalizeVideoBookmarkRecord(
+  record: Partial<VideoBookmarkRecord> & Pick<VideoBookmarkRecord, "videoId" | "userAddress">,
+): VideoBookmarkRecord {
+  return {
+    id: record.id ?? crypto.randomUUID(),
+    videoId: record.videoId,
+    userAddress: normalizeAddress(record.userAddress),
+    createdAt: record.createdAt ?? timestamp(),
   };
 }
 
@@ -772,6 +794,87 @@ export async function getAccountByUsername(username: string) {
       (account) => normalizeUsernameInput(account.username || account.handle) === normalized,
     ) ?? null
   );
+}
+
+function resolveWatchLaterVideos(db: Database, userAddress: string) {
+  const normalizedAddress = normalizeAddress(userAddress);
+  if (!normalizedAddress) return [];
+
+  const saved = [...db.videoBookmarks]
+    .filter((record) => normalizeAddress(record.userAddress) === normalizedAddress)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const seen = new Set<string>();
+  const watchLater: VideoRecord[] = [];
+
+  for (const record of saved) {
+    if (!record.videoId || seen.has(record.videoId)) continue;
+    const video = db.videos.find((item) => item.id === record.videoId);
+    if (!video) continue;
+
+    const ownsVideo = normalizeAddress(video.ownerAddress) === normalizedAddress;
+    const visibleToViewer = video.visibility === "public" && video.status !== "hidden";
+    if (!ownsVideo && !visibleToViewer) continue;
+
+    watchLater.push(video);
+    seen.add(record.videoId);
+  }
+
+  return watchLater;
+}
+
+export async function getVideoBookmarkStatus(input: { videoId: string; userAddress: string }) {
+  const db = await loadDb();
+  const videoId = input.videoId.trim();
+  const userAddress = normalizeAddress(input.userAddress);
+  if (!videoId || !userAddress) return false;
+
+  return db.videoBookmarks.some(
+    (record) => record.videoId === videoId && normalizeAddress(record.userAddress) === userAddress,
+  );
+}
+
+export async function setVideoBookmark(input: { videoId: string; userAddress: string; saved?: boolean }) {
+  const db = await loadDb();
+  const videoId = input.videoId.trim();
+  const userAddress = normalizeAddress(input.userAddress);
+  if (!videoId || !userAddress) return null;
+
+  const video = db.videos.find((item) => item.id === videoId);
+  if (!video) return null;
+
+  const matches = db.videoBookmarks.filter(
+    (record) => record.videoId === videoId && normalizeAddress(record.userAddress) === userAddress,
+  );
+  const desiredSaved = typeof input.saved === "boolean" ? input.saved : !matches.length;
+
+  db.videoBookmarks = db.videoBookmarks.filter(
+    (record) => !(record.videoId === videoId && normalizeAddress(record.userAddress) === userAddress),
+  );
+
+  if (desiredSaved) {
+    db.videoBookmarks.unshift(
+      normalizeVideoBookmarkRecord({
+        videoId,
+        userAddress,
+      }),
+    );
+  }
+
+  const changed = desiredSaved ? matches.length !== 1 : matches.length !== 0;
+  if (changed) {
+    const actor = db.accounts.find((account) => normalizeAddress(account.address) === userAddress);
+    if (actor) {
+      actor.lastActiveAt = timestamp();
+    }
+    await saveDb(db);
+  }
+
+  return { video, saved: desiredSaved };
+}
+
+export async function getWatchLaterVideos(userAddress: string) {
+  const db = await loadDb();
+  return resolveWatchLaterVideos(db, userAddress);
 }
 
 export async function getBlobComments(blobId: string, limit = 100) {
@@ -1168,6 +1271,7 @@ export async function removeVideo(id: string) {
 
   resolveReportsForVideo(db, id);
   const [video] = db.videos.splice(index, 1);
+  db.videoBookmarks = db.videoBookmarks.filter((record) => record.videoId !== id);
   if (video?.asset?.sealedPath) {
     const sealedAbsolutePath = join(/* turbopackIgnore: true */ process.cwd(), video.asset.sealedPath);
     try {
@@ -1356,9 +1460,11 @@ export async function getDashboardSnapshot(address?: string) {
   const owned = normalizedAddress
     ? db.videos.filter((video) => normalizeAddress(video.ownerAddress) === normalizedAddress)
     : [];
+  const watchLaterVideos = normalizedAddress ? resolveWatchLaterVideos(db, normalizedAddress) : [];
   return {
     metrics: computeMetrics(db),
     videos: owned,
+    watchLaterVideos,
     account: normalizedAddress
       ? db.accounts.find((item) => normalizeAddress(item.address) === normalizedAddress) ?? null
       : null,

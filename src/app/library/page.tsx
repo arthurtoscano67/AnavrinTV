@@ -102,6 +102,7 @@ function buildFallbackDashboardSnapshot(address: string, walletName?: string | n
   return {
     metrics: seeded.metrics,
     videos: owned,
+    watchLaterVideos: [],
     account,
     reports: openReports,
     settings: seeded.settings,
@@ -348,6 +349,7 @@ export default function LibraryPage() {
 
   const accountRecord = snapshot?.account ?? null;
   const activeVideos = snapshot?.videos ?? EMPTY_VIDEOS;
+  const watchLaterVideos = snapshot?.watchLaterVideos ?? EMPTY_VIDEOS;
 
   useEffect(() => {
     if (!account?.address) {
@@ -603,7 +605,49 @@ export default function LibraryPage() {
             Renewal {accountRecord ? formatDate(accountRecord.renewalAt) : "Loading..."}
           </span>
           <span className="chip">{formatCompact(filteredVideos.length)} visible</span>
+          <span className="chip">{formatCompact(watchLaterVideos.length)} watch later</span>
         </div>
+      </section>
+
+      <section className="surface p-5 md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="section-label">Watch later</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">Saved videos</h2>
+            <p className="mt-2 text-sm text-slate-300">
+              Bookmarks are scoped to your connected wallet and follow you across sessions.
+            </p>
+          </div>
+          <span className="chip">{formatCompact(watchLaterVideos.length)} saved</span>
+        </div>
+
+        {watchLaterVideos.length ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {watchLaterVideos.slice(0, 6).map((video) => (
+              <Link
+                key={video.id}
+                href={`/video/${video.id}`}
+                className="group rounded-2xl border border-white/10 bg-white/5 p-3 transition hover:border-cyan-300/35 hover:bg-cyan-300/5"
+              >
+                <div
+                  className="h-28 rounded-xl border border-white/10"
+                  style={{
+                    background: `linear-gradient(135deg, ${video.coverFrom}, ${video.coverVia} 58%, ${video.coverTo})`,
+                  }}
+                />
+                <p className="mt-3 line-clamp-1 text-sm font-semibold text-white group-hover:text-cyan-100">{video.title}</p>
+                <div className="mt-2 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-slate-400">
+                  <span>{video.category}</span>
+                  <span>{formatDate(video.updatedAt)}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
+            Save a video with the bookmark button on the player page to add it here.
+          </div>
+        )}
       </section>
 
       <section id="content" className="surface overflow-hidden p-0">

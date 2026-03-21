@@ -163,6 +163,13 @@ export interface BlobCommentRecord {
   pinned?: boolean;
 }
 
+export interface VideoBookmarkRecord {
+  id: string;
+  videoId: string;
+  userAddress: string;
+  createdAt: string;
+}
+
 export interface SiteMetrics {
   visitorsToday: number;
   activeStreams: number;
@@ -184,6 +191,7 @@ export interface Database {
   videos: VideoRecord[];
   reports: ReportRecord[];
   accounts: WalletSession[];
+  videoBookmarks: VideoBookmarkRecord[];
   blobLikes: BlobLikeRecord[];
   blobFollows: BlobFollowRecord[];
   blobComments: BlobCommentRecord[];
@@ -214,6 +222,7 @@ export interface StorageHealthSummary {
 export interface DashboardSnapshot {
   metrics: SiteMetrics;
   videos: VideoRecord[];
+  watchLaterVideos: VideoRecord[];
   account: WalletSession | null;
   reports: ReportRecord[];
   settings: PlatformSettings;

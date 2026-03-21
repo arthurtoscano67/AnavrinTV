@@ -50,6 +50,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
   const [showMorePanel, setShowMorePanel] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [submittingTip, setSubmittingTip] = useState(false);
+  const [bookmarkPending, setBookmarkPending] = useState(false);
   const [tipAmount, setTipAmount] = useState("1");
   const [platform, setPlatform] = useState(defaultPlatformSettings());
 
@@ -74,6 +75,50 @@ export function VideoActions({ video }: { video: VideoRecord }) {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    setLikes(video.likes);
+    setTips(video.tips);
+    setSaved(false);
+    setDisliked(false);
+  }, [video.id, video.likes, video.tips]);
+
+  useEffect(() => {
+    let active = true;
+    const address = account?.address?.trim().toLowerCase() ?? "";
+
+    if (!address) {
+      setSaved(false);
+      setBookmarkPending(false);
+      return () => {
+        active = false;
+      };
+    }
+
+    async function loadBookmarkStatus() {
+      setBookmarkPending(true);
+      try {
+        const data = (await jsonFetch(
+          `/api/videos/${video.id}/bookmark?address=${encodeURIComponent(address)}`,
+        )) as { saved?: boolean };
+        if (!active) return;
+        setSaved(Boolean(data.saved));
+      } catch {
+        if (!active) return;
+        setSaved(false);
+      } finally {
+        if (active) {
+          setBookmarkPending(false);
+        }
+      }
+    }
+
+    void loadBookmarkStatus();
+
+    return () => {
+      active = false;
+    };
+  }, [account?.address, video.id]);
 
   const tipPreview = useMemo(() => {
     const amount = Number(tipAmount);
@@ -167,6 +212,34 @@ export function VideoActions({ video }: { video: VideoRecord }) {
     setStatus("Report sent.");
   }
 
+  async function handleBookmark() {
+    const address = account?.address?.trim().toLowerCase();
+    if (!address) {
+      setStatus("Connect a wallet to save this video.");
+      return;
+    }
+
+    if (bookmarkPending) return;
+    setBookmarkPending(true);
+
+    try {
+      const next = (await jsonFetch(`/api/videos/${video.id}/bookmark`, {
+        method: "POST",
+        body: JSON.stringify({
+          address,
+          saved: !saved,
+        }),
+      })) as { saved?: boolean };
+      const nextSaved = Boolean(next.saved);
+      setSaved(nextSaved);
+      setStatus(nextSaved ? "Saved to watch later." : "Removed from watch later.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not update bookmark.");
+    } finally {
+      setBookmarkPending(false);
+    }
+  }
+
   function setQuickTip(value: number) {
     setTipAmount(String(value));
   }
@@ -206,14 +279,12 @@ export function VideoActions({ video }: { video: VideoRecord }) {
 
         <button
           className={actionClass(saved)}
-          onClick={() => {
-            setSaved((current) => !current);
-            setStatus(saved ? "Removed from saved." : "Saved to your profile.");
-          }}
+          disabled={bookmarkPending}
+          onClick={handleBookmark}
           type="button"
         >
           <Bookmark className="size-4" />
-          Save
+          {bookmarkPending ? "Saving..." : "Save"}
         </button>
 
         <button

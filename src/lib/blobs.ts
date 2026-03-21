@@ -30,6 +30,7 @@ export interface BlobItem {
   tipEnabled: boolean;
   followable: boolean;
   likedByUser: boolean;
+  bookmarkedByUser: boolean;
   followedByUser: boolean;
   createdAt: string;
   duration: string;
@@ -51,6 +52,7 @@ export interface BlobItem {
 export interface BlobUserState {
   likedAdjustments: Record<string, number>;
   likedIds: Record<string, boolean>;
+  bookmarkedIds: Record<string, boolean>;
   followedHandles: Record<string, boolean>;
   shareAdjustments: Record<string, number>;
   commentDrafts: Record<string, string>;
@@ -192,6 +194,7 @@ export function mapVideoToBlobItem(
     tipEnabled: isPublicBlob,
     followable: true,
     likedByUser: false,
+    bookmarkedByUser: false,
     followedByUser: false,
     createdAt: video.publishedAt || video.createdAt,
     duration: video.duration,
@@ -257,6 +260,7 @@ export const blobSeed: BlobItem[] = [
     tipEnabled: true,
     followable: true,
     likedByUser: false,
+    bookmarkedByUser: false,
     followedByUser: true,
     createdAt: "2026-03-20T14:12:00.000Z",
     duration: "0:12",
@@ -307,6 +311,7 @@ export const blobSeed: BlobItem[] = [
     tipEnabled: true,
     followable: true,
     likedByUser: false,
+    bookmarkedByUser: false,
     followedByUser: false,
     createdAt: "2026-03-20T13:42:00.000Z",
     duration: "0:24",
@@ -357,6 +362,7 @@ export const blobSeed: BlobItem[] = [
     tipEnabled: true,
     followable: true,
     likedByUser: false,
+    bookmarkedByUser: false,
     followedByUser: false,
     createdAt: "2026-03-20T12:20:00.000Z",
     duration: "0:18",
@@ -407,6 +413,7 @@ export const blobSeed: BlobItem[] = [
     tipEnabled: true,
     followable: true,
     likedByUser: false,
+    bookmarkedByUser: false,
     followedByUser: false,
     createdAt: "2026-03-20T11:16:00.000Z",
     duration: "0:30",
@@ -457,6 +464,7 @@ export const blobSeed: BlobItem[] = [
     tipEnabled: true,
     followable: true,
     likedByUser: false,
+    bookmarkedByUser: false,
     followedByUser: false,
     createdAt: "2026-03-20T10:48:00.000Z",
     duration: "0:20",
@@ -500,6 +508,7 @@ export const blobSeed: BlobItem[] = [
     tipEnabled: false,
     followable: true,
     likedByUser: false,
+    bookmarkedByUser: false,
     followedByUser: true,
     createdAt: "2026-03-20T09:30:00.000Z",
     duration: "0:14",
@@ -527,6 +536,7 @@ export function createBlobUserState(): BlobUserState {
   return {
     likedAdjustments: {},
     likedIds: {},
+    bookmarkedIds: {},
     followedHandles: {},
     shareAdjustments: {},
     commentDrafts: {},

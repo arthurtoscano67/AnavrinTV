@@ -56,11 +56,20 @@ export async function GET(request: NextRequest) {
           .map((record) => record.creatorAddress.trim().toLowerCase()),
       )
     : null;
+  const userBookmarkedVideoIds = address
+    ? new Set(
+        db.videoBookmarks
+          .filter((record) => record.userAddress.trim().toLowerCase() === address)
+          .map((record) => record.videoId),
+      )
+    : null;
 
   const blobs = buildBlobFeedFromVideos(publicVideos, accountsByAddress)
     .map((blob) => ({
       ...blob,
       likedByUser: userLikedBlobIds ? userLikedBlobIds.has(blob.id) : blob.likedByUser,
+      bookmarkedByUser:
+        userBookmarkedVideoIds && blob.videoId ? userBookmarkedVideoIds.has(blob.videoId) : blob.bookmarkedByUser,
       followedByUser: userFollowedCreatorAddresses
         ? userFollowedCreatorAddresses.has((blob.creatorAddress ?? "").trim().toLowerCase())
         : blob.followedByUser,

@@ -106,6 +106,7 @@ export function BlobFeed() {
   const [loadingPlatform, setLoadingPlatform] = useState(true);
   const [loadingFeed, setLoadingFeed] = useState(true);
   const [pendingLike, setPendingLike] = useState(false);
+  const [pendingBookmark, setPendingBookmark] = useState(false);
   const [pendingComment, setPendingComment] = useState(false);
   const [pendingShareAction, setPendingShareAction] = useState<BlobShareAction | null>(null);
   const [pendingFollow, setPendingFollow] = useState(false);
@@ -203,6 +204,7 @@ export function BlobFeed() {
         ...createBlobUserState(),
         likedAdjustments: parsed.likedAdjustments ?? {},
         likedIds: parsed.likedIds ?? {},
+        bookmarkedIds: parsed.bookmarkedIds ?? {},
         followedHandles: parsed.followedHandles ?? {},
         shareAdjustments: parsed.shareAdjustments ?? {},
         commentDrafts: parsed.commentDrafts ?? {},
@@ -222,6 +224,7 @@ export function BlobFeed() {
           muted: userState.muted,
           likedAdjustments: userState.likedAdjustments,
           likedIds: userState.likedIds,
+          bookmarkedIds: userState.bookmarkedIds,
           followedHandles: userState.followedHandles,
           shareAdjustments: userState.shareAdjustments,
           commentDrafts: userState.commentDrafts,
@@ -236,6 +239,7 @@ export function BlobFeed() {
     userState.commentDrafts,
     userState.commentsByBlobId,
     userState.followedHandles,
+    userState.bookmarkedIds,
     userState.likedAdjustments,
     userState.likedIds,
     userState.muted,
@@ -314,12 +318,14 @@ export function BlobFeed() {
 
   function applyUserStateToBlob(blob: BlobItem) {
     const likedOverride = userState.likedIds[blob.id];
+    const bookmarkedOverride = userState.bookmarkedIds[blob.id];
     const likesDelta = userState.likedAdjustments[blob.id] ?? 0;
     const followedOverride = userState.followedHandles[creatorFollowKey(blob)];
 
     return {
       ...blob,
       likedByUser: typeof likedOverride === "boolean" ? likedOverride : blob.likedByUser,
+      bookmarkedByUser: typeof bookmarkedOverride === "boolean" ? bookmarkedOverride : blob.bookmarkedByUser,
       followedByUser: typeof followedOverride === "boolean" ? followedOverride : blob.followedByUser,
       likesCount: Math.max(0, blob.likesCount + likesDelta),
       sharesCount: Math.max(0, blob.sharesCount + (userState.shareAdjustments[blob.id] ?? 0)),
@@ -593,6 +599,95 @@ export function BlobFeed() {
       setToast(error instanceof Error ? error.message : "Could not update like.");
     } finally {
       setPendingLike(false);
+    }
+  }
+
+  async function handleBookmark() {
+    if (!currentBlob) return;
+    if (pendingBookmark) return;
+
+    const actorAddress = account?.address ?? null;
+    const previousBookmarked =
+      typeof userState.bookmarkedIds[currentBlob.id] === "boolean"
+        ? userState.bookmarkedIds[currentBlob.id]
+        : currentBlob.bookmarkedByUser;
+    const desiredBookmarked = !previousBookmarked;
+
+    if (!currentBlob.videoId) {
+      updateUserState((current) => ({
+        ...current,
+        bookmarkedIds: {
+          ...current.bookmarkedIds,
+          [currentBlob.id]: desiredBookmarked,
+        },
+      }));
+      setToast(desiredBookmarked ? "Saved to watch later." : "Removed from watch later.");
+      return;
+    }
+
+    if (!actorAddress) {
+      requestConnectFlow("Connect a wallet to save Blobs.");
+      return;
+    }
+
+    setPendingBookmark(true);
+
+    const blobId = currentBlob.id;
+    const videoId = currentBlob.videoId;
+
+    updateLiveBlob(blobId, {
+      bookmarkedByUser: desiredBookmarked,
+    });
+    updateUserState((current) => ({
+      ...current,
+      bookmarkedIds: {
+        ...current.bookmarkedIds,
+        [blobId]: desiredBookmarked,
+      },
+    }));
+
+    try {
+      const response = await fetch(`/api/videos/${encodeURIComponent(videoId)}/bookmark`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          address: actorAddress,
+          saved: desiredBookmarked,
+        }),
+      });
+      const data = (await response.json()) as { saved?: boolean; error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not update bookmark.");
+      }
+
+      const syncedBookmarked = typeof data.saved === "boolean" ? data.saved : desiredBookmarked;
+      updateLiveBlob(blobId, {
+        bookmarkedByUser: syncedBookmarked,
+      });
+      updateUserState((current) => ({
+        ...current,
+        bookmarkedIds: {
+          ...current.bookmarkedIds,
+          [blobId]: syncedBookmarked,
+        },
+      }));
+      setToast(syncedBookmarked ? "Saved to watch later." : "Removed from watch later.");
+    } catch (error) {
+      updateLiveBlob(blobId, {
+        bookmarkedByUser: previousBookmarked,
+      });
+      updateUserState((current) => ({
+        ...current,
+        bookmarkedIds: {
+          ...current.bookmarkedIds,
+          [blobId]: previousBookmarked,
+        },
+      }));
+      setToast(error instanceof Error ? error.message : "Could not update bookmark.");
+    } finally {
+      setPendingBookmark(false);
     }
   }
 
@@ -1210,6 +1305,7 @@ export function BlobFeed() {
           const baseBlob = isActive && currentBlob ? currentBlob : blob;
           const renderBlob = applyUserStateToBlob(baseBlob);
           const liked = Boolean(renderBlob.likedByUser);
+          const bookmarked = Boolean(renderBlob.bookmarkedByUser);
           const followed = Boolean(renderBlob.followedByUser);
           const isCreatorOwner =
             Boolean(account?.address) &&
@@ -1262,13 +1358,16 @@ export function BlobFeed() {
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 md:hidden">
                       <BlobActions
                         blob={renderBlob}
+                        bookmarked={bookmarked}
                         isCreatorOwner={isCreatorOwner}
                         followed={followed}
                         liked={liked}
+                        pendingBookmark={isActive ? pendingBookmark : false}
                         pendingComment={isActive ? pendingComment : false}
                         pendingFollow={isActive ? pendingFollow : false}
                         pendingLike={isActive ? pendingLike : false}
                         pendingShare={isActive ? pendingShareAction !== null : false}
+                        onBookmark={handleBookmark}
                         onComment={() => setCommentsOpen(true)}
                         onLike={handleLike}
                         onOpenOwnProfile={() => handleOpenOwnProfile()}
@@ -1283,13 +1382,16 @@ export function BlobFeed() {
                 <div className="hidden md:flex md:flex-none md:items-center">
                   <BlobActions
                     blob={renderBlob}
+                    bookmarked={bookmarked}
                     isCreatorOwner={isCreatorOwner}
                     followed={followed}
                     liked={liked}
+                    pendingBookmark={isActive ? pendingBookmark : false}
                     pendingComment={isActive ? pendingComment : false}
                     pendingFollow={isActive ? pendingFollow : false}
                     pendingLike={isActive ? pendingLike : false}
                     pendingShare={isActive ? pendingShareAction !== null : false}
+                    onBookmark={handleBookmark}
                     onComment={() => setCommentsOpen(true)}
                     onLike={handleLike}
                     onOpenOwnProfile={() => handleOpenOwnProfile()}

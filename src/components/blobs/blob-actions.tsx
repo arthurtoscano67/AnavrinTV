@@ -2,6 +2,7 @@
 
 import type { SyntheticEvent } from "react";
 import {
+  Bookmark,
   Gift,
   Heart,
   Loader2,
@@ -19,14 +20,17 @@ import type { BlobItem } from "@/lib/blobs";
 type BlobActionsProps = {
   blob: BlobItem;
   liked: boolean;
+  bookmarked: boolean;
   followed: boolean;
   isCreatorOwner: boolean;
   pendingLike?: boolean;
   pendingComment?: boolean;
   pendingShare?: boolean;
+  pendingBookmark?: boolean;
   pendingTip?: boolean;
   pendingFollow?: boolean;
   onLike: () => void;
+  onBookmark: () => void;
   onComment: () => void;
   onShare: () => void;
   onTip: () => void;
@@ -97,14 +101,17 @@ function ActionButton({
 export function BlobActions({
   blob,
   liked,
+  bookmarked,
   followed,
   isCreatorOwner,
   pendingLike,
   pendingComment,
   pendingShare,
+  pendingBookmark,
   pendingTip,
   pendingFollow,
   onLike,
+  onBookmark,
   onComment,
   onShare,
   onTip,
@@ -140,6 +147,14 @@ export function BlobActions({
         onClick={onShare}
         tooltip="Share"
         value={formatCompact(blob.sharesCount)}
+      />
+      <ActionButton
+        active={bookmarked}
+        icon={Bookmark}
+        label={bookmarked ? "Saved" : "Save"}
+        loading={pendingBookmark}
+        onClick={onBookmark}
+        tooltip={bookmarked ? "Remove bookmark" : "Save to watch later"}
       />
       <ActionButton
         disabled={!blob.tipEnabled}

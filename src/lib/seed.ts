@@ -344,6 +344,7 @@ export function buildSeedDatabase(): Database {
     videos,
     reports: reportSeeds,
     accounts,
+    videoBookmarks: [],
     blobLikes: [],
     blobFollows: [],
     blobComments: [],
