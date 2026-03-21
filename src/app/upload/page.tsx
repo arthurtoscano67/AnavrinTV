@@ -6,9 +6,12 @@ import type { FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowRight,
+  Camera,
   CheckCircle2,
+  Circle,
   FileVideo2,
   LockKeyhole,
+  Square,
   UploadCloud,
   WandSparkles,
 } from "lucide-react";
@@ -32,6 +35,7 @@ const visibilities = [
 ] as const;
 
 const storageDurationOptions = [30, 90, 180, 365, 730] as const;
+const BLOB_MAX_DURATION_SECONDS = 30;
 
 function inferWalletMode(name?: string | null): WalletMode {
   const normalized = name?.toLowerCase() ?? "";
@@ -46,6 +50,7 @@ type PendingUpload = {
   originalName: string;
   contentType: string;
   sizeBytes: number;
+  durationSeconds: number;
   title: string;
   description: string;
   tags: string;
@@ -70,12 +75,57 @@ function formatSuiAmount(mist: bigint | number, digits = 3) {
   return (Number(mist) / 1_000_000_000).toFixed(digits);
 }
 
+function formatDuration(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "0:00";
+  const rounded = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(rounded / 60);
+  const secs = rounded % 60;
+  return `${minutes}:${String(secs).padStart(2, "0")}`;
+}
+
+function normalizeVideoExtension(mimeType: string) {
+  if (mimeType.includes("mp4")) return "mp4";
+  if (mimeType.includes("ogg")) return "ogv";
+  return "webm";
+}
+
+async function extractVideoDurationSeconds(file: File) {
+  return await new Promise<number>((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+
+    const cleanup = () => {
+      video.removeAttribute("src");
+      video.load();
+      URL.revokeObjectURL(url);
+    };
+
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      const duration = Number(video.duration);
+      cleanup();
+      if (!Number.isFinite(duration) || duration <= 0) {
+        reject(new Error("Could not read video duration."));
+        return;
+      }
+      resolve(duration);
+    };
+    video.onerror = () => {
+      cleanup();
+      reject(new Error("Could not read video duration."));
+    };
+    video.src = url;
+  });
+}
+
 export default function UploadPage() {
   const searchParams = useSearchParams();
   const dAppKit = useDAppKit();
   const account = useCurrentAccount();
   const wallet = useCurrentWallet();
   const currentClient = useCurrentClient() as AnavrinClient;
+  const blobQuery = searchParams.get("blob");
+  const isBlobComposerRoute = blobQuery === "true" || blobQuery === "1";
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("sui, walrus, seal");
@@ -85,6 +135,13 @@ export default function UploadPage() {
   const [publishAsBlob, setPublishAsBlob] = useState(false);
   const [storageDays, setStorageDays] = useState(30);
   const [file, setFile] = useState<File | null>(null);
+  const [durationSeconds, setDurationSeconds] = useState<number | null>(null);
+  const [checkingDuration, setCheckingDuration] = useState(false);
+  const [sourceMode, setSourceMode] = useState<"import" | "record">("import");
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordingElapsedSeconds, setRecordingElapsedSeconds] = useState(0);
   const [platform, setPlatform] = useState<PlatformSettings>(defaultPlatformSettings());
   const [balances, setBalances] = useState<WalletBalanceSnapshot | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -101,6 +158,13 @@ export default function UploadPage() {
   } | null>(null);
   const pendingUploadRef = useRef<PendingUpload | null>(null);
   const blobModeSeededRef = useRef(false);
+  const recorderVideoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<BlobPart[]>([]);
+  const recordingTickRef = useRef<number | null>(null);
+  const recordingStopTimeoutRef = useRef<number | null>(null);
+  const recordingStartedAtRef = useRef<number | null>(null);
 
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
 
@@ -165,13 +229,279 @@ export default function UploadPage() {
 
   useEffect(() => {
     if (blobModeSeededRef.current) return;
-    const blobMode = searchParams.get("blob");
-    if (blobMode === "true" || blobMode === "1") {
+    if (isBlobComposerRoute) {
       setPublishAsBlob(true);
       setCategory("Shorts");
+      setVisibility("public");
+      setPublishNow(true);
     }
     blobModeSeededRef.current = true;
-  }, [searchParams]);
+  }, [isBlobComposerRoute]);
+
+  useEffect(() => {
+    if (!publishAsBlob) return;
+    setCategory("Shorts");
+    setVisibility("public");
+    setPublishNow(true);
+  }, [publishAsBlob]);
+
+  useEffect(() => {
+    const preview = recorderVideoRef.current;
+    if (!preview) return;
+
+    preview.muted = true;
+    preview.playsInline = true;
+    preview.autoplay = true;
+    preview.srcObject = mediaStreamRef.current;
+    if (mediaStreamRef.current) {
+      void preview.play().catch(() => {
+        // autoplay might be blocked until interaction.
+      });
+    }
+  }, [cameraReady, sourceMode]);
+
+  useEffect(() => {
+    return () => {
+      if (recordingTickRef.current) {
+        window.clearInterval(recordingTickRef.current);
+      }
+      if (recordingStopTimeoutRef.current) {
+        window.clearTimeout(recordingStopTimeoutRef.current);
+      }
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.stop();
+      }
+      const stream = mediaStreamRef.current;
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      mediaRecorderRef.current = null;
+      mediaStreamRef.current = null;
+    };
+  }, []);
+
+  function clearRecordingTimers() {
+    if (recordingTickRef.current) {
+      window.clearInterval(recordingTickRef.current);
+      recordingTickRef.current = null;
+    }
+    if (recordingStopTimeoutRef.current) {
+      window.clearTimeout(recordingStopTimeoutRef.current);
+      recordingStopTimeoutRef.current = null;
+    }
+    recordingStartedAtRef.current = null;
+  }
+
+  async function selectVideoFile(nextFile: File | null, fallbackDurationSeconds?: number) {
+    if (!nextFile) {
+      setFile(null);
+      setDurationSeconds(null);
+      return false;
+    }
+
+    if (!nextFile.type.startsWith("video/")) {
+      setStatus("Please select a video file.");
+      setFile(null);
+      setDurationSeconds(null);
+      return false;
+    }
+
+    setCheckingDuration(true);
+    try {
+      let resolvedDuration: number;
+      try {
+        resolvedDuration = await extractVideoDurationSeconds(nextFile);
+      } catch (error) {
+        if (Number.isFinite(fallbackDurationSeconds) && (fallbackDurationSeconds ?? 0) > 0) {
+          resolvedDuration = Number(fallbackDurationSeconds);
+        } else if (publishAsBlob) {
+          throw error;
+        } else {
+          resolvedDuration = 0;
+        }
+      }
+
+      if (publishAsBlob && resolvedDuration > BLOB_MAX_DURATION_SECONDS) {
+        setStatus(
+          `Blob videos are limited to ${BLOB_MAX_DURATION_SECONDS} seconds. Current file is ${formatDuration(resolvedDuration)}.`,
+        );
+        setFile(null);
+        setDurationSeconds(null);
+        return false;
+      }
+
+      setFile(nextFile);
+      setDurationSeconds(resolvedDuration > 0 ? resolvedDuration : null);
+      setStatus(null);
+      return true;
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not read video metadata.");
+      setFile(null);
+      setDurationSeconds(null);
+      return false;
+    } finally {
+      setCheckingDuration(false);
+    }
+  }
+
+  async function handleVideoInputChange(fileInput?: File | null) {
+    const nextFile = fileInput ?? null;
+    const selected = await selectVideoFile(nextFile);
+    if (!selected) return;
+    setSourceMode("import");
+  }
+
+  function stopCameraSession() {
+    clearRecordingTimers();
+    setRecording(false);
+    setRecordingElapsedSeconds(0);
+
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
+    mediaRecorderRef.current = null;
+
+    const stream = mediaStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+
+    const preview = recorderVideoRef.current;
+    if (preview) {
+      preview.srcObject = null;
+    }
+    setCameraReady(false);
+  }
+
+  async function enableCamera() {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setCameraError("Camera recording is not supported in this browser.");
+      return;
+    }
+
+    try {
+      setCameraError(null);
+      if (mediaStreamRef.current) {
+        setCameraReady(true);
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user",
+          width: { ideal: 1080 },
+          height: { ideal: 1920 },
+        },
+        audio: true,
+      });
+      mediaStreamRef.current = stream;
+      setCameraReady(true);
+      setStatus("Camera ready. Record up to 30 seconds.");
+    } catch (error) {
+      setCameraReady(false);
+      setCameraError(error instanceof Error ? error.message : "Camera permission was denied.");
+    }
+  }
+
+  function stopRecording() {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") return;
+    clearRecordingTimers();
+    recorder.stop();
+    setRecording(false);
+  }
+
+  async function startRecording() {
+    const stream = mediaStreamRef.current;
+    if (!stream) {
+      setCameraError("Enable camera access before recording.");
+      return;
+    }
+
+    if (typeof MediaRecorder === "undefined") {
+      setCameraError("MediaRecorder is not available in this browser.");
+      return;
+    }
+
+    if (recording) return;
+
+    try {
+      const preferredMimeTypes = [
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm",
+        "video/mp4",
+      ];
+      const selectedMimeType = preferredMimeTypes.find((mimeType) => MediaRecorder.isTypeSupported(mimeType));
+      const recorder = selectedMimeType ? new MediaRecorder(stream, { mimeType: selectedMimeType }) : new MediaRecorder(stream);
+
+      recordingChunksRef.current = [];
+      mediaRecorderRef.current = recorder;
+      setCameraError(null);
+      setRecording(true);
+      setRecordingElapsedSeconds(0);
+      recordingStartedAtRef.current = Date.now();
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          recordingChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onerror = () => {
+        setCameraError("Recording failed. Please try again.");
+        clearRecordingTimers();
+        setRecording(false);
+      };
+
+      recorder.onstop = () => {
+        const startedAt = recordingStartedAtRef.current;
+        const elapsedByClock = startedAt ? Math.ceil((Date.now() - startedAt) / 1000) : 0;
+        const fallbackDurationSeconds = Math.min(
+          BLOB_MAX_DURATION_SECONDS,
+          Math.max(1, elapsedByClock || Number(recordingElapsedSeconds || 0)),
+        );
+        clearRecordingTimers();
+        setRecording(false);
+
+        if (!recordingChunksRef.current.length) {
+          setCameraError("No recording data was captured.");
+          return;
+        }
+
+        const resolvedMimeType =
+          recorder.mimeType || (recordingChunksRef.current[0] instanceof Blob ? recordingChunksRef.current[0].type : "") || "video/webm";
+        const extension = normalizeVideoExtension(resolvedMimeType);
+        const recordingBlob = new Blob(recordingChunksRef.current, { type: resolvedMimeType });
+        const recordingFile = new File([recordingBlob], `blob-recording-${Date.now()}.${extension}`, {
+          type: resolvedMimeType,
+        });
+        void selectVideoFile(recordingFile, fallbackDurationSeconds);
+        setStatus("Recording captured. Ready to sign and publish your Blob.");
+        setSourceMode("import");
+        stopCameraSession();
+      };
+
+      recorder.start(250);
+
+      recordingTickRef.current = window.setInterval(() => {
+        const startedAt = recordingStartedAtRef.current;
+        if (!startedAt) return;
+        const elapsed = Math.min(BLOB_MAX_DURATION_SECONDS, Math.floor((Date.now() - startedAt) / 1000));
+        setRecordingElapsedSeconds(elapsed);
+      }, 200);
+
+      recordingStopTimeoutRef.current = window.setTimeout(() => {
+        stopRecording();
+      }, BLOB_MAX_DURATION_SECONDS * 1000);
+    } catch (error) {
+      setRecording(false);
+      setCameraError(error instanceof Error ? error.message : "Could not start recording.");
+    }
+  }
 
   async function submitPendingUpload(pending: PendingUpload) {
     const formData = new FormData();
@@ -198,6 +528,7 @@ export default function UploadPage() {
     formData.append("originalName", pending.originalName);
     formData.append("contentType", pending.contentType);
     formData.append("sizeBytes", String(pending.sizeBytes));
+    formData.append("durationSeconds", String(pending.durationSeconds));
     formData.append("encryptedSizeBytes", String(pending.sealedBytes.length));
 
     const response = await fetch("/api/videos", {
@@ -239,6 +570,15 @@ export default function UploadPage() {
     setPublishAsBlob(false);
     setStorageDays(30);
     setFile(null);
+    setDurationSeconds(null);
+    setSourceMode("import");
+    setCameraError(null);
+    if (isBlobComposerRoute) {
+      setPublishAsBlob(true);
+      setCategory("Shorts");
+      setVisibility("public");
+      setPublishNow(true);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -259,6 +599,32 @@ export default function UploadPage() {
       return;
     }
 
+    if (checkingDuration) {
+      setStatus("Reading video metadata. Please wait a moment.");
+      return;
+    }
+
+    let resolvedDurationSeconds = durationSeconds ?? 0;
+    if (!Number.isFinite(resolvedDurationSeconds) || resolvedDurationSeconds <= 0) {
+      try {
+        resolvedDurationSeconds = await extractVideoDurationSeconds(file);
+      } catch {
+        resolvedDurationSeconds = 0;
+      }
+    }
+
+    if (publishAsBlob && (!Number.isFinite(resolvedDurationSeconds) || resolvedDurationSeconds <= 0)) {
+      setStatus("Blob uploads require a readable video duration (max 30 seconds).");
+      return;
+    }
+
+    if (publishAsBlob && resolvedDurationSeconds > BLOB_MAX_DURATION_SECONDS) {
+      setStatus(
+        `Blob videos are limited to ${BLOB_MAX_DURATION_SECONDS} seconds. Current file is ${formatDuration(resolvedDurationSeconds)}.`,
+      );
+      return;
+    }
+
     const packageId = getPolicyPackageId();
     if (!packageId) {
       setStatus("Set NEXT_PUBLIC_SEAL_POLICY_PACKAGE_ID before uploading.");
@@ -271,6 +637,8 @@ export default function UploadPage() {
       return;
     }
 
+    const resolvedVisibility = publishAsBlob ? "public" : visibility;
+    const resolvedPublishNow = publishAsBlob ? true : publishNow;
     const resolvedCategory = publishAsBlob ? "Shorts" : category;
     setSubmitting(true);
     setStatus("Encrypting the video with Seal...");
@@ -334,8 +702,8 @@ export default function UploadPage() {
 
       const tx = buildPolicyInitTransaction({
         packageId,
-        visibility,
-        published: publishNow,
+        visibility: resolvedVisibility,
+        published: resolvedPublishNow,
         nonce,
         title: title.trim(),
         slug: slugifyText(title),
@@ -364,7 +732,7 @@ export default function UploadPage() {
         attributes: {
           title: title.trim(),
           category: resolvedCategory,
-          visibility,
+          visibility: resolvedVisibility,
           creatorAddress: account.address,
           storageOwnerAddress: account.address,
           policyNonce: toHex(nonce),
@@ -386,14 +754,15 @@ export default function UploadPage() {
         description,
         tags,
         category: resolvedCategory,
-        visibility,
-        publishNow,
+        visibility: resolvedVisibility,
+        publishNow: resolvedPublishNow,
         policyNonce: toHex(nonce),
         ownerAddress: account.address,
         ownerName: wallet?.name ?? account.label ?? "Creator",
         walletMode: inferWalletMode(wallet?.name),
         treasuryFeeSui: platform.fees.uploadFeeMist / 1_000_000_000,
         storageDays: storageDaysClamped,
+        durationSeconds: resolvedDurationSeconds,
         uploadTxDigest: signedTx.Transaction.digest,
         publishAsBlob,
       };
@@ -433,6 +802,7 @@ export default function UploadPage() {
         { label: "File name", value: file.name },
         { label: "File size", value: formatBytes(file.size) },
         { label: "Type", value: file.type || "unknown" },
+        { label: "Duration", value: durationSeconds ? formatDuration(durationSeconds) : "Unknown" },
       ]
     : [];
 
@@ -443,15 +813,17 @@ export default function UploadPage() {
           <div className="max-w-3xl">
             <span className="badge border-cyan-300/20 bg-cyan-300/12 text-cyan-100">
               <UploadCloud className="size-4" />
-              Profile upload
+              {isBlobComposerRoute ? "Create blob" : "Profile upload"}
             </span>
             <h1 className="mt-5 text-3xl font-semibold text-white md:text-4xl">
-              Encrypt locally, sign once, and register wallet-owned Walrus storage.
+              {isBlobComposerRoute
+                ? "Import or record a 30-second blob, then sign once to publish."
+                : "Encrypt locally, sign once, and register wallet-owned Walrus storage."}
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 md:text-base">
-              The browser seals the file with Seal, the wallet signs a single SUI transaction that covers the policy,
-              Walrus registration, and upload relay tip, and the server finalizes the blob certificate and playback
-              record against your wallet address.
+              {isBlobComposerRoute
+                ? "Choose an imported short video or record from camera + mic. The browser seals it with Seal, your wallet signs once, and the encrypted blob is stored on Walrus then published to the swipe feed."
+                : "The browser seals the file with Seal, the wallet signs a single SUI transaction that covers the policy, Walrus registration, and upload relay tip, and the server finalizes the blob certificate and playback record against your wallet address."}
             </p>
           </div>
 
@@ -543,6 +915,7 @@ export default function UploadPage() {
               <select
                 className="select mt-2"
                 onChange={(event) => setVisibility(event.target.value as (typeof visibilities)[number]["value"])}
+                disabled={isBlobComposerRoute || publishAsBlob}
                 value={visibility}
               >
                 {visibilities.map((item) => (
@@ -551,12 +924,17 @@ export default function UploadPage() {
                   </option>
                 ))}
               </select>
+              {isBlobComposerRoute || publishAsBlob ? (
+                <p className="mt-2 text-xs leading-6 text-slate-400">Blob uploads are always published publicly.</p>
+              ) : null}
             </label>
 
             <label className="block">
               <span className="text-sm font-medium text-slate-200">Publish state</span>
               <div className="mt-2 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300">
-                Pick draft to keep the upload private on your profile, or publish now to make it visible in the feed.
+                {isBlobComposerRoute || publishAsBlob
+                  ? "Blob mode signs and publishes immediately after Walrus upload completes."
+                  : "Pick draft to keep the upload private on your profile, or publish now to make it visible in the feed."}
               </div>
             </label>
 
@@ -567,6 +945,7 @@ export default function UploadPage() {
                   <input
                     checked={publishAsBlob}
                     className="size-4 accent-cyan-300"
+                    disabled={isBlobComposerRoute}
                     onChange={(event) => {
                       const checked = event.target.checked;
                       setPublishAsBlob(checked);
@@ -587,6 +966,11 @@ export default function UploadPage() {
                   Blobs are public, swipeable, and optimized for vertical playback. When enabled, the upload is
                   surfaced in `/blobs` once published.
                 </p>
+                {publishAsBlob ? (
+                  <p className="mt-2 text-xs leading-6 text-cyan-100">
+                    Blob V1 limit: videos must be 30 seconds or shorter.
+                  </p>
+                ) : null}
               </div>
             </label>
 
@@ -610,29 +994,128 @@ export default function UploadPage() {
               </p>
             </label>
 
-            <label className="block md:col-span-2">
-              <span className="text-sm font-medium text-slate-200">Video file</span>
-              <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed border-white/12 bg-black/20 px-6 py-8 text-center transition hover:border-cyan-300/30 hover:bg-black/28">
-                <FileVideo2 className="size-10 text-cyan-200" />
-                <p className="mt-4 text-lg font-semibold text-white">Drop any video format here</p>
-                <p className="mt-2 max-w-lg text-sm leading-7 text-slate-400">
-                  MP4, MOV, MKV, WEBM, AVI, WMV, FLV, and more. The browser encrypts the file before anything is sent
-                  to the server.
-                </p>
-                <input
-                  accept="video/*,.mov,.mkv,.webm,.mp4,.m4v,.avi,.flv,.wmv,.ogv"
-                  className="sr-only"
-                  type="file"
-                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                />
-              </label>
-            </label>
+            <div className="block md:col-span-2">
+              <span className="text-sm font-medium text-slate-200">
+                {publishAsBlob ? "Blob source (max 30s)" : "Video file"}
+              </span>
+
+              {publishAsBlob ? (
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <button
+                    className={`rounded-2xl border px-4 py-2.5 text-sm font-semibold transition ${
+                      sourceMode === "import"
+                        ? "border-cyan-300/35 bg-cyan-300/15 text-cyan-100"
+                        : "border-white/10 bg-white/5 text-slate-200 hover:border-cyan-300/30"
+                    }`}
+                    onClick={() => setSourceMode("import")}
+                    type="button"
+                  >
+                    <FileVideo2 className="mr-2 inline size-4" />
+                    Import video
+                  </button>
+                  <button
+                    className={`rounded-2xl border px-4 py-2.5 text-sm font-semibold transition ${
+                      sourceMode === "record"
+                        ? "border-cyan-300/35 bg-cyan-300/15 text-cyan-100"
+                        : "border-white/10 bg-white/5 text-slate-200 hover:border-cyan-300/30"
+                    }`}
+                    onClick={() => setSourceMode("record")}
+                    type="button"
+                  >
+                    <Camera className="mr-2 inline size-4" />
+                    Record with camera
+                  </button>
+                </div>
+              ) : null}
+
+              {!publishAsBlob || sourceMode === "import" ? (
+                <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed border-white/12 bg-black/20 px-6 py-8 text-center transition hover:border-cyan-300/30 hover:bg-black/28">
+                  <FileVideo2 className="size-10 text-cyan-200" />
+                  <p className="mt-4 text-lg font-semibold text-white">
+                    {publishAsBlob ? "Import a short video" : "Drop any video format here"}
+                  </p>
+                  <p className="mt-2 max-w-lg text-sm leading-7 text-slate-400">
+                    {publishAsBlob
+                      ? "MP4, MOV, MKV, WEBM, AVI, WMV, FLV, and more. Blob V1 accepts up to 30 seconds."
+                      : "MP4, MOV, MKV, WEBM, AVI, WMV, FLV, and more. The browser encrypts the file before anything is sent to the server."}
+                  </p>
+                  <input
+                    accept="video/*,.mov,.mkv,.webm,.mp4,.m4v,.avi,.flv,.wmv,.ogv"
+                    className="sr-only"
+                    type="file"
+                    onChange={async (event) => {
+                      await handleVideoInputChange(event.target.files?.[0] ?? null);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+              ) : null}
+
+              {publishAsBlob && sourceMode === "record" ? (
+                <div className="mt-2 rounded-[28px] border border-white/10 bg-black/20 p-4">
+                  {!cameraReady ? (
+                    <div className="space-y-3">
+                      <p className="text-sm leading-7 text-slate-300">
+                        Allow camera and microphone access to record a blob. Recording stops automatically at 30
+                        seconds.
+                      </p>
+                      <button className="btn-secondary px-4 py-2.5 text-sm" onClick={enableCamera} type="button">
+                        <Camera className="size-4" />
+                        Allow camera + mic
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <video
+                        ref={recorderVideoRef}
+                        autoPlay
+                        className="aspect-[9/16] max-h-[420px] w-full rounded-2xl border border-white/10 bg-black object-cover"
+                        muted
+                        playsInline
+                      />
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-sm text-slate-300">
+                          {recording ? "Recording..." : "Ready to record"} {formatDuration(recordingElapsedSeconds)} /{" "}
+                          {formatDuration(BLOB_MAX_DURATION_SECONDS)}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {!recording ? (
+                            <button className="btn-primary px-4 py-2.5 text-sm" onClick={startRecording} type="button">
+                              <Circle className="size-4" />
+                              Start recording
+                            </button>
+                          ) : (
+                            <button className="btn-danger px-4 py-2.5 text-sm" onClick={stopRecording} type="button">
+                              <Square className="size-4" />
+                              Stop
+                            </button>
+                          )}
+                          <button className="btn-secondary px-4 py-2.5 text-sm" onClick={stopCameraSession} type="button">
+                            Turn off camera
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {cameraError ? (
+                    <p className="mt-3 rounded-2xl border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
+                      {cameraError}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {checkingDuration ? (
+                <p className="mt-2 text-xs text-slate-400">Reading video duration...</p>
+              ) : null}
+            </div>
 
             <div className="md:col-span-2 grid gap-3 rounded-[28px] border border-white/10 bg-black/20 p-4 sm:grid-cols-2">
               <label className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
                 <input
                   checked={publishNow}
                   className="size-4 accent-cyan-300"
+                  disabled={isBlobComposerRoute || publishAsBlob}
                   onChange={(event) => setPublishNow(event.target.checked)}
                   type="checkbox"
                 />
@@ -668,7 +1151,7 @@ export default function UploadPage() {
                 <LockKeyhole className="size-10 text-cyan-200" />
               </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {fileStats.map((item) => (
                   <div key={item.label} className="kpi">
                     <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">{item.label}</p>
@@ -688,9 +1171,9 @@ export default function UploadPage() {
           ) : null}
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
-            <button className="btn-primary" disabled={submitting || !account} type="submit">
+            <button className="btn-primary" disabled={submitting || !account || checkingDuration} type="submit">
               <UploadCloud className="size-4" />
-              {submitting ? "Uploading..." : "Seal and upload"}
+              {submitting ? "Uploading..." : publishAsBlob ? "Sign, store, and publish Blob" : "Seal and upload"}
             </button>
             {pendingUploadRef.current ? (
               <button className="btn-secondary" disabled={submitting} type="button" onClick={retryUpload}>

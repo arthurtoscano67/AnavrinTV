@@ -149,6 +149,14 @@ function durationToSeconds(duration: string) {
   return minutes * 60 + seconds;
 }
 
+function formatDurationFromSeconds(totalSeconds: number) {
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return "0:00";
+  const rounded = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(rounded / 60);
+  const seconds = rounded % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 function isBlobVideoForCreator(video: Pick<VideoRecord, "category" | "duration" | "tags">) {
   if (video.category === "Shorts") return true;
   if (video.tags.some((tag) => tag.toLowerCase().includes("short"))) return true;
@@ -1136,6 +1144,7 @@ export async function persistUploadRecord(input: {
   category: string;
   visibility: VideoVisibility;
   publishNow: boolean;
+  durationSeconds?: number;
   ownerAddress: string;
   ownerName: string;
   walletMode: WalletMode;
@@ -1203,7 +1212,7 @@ export async function persistUploadRecord(input: {
     coverFrom: cover.from,
     coverVia: cover.via,
     coverTo: cover.to,
-    duration: "0:00",
+    duration: formatDurationFromSeconds(Number(input.durationSeconds) || 0),
     createdAt,
     updatedAt: createdAt,
     publishedAt: input.publishNow ? createdAt : undefined,

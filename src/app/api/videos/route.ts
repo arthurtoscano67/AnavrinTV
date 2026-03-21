@@ -13,6 +13,7 @@ import {
 } from "@/lib/walrus-storage";
 
 export const runtime = "nodejs";
+const BLOB_MAX_DURATION_SECONDS = 30;
 
 function parseVisibility(value: string | null): VideoVisibility {
   if (value === "private" || value === "draft" || value === "public") return value;
@@ -64,15 +65,19 @@ export async function POST(request: NextRequest) {
     .filter(Boolean);
   const category = String(formData.get("category") ?? "Launches").trim() || "Launches";
   const publishAsBlob = String(formData.get("publishAsBlob") ?? "false") === "true";
-  const visibility = parseVisibility(String(formData.get("visibility") ?? null));
-  const publishNow = String(formData.get("publishNow") ?? "true") !== "false";
+  const requestedVisibility = parseVisibility(String(formData.get("visibility") ?? null));
+  const requestedPublishNow = String(formData.get("publishNow") ?? "true") !== "false";
   const uploadTxDigest = String(formData.get("uploadTxDigest") ?? formData.get("registerTxDigest") ?? "").trim();
   const policyNonce = String(formData.get("policyNonce") ?? "").trim();
   const originalName = String(formData.get("originalName") ?? sealedVideo.name ?? "video.bin");
   const contentType = String(formData.get("contentType") ?? sealedVideo.type ?? "application/octet-stream");
   const sizeBytes = Number(formData.get("sizeBytes") ?? sealedVideo.size ?? 0);
+  const durationSecondsRaw = Number(formData.get("durationSeconds") ?? 0);
+  const durationSeconds = Number.isFinite(durationSecondsRaw) && durationSecondsRaw > 0 ? durationSecondsRaw : 0;
   const encryptedSizeBytes = Number(formData.get("encryptedSizeBytes") ?? sealedVideo.size ?? 0);
   const treasuryFeeSui = Number(formData.get("treasuryFeeSui") ?? 0.25);
+  const visibility = publishAsBlob ? "public" : requestedVisibility;
+  const publishNow = publishAsBlob ? true : requestedPublishNow;
 
   if (!uploadTxDigest) {
     return NextResponse.json({ error: "A signed upload transaction digest is required." }, { status: 400 });
@@ -80,6 +85,17 @@ export async function POST(request: NextRequest) {
 
   if (!policyNonce) {
     return NextResponse.json({ error: "A policy nonce is required for Seal playback." }, { status: 400 });
+  }
+
+  if (publishAsBlob && durationSeconds <= 0) {
+    return NextResponse.json({ error: "Blob uploads require a readable duration and must be 30 seconds or less." }, { status: 400 });
+  }
+
+  if (publishAsBlob && durationSeconds > BLOB_MAX_DURATION_SECONDS) {
+    return NextResponse.json(
+      { error: `Blob uploads are limited to ${BLOB_MAX_DURATION_SECONDS} seconds.` },
+      { status: 400 },
+    );
   }
 
   try {
@@ -173,6 +189,7 @@ export async function POST(request: NextRequest) {
       ownerName,
       walletMode,
       treasuryFeeSui: Number.isFinite(treasuryFeeSui) ? treasuryFeeSui : 0.25,
+      durationSeconds,
       policyObjectId,
       capObjectId,
       policyNonce,
