@@ -18,6 +18,7 @@ import {
   getSealServerConfigs,
   getSealVerifyKeyServers,
 } from "@/lib/anavrin-config";
+import { buildPublicUrl } from "@/lib/site-url";
 
 export type AnavrinClient = ClientWithCoreApi & {
   seal: SealClient;
@@ -43,8 +44,7 @@ function createWalletInitializers(): WalletInitializer[] {
   const apiKey = getEnokiApiKey();
   if (!apiKey) return [];
 
-  const redirectUrl =
-    process.env.NEXT_PUBLIC_ENOKI_REDIRECT_URL?.trim() || (typeof window !== "undefined" ? window.location.origin : undefined);
+  const redirectUrl = process.env.NEXT_PUBLIC_ENOKI_REDIRECT_URL?.trim() || buildPublicUrl("/");
   const providers: Partial<Record<AuthProvider, { clientId: string; redirectUrl?: string }>> = {};
 
   const googleClientId = getEnokiGoogleClientId();

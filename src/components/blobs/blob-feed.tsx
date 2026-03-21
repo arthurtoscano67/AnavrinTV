@@ -25,6 +25,7 @@ import {
   type BlobUserState,
 } from "@/lib/blobs";
 import { calculateTipPlatformFeeSui, defaultPlatformSettings } from "@/lib/platform-settings";
+import { buildPublicUrl } from "@/lib/site-url";
 import type { PlatformSettings } from "@/lib/types";
 
 const VIRTUAL_COPIES = 3;
@@ -366,7 +367,7 @@ export function BlobFeed() {
 
   async function handleShare() {
     if (!currentBlob) return;
-    const shareUrl = `${window.location.origin}/blobs?blob=${encodeURIComponent(currentBlob.id)}`;
+    const shareUrl = buildPublicUrl(`/blobs?blob=${encodeURIComponent(currentBlob.id)}`);
 
     try {
       if (navigator.share) {

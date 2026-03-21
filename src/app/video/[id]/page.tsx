@@ -14,7 +14,21 @@ import {
 import { VideoActions } from "@/components/video-actions";
 import { VideoPlayer } from "@/components/video-player";
 import { formatCompact, formatDate } from "@/lib/format";
-import { getVideo } from "@/lib/db";
+import { getVideo, getVideos } from "@/lib/db";
+
+export const dynamicParams = false;
+
+export async function generateStaticParams() {
+  const videos = await getVideos({ includeDrafts: true });
+  const ids = new Set<string>();
+
+  for (const video of videos) {
+    if (video.slug) ids.add(video.slug);
+    ids.add(video.id);
+  }
+
+  return Array.from(ids).map((id) => ({ id }));
+}
 
 export default async function VideoPage({
   params,

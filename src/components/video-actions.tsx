@@ -7,6 +7,7 @@ import { Transaction } from "@mysten/sui/transactions";
 
 import { formatCompact } from "@/lib/format";
 import { getUploadTreasuryAddress } from "@/lib/anavrin-config";
+import { buildPublicUrl } from "@/lib/site-url";
 import { calculateTipPlatformFeeSui, defaultPlatformSettings } from "@/lib/platform-settings";
 import type { VideoRecord } from "@/lib/types";
 
@@ -78,7 +79,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
   }, [platform, tipAmount]);
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(`${window.location.origin}/video/${video.id}`);
+    await navigator.clipboard.writeText(buildPublicUrl(`/video/${video.id}`));
     setStatus("Link copied");
   }
 
