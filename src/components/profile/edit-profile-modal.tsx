@@ -24,6 +24,22 @@ type EditProfileModalProps = {
 };
 
 type AvailabilityStatus = "idle" | "checking" | "available" | "unavailable" | "invalid";
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(new Error("Could not read image file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatFileSize(bytes: number) {
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.max(1, Math.round(kb))} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
+}
 
 export function EditProfileModal({
   open,
@@ -39,6 +55,8 @@ export function EditProfileModal({
   const [bannerUrl, setBannerUrl] = useState(initialValues.bannerUrl ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [avatarUploadLabel, setAvatarUploadLabel] = useState<string | null>(null);
+  const [bannerUploadLabel, setBannerUploadLabel] = useState<string | null>(null);
   const [availabilityStatus, setAvailabilityStatus] = useState<AvailabilityStatus>("idle");
   const [availabilityMessage, setAvailabilityMessage] = useState<string | null>(null);
   const [lastCheckedUsername, setLastCheckedUsername] = useState("");
@@ -60,6 +78,8 @@ export function EditProfileModal({
     setBio(initialValues.bio ?? "");
     setAvatarUrl(initialValues.avatarUrl ?? "");
     setBannerUrl(initialValues.bannerUrl ?? "");
+    setAvatarUploadLabel(null);
+    setBannerUploadLabel(null);
     setError(null);
     setAvailabilityStatus("idle");
     setAvailabilityMessage(null);
@@ -128,6 +148,37 @@ export function EditProfileModal({
     !saving;
 
   if (!open) return null;
+
+  async function handleImageUpload(type: "avatar" | "banner", file?: File | null) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Please choose an image file (PNG, JPG, WEBP, GIF, etc).");
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setError(`Image must be ${formatFileSize(MAX_IMAGE_BYTES)} or smaller.`);
+      return;
+    }
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      if (!dataUrl) {
+        throw new Error("Could not read image file.");
+      }
+
+      if (type === "avatar") {
+        setAvatarUrl(dataUrl);
+        setAvatarUploadLabel(`${file.name} · ${formatFileSize(file.size)}`);
+      } else {
+        setBannerUrl(dataUrl);
+        setBannerUploadLabel(`${file.name} · ${formatFileSize(file.size)}`);
+      }
+
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not read image file.");
+    }
+  }
 
   async function handleSave() {
     const trimmedName = displayName.trim();
@@ -260,30 +311,106 @@ export function EditProfileModal({
             />
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="grid gap-1.5">
-              <label className="text-xs uppercase tracking-[0.2em] text-slate-400" htmlFor="profile-avatar-url">
-                Avatar URL
-              </label>
-              <input
-                className="input"
-                id="profile-avatar-url"
-                onChange={(event) => setAvatarUrl(event.target.value)}
-                placeholder="https://..."
-                value={avatarUrl}
-              />
+          <div className="rounded-2xl border border-white/10 bg-[#0e152a] p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Profile media</p>
+              <p className="text-[11px] text-slate-500">Banner is rectangle. Avatar is circle.</p>
             </div>
-            <div className="grid gap-1.5">
-              <label className="text-xs uppercase tracking-[0.2em] text-slate-400" htmlFor="profile-banner-url">
-                Banner URL
-              </label>
-              <input
-                className="input"
-                id="profile-banner-url"
-                onChange={(event) => setBannerUrl(event.target.value)}
-                placeholder="https://..."
-                value={bannerUrl}
-              />
+
+            <div className="relative mt-3 overflow-hidden rounded-xl border border-white/10">
+              <div className="aspect-[3/1] w-full bg-[linear-gradient(135deg,#172554_0%,#1d4ed8_58%,#0f172a_100%)]">
+                {bannerUrl ? (
+                  <img
+                    alt="Banner preview"
+                    className="size-full object-cover"
+                    draggable={false}
+                    src={bannerUrl}
+                  />
+                ) : (
+                  <div className="grid size-full place-items-center text-xs uppercase tracking-[0.24em] text-slate-400">
+                    Banner (Rectangle)
+                  </div>
+                )}
+              </div>
+
+              <div className="absolute bottom-3 left-3 size-20 overflow-hidden rounded-full border-4 border-[#0e152a] bg-[#101a31]">
+                {avatarUrl ? (
+                  <img
+                    alt="Avatar preview"
+                    className="size-full object-cover"
+                    draggable={false}
+                    src={avatarUrl}
+                  />
+                ) : (
+                  <div className="grid size-full place-items-center text-lg font-semibold text-white">
+                    {displayName.trim().slice(0, 2).toUpperCase() || "AT"}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div className="grid gap-2">
+                <label className="text-xs uppercase tracking-[0.2em] text-slate-400" htmlFor="profile-avatar-upload">
+                  Avatar image (circle)
+                </label>
+                <input
+                  accept="image/*"
+                  className="input file:mr-3 file:rounded-full file:border-0 file:bg-cyan-300/15 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:uppercase file:tracking-[0.2em] file:text-cyan-100"
+                  id="profile-avatar-upload"
+                  onChange={async (event) => {
+                    await handleImageUpload("avatar", event.target.files?.[0] ?? null);
+                    event.currentTarget.value = "";
+                  }}
+                  type="file"
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate text-xs text-slate-400">{avatarUploadLabel ?? "No new avatar selected."}</p>
+                  {avatarUrl ? (
+                    <button
+                      className="btn-ghost px-2.5 py-1 text-[10px] uppercase tracking-[0.18em]"
+                      onClick={() => {
+                        setAvatarUrl("");
+                        setAvatarUploadLabel(null);
+                      }}
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <label className="text-xs uppercase tracking-[0.2em] text-slate-400" htmlFor="profile-banner-upload">
+                  Banner image (rectangle)
+                </label>
+                <input
+                  accept="image/*"
+                  className="input file:mr-3 file:rounded-full file:border-0 file:bg-cyan-300/15 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:uppercase file:tracking-[0.2em] file:text-cyan-100"
+                  id="profile-banner-upload"
+                  onChange={async (event) => {
+                    await handleImageUpload("banner", event.target.files?.[0] ?? null);
+                    event.currentTarget.value = "";
+                  }}
+                  type="file"
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate text-xs text-slate-400">{bannerUploadLabel ?? "No new banner selected."}</p>
+                  {bannerUrl ? (
+                    <button
+                      className="btn-ghost px-2.5 py-1 text-[10px] uppercase tracking-[0.18em]"
+                      onClick={() => {
+                        setBannerUrl("");
+                        setBannerUploadLabel(null);
+                      }}
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+              </div>
             </div>
           </div>
         </div>
