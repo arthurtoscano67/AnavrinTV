@@ -235,12 +235,12 @@ export function EditProfileModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-[#030714]/85 px-4 py-4 backdrop-blur-sm md:py-6">
-      <div className="w-full max-w-[760px] rounded-2xl border border-white/10 bg-[#0b1120] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:p-5">
+    <div className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-[#030714]/85 px-3 py-3 backdrop-blur-sm md:py-4">
+      <div className="w-full max-w-[680px] max-h-[88vh] overflow-y-auto rounded-2xl border border-white/10 bg-[#0b1120] p-3.5 shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Profile</p>
-            <h2 className="mt-1 text-lg font-semibold text-white">Edit profile</h2>
+            <h2 className="mt-1 text-base font-semibold text-white md:text-lg">Edit profile</h2>
           </div>
           <button
             className="btn-ghost rounded-full px-3 py-2 text-xs uppercase tracking-[0.22em]"
@@ -251,7 +251,7 @@ export function EditProfileModal({
           </button>
         </div>
 
-        <div className="mt-4 grid gap-2.5">
+        <div className="mt-3.5 grid gap-2">
           <div className="grid gap-1.5">
             <label className="text-xs uppercase tracking-[0.2em] text-slate-400" htmlFor="profile-display-name">
               Display name
@@ -311,14 +311,14 @@ export function EditProfileModal({
             />
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-[#0e152a] p-2.5">
+          <div className="rounded-2xl border border-white/10 bg-[#0e152a] p-2">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Profile media</p>
               <p className="text-[11px] text-slate-500">Banner is rectangle. Avatar is circle.</p>
             </div>
 
-            <div className="relative mt-3 overflow-hidden rounded-xl border border-white/10">
-              <div className="aspect-[4/1] max-h-[150px] w-full bg-[linear-gradient(135deg,#172554_0%,#1d4ed8_58%,#0f172a_100%)]">
+            <div className="relative mt-2.5 overflow-hidden rounded-xl border border-white/10">
+              <div className="aspect-[5/1] max-h-[118px] w-full bg-[linear-gradient(135deg,#172554_0%,#1d4ed8_58%,#0f172a_100%)]">
                 {bannerUrl ? (
                   <img
                     alt="Banner preview"
@@ -333,7 +333,7 @@ export function EditProfileModal({
                 )}
               </div>
 
-              <div className="absolute bottom-2.5 left-2.5 size-16 overflow-hidden rounded-full border-4 border-[#0e152a] bg-[#101a31] md:size-18">
+              <div className="absolute bottom-2 left-2 size-12 overflow-hidden rounded-full border-[3px] border-[#0e152a] bg-[#101a31] md:size-14">
                 {avatarUrl ? (
                   <img
                     alt="Avatar preview"
@@ -342,21 +342,21 @@ export function EditProfileModal({
                     src={avatarUrl}
                   />
                 ) : (
-                  <div className="grid size-full place-items-center text-base font-semibold text-white md:text-lg">
+                  <div className="grid size-full place-items-center text-sm font-semibold text-white md:text-base">
                     {displayName.trim().slice(0, 2).toUpperCase() || "AT"}
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <div className="mt-2.5 grid gap-2.5 md:grid-cols-2">
               <div className="grid gap-2">
                 <label className="text-xs uppercase tracking-[0.2em] text-slate-400" htmlFor="profile-avatar-upload">
                   Avatar image (circle)
                 </label>
                 <input
                   accept="image/*"
-                  className="input file:mr-3 file:rounded-full file:border-0 file:bg-cyan-300/15 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:uppercase file:tracking-[0.2em] file:text-cyan-100"
+                  className="input file:mr-2.5 file:rounded-full file:border-0 file:bg-cyan-300/15 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:uppercase file:tracking-[0.18em] file:text-cyan-100"
                   id="profile-avatar-upload"
                   onChange={async (event) => {
                     await handleImageUpload("avatar", event.target.files?.[0] ?? null);
@@ -387,7 +387,7 @@ export function EditProfileModal({
                 </label>
                 <input
                   accept="image/*"
-                  className="input file:mr-3 file:rounded-full file:border-0 file:bg-cyan-300/15 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:uppercase file:tracking-[0.2em] file:text-cyan-100"
+                  className="input file:mr-2.5 file:rounded-full file:border-0 file:bg-cyan-300/15 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:uppercase file:tracking-[0.18em] file:text-cyan-100"
                   id="profile-banner-upload"
                   onChange={async (event) => {
                     await handleImageUpload("banner", event.target.files?.[0] ?? null);
@@ -421,12 +421,12 @@ export function EditProfileModal({
           </p>
         ) : null}
 
-        <div className="mt-5 flex justify-end gap-2">
-          <button className="btn-secondary px-4 py-2.5 text-xs uppercase tracking-[0.2em]" onClick={onClose} type="button">
+        <div className="mt-4 flex justify-end gap-2">
+          <button className="btn-secondary px-3.5 py-2 text-xs uppercase tracking-[0.2em]" onClick={onClose} type="button">
             Cancel
           </button>
           <button
-            className="btn-primary px-4 py-2.5 text-xs uppercase tracking-[0.2em]"
+            className="btn-primary px-3.5 py-2 text-xs uppercase tracking-[0.2em]"
             disabled={!canSave}
             onClick={handleSave}
             type="button"
