@@ -1,0 +1,71 @@
+type ProfileHeaderProps = {
+  bannerFrom: string;
+  bannerVia: string;
+  bannerTo: string;
+  avatarLabel: string;
+  displayName: string;
+  handle: string;
+  bio: string;
+  verified?: boolean;
+  walletBadge?: string;
+};
+
+export function ProfileHeader({
+  bannerFrom,
+  bannerVia,
+  bannerTo,
+  avatarLabel,
+  displayName,
+  handle,
+  bio,
+  verified = false,
+  walletBadge,
+}: ProfileHeaderProps) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b1120]">
+      <div
+        className="h-40 w-full md:h-48"
+        style={{
+          background: `linear-gradient(135deg, ${bannerFrom} 0%, ${bannerVia} 58%, ${bannerTo} 100%)`,
+        }}
+      />
+
+      <div className="px-4 pb-4 md:px-6 md:pb-6">
+        <div className="-mt-12 flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="grid size-24 shrink-0 place-items-center rounded-full border-4 border-[#0b1120] bg-[#101a31] text-2xl font-semibold text-white md:size-28">
+              {avatarLabel}
+            </div>
+
+            <div className="min-w-0 pt-13 md:pt-14">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="truncate text-xl font-semibold text-white md:text-2xl">{displayName}</h1>
+                {verified ? (
+                  <span className="rounded-full border border-cyan-300/30 bg-cyan-300/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-100">
+                    Verified
+                  </span>
+                ) : null}
+                {walletBadge ? (
+                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-300">
+                    {walletBadge}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-1 text-sm text-slate-400">{handle}</p>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-200">{bio}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button className="btn-secondary px-4 py-2.5 text-xs uppercase tracking-[0.2em]" type="button">
+              Message
+            </button>
+            <button className="btn-primary px-4 py-2.5 text-xs uppercase tracking-[0.2em]" type="button">
+              Follow
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
