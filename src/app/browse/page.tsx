@@ -16,6 +16,7 @@ export const metadata: Metadata = {
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
+const IS_GITHUB_PAGES_EXPORT = process.env.GITHUB_PAGES === "true";
 
 function firstValue(value: string | string[] | undefined) {
   if (Array.isArray(value)) return value[0] ?? "";
@@ -27,13 +28,21 @@ export default async function BrowsePage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const params = await searchParams;
-  const q = firstValue(params.q).trim();
-  const category = firstValue(params.category).trim();
-  const topicParam = firstValue(params.topic).trim();
-  const tag = firstValue(params.tag).trim();
-  const sort = firstValue(params.sort).trim();
-  const topic = topicParam || (category && category !== "All" ? category : "All");
+  let q = "";
+  let category = "";
+  let topic = "All";
+  let tag = "";
+  let sort = "";
+
+  if (!IS_GITHUB_PAGES_EXPORT) {
+    const params = await searchParams;
+    q = firstValue(params.q).trim();
+    category = firstValue(params.category).trim();
+    const topicParam = firstValue(params.topic).trim();
+    tag = firstValue(params.tag).trim();
+    sort = firstValue(params.sort).trim();
+    topic = topicParam || (category && category !== "All" ? category : "All");
+  }
 
   const allVideos = await getVideos({ publicOnly: true });
   const filteredVideos = applyDiscoveryFilters(allVideos, {
