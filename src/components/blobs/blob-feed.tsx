@@ -1,17 +1,15 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ChevronDown,
   Copy,
-  Gift,
-  MessageCircleMore,
   Loader2,
   LogOut,
   PlusSquare,
-  Settings,
+  RefreshCcw,
   UserRound,
 } from "lucide-react";
 import { ConnectModal } from "@mysten/dapp-kit-react/ui";
@@ -39,13 +37,6 @@ import {
 import { calculateTipPlatformFeeSui, defaultPlatformSettings } from "@/lib/platform-settings";
 import { buildPublicUrl } from "@/lib/site-url";
 import type { PlatformSettings } from "@/lib/types";
-
-const VIRTUAL_COPIES = 3;
-
-function isInteractiveTarget(target: EventTarget | null) {
-  if (!(target instanceof Element)) return false;
-  return Boolean(target.closest('[data-blob-interactive="true"]'));
-}
 
 function initialsFromName(name: string) {
   return name
@@ -93,21 +84,31 @@ export function BlobFeed() {
   const dAppKit = useDAppKit();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const searchParamsString = searchParams.toString();
+  const blobParam = searchParams.get("blob")?.trim() ?? "";
+
   const [platform, setPlatform] = useState<PlatformSettings>(defaultPlatformSettings());
   const [liveBlobs, setLiveBlobs] = useState<BlobItem[] | null>(null);
+  const [feedLimit, setFeedLimit] = useState(24);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingPlatform, setLoadingPlatform] = useState(true);
+  const [loadingFeed, setLoadingFeed] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+
   const [userState, setUserState] = useState<BlobUserState>(() => createBlobUserState());
-  const [activeIndex, setActiveIndex] = useState(blobSeed.length);
-  const [transitioning, setTransitioning] = useState(true);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
   const [likePulseKey, setLikePulseKey] = useState(0);
+
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [tipOpen, setTipOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const [identityMenuOpen, setIdentityMenuOpen] = useState(false);
-  const [walletMenuOpen, setWalletMenuOpen] = useState(false);
+  const [topMenuOpen, setTopMenuOpen] = useState(false);
+
   const [toast, setToast] = useState<string | null>(null);
-  const [loadingPlatform, setLoadingPlatform] = useState(true);
-  const [loadingFeed, setLoadingFeed] = useState(true);
   const [pendingLike, setPendingLike] = useState(false);
   const [pendingBookmark, setPendingBookmark] = useState(false);
   const [pendingComment, setPendingComment] = useState(false);
@@ -115,19 +116,201 @@ export function BlobFeed() {
   const [pendingFollow, setPendingFollow] = useState(false);
   const [pendingCreate, setPendingCreate] = useState(false);
   const [pendingWalletAction, setPendingWalletAction] = useState<"copy" | "disconnect" | null>(null);
-  const [isLandscapeMobile, setIsLandscapeMobile] = useState(false);
-  const [pullDistance, setPullDistance] = useState(0);
-  const [refreshNonce, setRefreshNonce] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
-  const gestureRef = useRef<{ x: number; y: number; time: number } | null>(null);
-  const wheelLockRef = useRef(0);
-  const pullStartRef = useRef<{ x: number; y: number } | null>(null);
-  const commentsFetchNonceRef = useRef<Record<string, number>>({});
-  const identityMenuRef = useRef<HTMLDivElement | null>(null);
-  const walletMenuRef = useRef<HTMLDivElement | null>(null);
+
   const connectModalRef = useRef<DAppKitConnectModal | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const blobRefs = useRef<Map<number, HTMLElement>>(new Map());
+  const commentsFetchNonceRef = useRef<Record<string, number>>({});
+  const controlsTimerRef = useRef<number | null>(null);
+  const initialPositionRef = useRef(false);
+  const skipUrlSyncRef = useRef(false);
+
   const storageKey = blobStateStorageKey(account?.address);
-  const feedQueryString = searchParams.toString();
+  const homeHref = createBlobsHomeHref(searchParamsString);
+  const overlayVisible = controlsVisible || commentsOpen || tipOpen || shareOpen;
+
+  const feedKey = `${account?.address ?? ""}|${searchParams.get("q") ?? ""}|${searchParams.get("tag") ?? ""}`;
+
+  const orderedBlobs = useMemo(
+    () => rankBlobFeed(liveBlobs === null ? blobSeed : liveBlobs),
+    [liveBlobs],
+  );
+
+  const visibleCount = orderedBlobs.length;
+
+  function creatorFollowKey(blob: BlobItem) {
+    return (blob.creatorAddress || blob.creatorHandle || blob.id).trim().toLowerCase();
+  }
+
+  const applyUserStateToBlob = useCallback(
+    (blob: BlobItem) => {
+      const likedOverride = userState.likedIds[blob.id];
+      const bookmarkedOverride = userState.bookmarkedIds[blob.id];
+      const likesDelta = userState.likedAdjustments[blob.id] ?? 0;
+      const followedOverride = userState.followedHandles[creatorFollowKey(blob)];
+
+      return {
+        ...blob,
+        likedByUser: typeof likedOverride === "boolean" ? likedOverride : blob.likedByUser,
+        bookmarkedByUser: typeof bookmarkedOverride === "boolean" ? bookmarkedOverride : blob.bookmarkedByUser,
+        followedByUser: typeof followedOverride === "boolean" ? followedOverride : blob.followedByUser,
+        likesCount: Math.max(0, blob.likesCount + likesDelta),
+        sharesCount: Math.max(0, blob.sharesCount + (userState.shareAdjustments[blob.id] ?? 0)),
+      };
+    },
+    [userState.bookmarkedIds, userState.followedHandles, userState.likedAdjustments, userState.likedIds, userState.shareAdjustments],
+  );
+
+  const activeRawBlob = orderedBlobs[activeIndex] ?? null;
+  const currentBlob = activeRawBlob ? applyUserStateToBlob(activeRawBlob) : null;
+  const currentComments = useMemo(() => {
+    if (!activeRawBlob) return [];
+    return userState.commentsByBlobId[activeRawBlob.id] ?? activeRawBlob.comments;
+  }, [activeRawBlob, userState.commentsByBlobId]);
+  const currentDraft = activeRawBlob ? userState.commentDrafts[activeRawBlob.id] ?? "" : "";
+
+  const setBlobRef = useCallback((index: number, node: HTMLElement | null) => {
+    if (node) {
+      blobRefs.current.set(index, node);
+      return;
+    }
+    blobRefs.current.delete(index);
+  }, []);
+
+  const pingControls = useCallback(
+    (hideAfterMs = 2300) => {
+      setControlsVisible(true);
+      if (controlsTimerRef.current) {
+        window.clearTimeout(controlsTimerRef.current);
+        controlsTimerRef.current = null;
+      }
+      if (commentsOpen || tipOpen || shareOpen) return;
+      controlsTimerRef.current = window.setTimeout(() => {
+        setControlsVisible(false);
+      }, hideAfterMs);
+    },
+    [commentsOpen, shareOpen, tipOpen],
+  );
+
+  function updateUserState(updater: (current: BlobUserState) => BlobUserState) {
+    setUserState((current) => updater(current));
+  }
+
+  function updateLiveBlob(blobId: string, patch: Partial<BlobItem>) {
+    setLiveBlobs((current) =>
+      current?.map((blob) =>
+        blob.id === blobId
+          ? {
+              ...blob,
+              ...patch,
+            }
+          : blob,
+      ) ?? current,
+    );
+  }
+
+  function bumpCommentsFetchNonce(blobId: string) {
+    const nextNonce = (commentsFetchNonceRef.current[blobId] ?? 0) + 1;
+    commentsFetchNonceRef.current[blobId] = nextNonce;
+    return nextNonce;
+  }
+
+  function requestConnectFlow(message: string) {
+    connectModalRef.current?.show?.();
+    setToast(message);
+  }
+
+  const moveToIndex = useCallback((index: number, behavior: ScrollBehavior = "smooth") => {
+    if (!orderedBlobs.length) return;
+    const safeIndex = Math.max(0, Math.min(index, orderedBlobs.length - 1));
+    const node = blobRefs.current.get(safeIndex);
+    if (!node) return;
+    node.scrollIntoView({ block: "start", behavior });
+    setActiveIndex(safeIndex);
+    setPaused(false);
+    pingControls();
+  }, [orderedBlobs.length, pingControls]);
+
+  function handleBackNavigation() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push(homeHref);
+  }
+
+  function handleOpenOwnProfile(tab?: string) {
+    const route = tab ? `/profile?tab=${encodeURIComponent(tab)}` : "/profile";
+    router.push(route);
+  }
+
+  function handleTagClick(tag: string) {
+    const normalizedTag = tag.replace(/^#/, "").trim();
+    if (!normalizedTag) return;
+    router.push(`/blobs?q=${encodeURIComponent(normalizedTag)}`);
+  }
+
+  function triggerRefresh() {
+    if (refreshing) return;
+    setRefreshing(true);
+    setRefreshNonce((current) => current + 1);
+  }
+
+  async function handleCreateBlob() {
+    if (pendingCreate) return;
+    if (!account?.address) {
+      requestConnectFlow("Connect a wallet to create a Blob.");
+      return;
+    }
+
+    setPendingCreate(true);
+    setTopMenuOpen(false);
+    try {
+      await new Promise((resolve) => window.setTimeout(resolve, 120));
+      router.push("/upload?blob=true");
+    } finally {
+      setPendingCreate(false);
+    }
+  }
+
+  async function handleCopyWalletAddress() {
+    if (!account?.address || pendingWalletAction === "copy") return;
+    setPendingWalletAction("copy");
+    try {
+      await navigator.clipboard.writeText(account.address);
+      setToast("Address copied.");
+    } catch {
+      setToast("Could not copy wallet address.");
+    } finally {
+      setPendingWalletAction(null);
+    }
+  }
+
+  async function handleDisconnectWallet() {
+    if (pendingWalletAction === "disconnect") return;
+    setPendingWalletAction("disconnect");
+    try {
+      await dAppKit.disconnectWallet();
+      setTopMenuOpen(false);
+      setToast("Wallet disconnected.");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Could not disconnect wallet.");
+    } finally {
+      setPendingWalletAction(null);
+    }
+  }
+
+  function registerShareSuccess(blobId: string, message: string) {
+    updateUserState((current) => ({
+      ...current,
+      shareAdjustments: {
+        ...current.shareAdjustments,
+        [blobId]: (current.shareAdjustments[blobId] ?? 0) + 1,
+      },
+    }));
+    setToast(message);
+  }
 
   useEffect(() => {
     let active = true;
@@ -158,18 +341,26 @@ export function BlobFeed() {
   }, []);
 
   useEffect(() => {
+    setFeedLimit(24);
+    setHasMore(true);
+    setLoadingMore(false);
+    setActiveIndex(0);
+    initialPositionRef.current = false;
+  }, [feedKey]);
+
+  useEffect(() => {
     let active = true;
 
     async function loadBlobs() {
       const address = account?.address?.trim();
-      const routeParams = new URLSearchParams(feedQueryString);
+      const routeParams = new URLSearchParams(searchParamsString);
       const query = routeParams.get("q")?.trim();
       const tag = routeParams.get("tag")?.trim();
       const feedQuery = query || tag || "";
 
       try {
         const url = new URL("/api/blobs", window.location.origin);
-        url.searchParams.set("limit", "24");
+        url.searchParams.set("limit", String(feedLimit));
         if (address) {
           url.searchParams.set("address", address);
         }
@@ -181,49 +372,30 @@ export function BlobFeed() {
           cache: "no-store",
         });
         const data = (await response.json()) as { blobs?: BlobItem[] };
-        if (active && Array.isArray(data.blobs)) {
-          setLiveBlobs(data.blobs);
-        } else if (active) {
-          setLiveBlobs([]);
-        }
+        if (!active) return;
+
+        const nextBlobs = Array.isArray(data.blobs) ? data.blobs : [];
+        setLiveBlobs(nextBlobs);
+        setHasMore(nextBlobs.length >= feedLimit);
       } catch {
-        if (active) {
-          setLiveBlobs([]);
-        }
+        if (!active) return;
+        setLiveBlobs([]);
+        setHasMore(false);
       } finally {
-        if (active) {
-          setLoadingFeed(false);
-          setRefreshing(false);
-          setPullDistance(0);
-        }
+        if (!active) return;
+        setLoadingFeed(false);
+        setLoadingMore(false);
+        setRefreshing(false);
       }
     }
 
+    setLoadingFeed(true);
     void loadBlobs();
 
     return () => {
       active = false;
     };
-  }, [account?.address, feedQueryString, refreshNonce]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const media = window.matchMedia("(orientation: landscape)");
-    const updateOrientation = () => {
-      setIsLandscapeMobile(media.matches && window.innerWidth <= 1024);
-    };
-
-    updateOrientation();
-    media.addEventListener("change", updateOrientation);
-    window.addEventListener("orientationchange", updateOrientation);
-    window.addEventListener("resize", updateOrientation);
-
-    return () => {
-      media.removeEventListener("change", updateOrientation);
-      window.removeEventListener("orientationchange", updateOrientation);
-      window.removeEventListener("resize", updateOrientation);
-    };
-  }, []);
+  }, [account?.address, feedLimit, refreshNonce, searchParamsString]);
 
   useEffect(() => {
     try {
@@ -275,125 +447,109 @@ export function BlobFeed() {
     userState.shareAdjustments,
   ]);
 
-  const orderedBlobs = useMemo(() => rankBlobFeed(liveBlobs && liveBlobs.length ? liveBlobs : blobSeed), [liveBlobs]);
-  const currentBlobId = searchParams.get("blob");
+  useEffect(() => {
+    if (!orderedBlobs.length) {
+      setActiveIndex(0);
+      return;
+    }
+    setActiveIndex((current) => Math.max(0, Math.min(current, orderedBlobs.length - 1)));
+  }, [orderedBlobs.length]);
 
   useEffect(() => {
-    const targetIndex = currentBlobId ? orderedBlobs.findIndex((blob) => blob.id === currentBlobId) : 0;
-    const safeIndex = targetIndex >= 0 ? targetIndex : 0;
+    if (!orderedBlobs.length || !scrollContainerRef.current) return;
 
-    setTransitioning(false);
-    setActiveIndex(orderedBlobs.length + safeIndex);
-    setPaused(false);
-    window.requestAnimationFrame(() => setTransitioning(true));
-    setCommentsOpen(false);
-    setTipOpen(false);
-    setShareOpen(false);
-    setToast(null);
-  }, [currentBlobId, orderedBlobs]);
+    const targetIndexFromParam = blobParam ? orderedBlobs.findIndex((blob) => blob.id === blobParam) : 0;
+    const safeIndex = targetIndexFromParam >= 0 ? targetIndexFromParam : 0;
 
-  useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 2200);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-
-  useEffect(() => {
-    if (!identityMenuOpen && !walletMenuOpen) return;
-
-    function handlePointerDown(event: MouseEvent) {
-      const target = event.target;
-      if (identityMenuOpen && identityMenuRef.current && target instanceof Node && !identityMenuRef.current.contains(target)) {
-        setIdentityMenuOpen(false);
-      }
-      if (walletMenuOpen && walletMenuRef.current && target instanceof Node && !walletMenuRef.current.contains(target)) {
-        setWalletMenuOpen(false);
-      }
+    if (!initialPositionRef.current) {
+      initialPositionRef.current = true;
+      setActiveIndex(safeIndex);
+      window.requestAnimationFrame(() => {
+        const node = blobRefs.current.get(safeIndex);
+        node?.scrollIntoView({ block: "start", behavior: "auto" });
+      });
+      return;
     }
 
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      setIdentityMenuOpen(false);
-      setWalletMenuOpen(false);
+    if (!blobParam) return;
+    if (safeIndex === activeIndex) return;
+
+    skipUrlSyncRef.current = true;
+    moveToIndex(safeIndex, "smooth");
+  }, [activeIndex, blobParam, moveToIndex, orderedBlobs]);
+
+  useEffect(() => {
+    if (!orderedBlobs.length) return;
+    const nextId = orderedBlobs[activeIndex]?.id;
+    if (!nextId) return;
+
+    if (skipUrlSyncRef.current) {
+      skipUrlSyncRef.current = false;
+      return;
     }
 
-    window.addEventListener("mousedown", handlePointerDown);
-    window.addEventListener("keydown", handleEscape);
-    return () => {
-      window.removeEventListener("mousedown", handlePointerDown);
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [identityMenuOpen, walletMenuOpen]);
+    const params = new URLSearchParams(searchParamsString);
+    if (params.get("blob") === nextId) return;
 
-  const feedWindow = useMemo(() => {
-    const copies = Array.from({ length: VIRTUAL_COPIES }, () => orderedBlobs).flat();
-    return copies.map((blob, index) => ({
-      blob,
-      virtualIndex: index,
-    }));
-  }, [orderedBlobs]);
+    params.set("blob", nextId);
+    const query = params.toString();
+    router.replace(query ? `/blobs?${query}` : "/blobs", { scroll: false });
+  }, [activeIndex, orderedBlobs, router, searchParamsString]);
 
-  const currentLogicalIndex = orderedBlobs.length ? ((activeIndex % orderedBlobs.length) + orderedBlobs.length) % orderedBlobs.length : 0;
-  const currentBlob = orderedBlobs[currentLogicalIndex] ?? orderedBlobs[0] ?? null;
-  const currentComments = useMemo(() => {
-    if (!currentBlob) return [];
-    return userState.commentsByBlobId[currentBlob.id] ?? currentBlob.comments;
-  }, [currentBlob, userState.commentsByBlobId]);
-  const currentDraft = currentBlob ? userState.commentDrafts[currentBlob.id] ?? "" : "";
+  useEffect(() => {
+    const root = scrollContainerRef.current;
+    if (!root || !orderedBlobs.length) return;
 
-  function creatorFollowKey(blob: BlobItem) {
-    return (blob.creatorAddress || blob.creatorHandle || blob.id).trim().toLowerCase();
-  }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        let best: { index: number; ratio: number } | null = null;
 
-  function applyUserStateToBlob(blob: BlobItem) {
-    const likedOverride = userState.likedIds[blob.id];
-    const bookmarkedOverride = userState.bookmarkedIds[blob.id];
-    const likesDelta = userState.likedAdjustments[blob.id] ?? 0;
-    const followedOverride = userState.followedHandles[creatorFollowKey(blob)];
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const node = entry.target as HTMLElement;
+          const index = Number(node.dataset.index);
+          if (!Number.isFinite(index)) continue;
+          if (!best || entry.intersectionRatio > best.ratio) {
+            best = { index, ratio: entry.intersectionRatio };
+          }
+        }
 
-    return {
-      ...blob,
-      likedByUser: typeof likedOverride === "boolean" ? likedOverride : blob.likedByUser,
-      bookmarkedByUser: typeof bookmarkedOverride === "boolean" ? bookmarkedOverride : blob.bookmarkedByUser,
-      followedByUser: typeof followedOverride === "boolean" ? followedOverride : blob.followedByUser,
-      likesCount: Math.max(0, blob.likesCount + likesDelta),
-      sharesCount: Math.max(0, blob.sharesCount + (userState.shareAdjustments[blob.id] ?? 0)),
-    };
-  }
+        if (!best || best.ratio < 0.72) return;
 
-  const visibleCount = orderedBlobs.length;
-  const progressPercent = visibleCount ? ((currentLogicalIndex + 1) / visibleCount) * 100 : 0;
-  const loading = loadingPlatform || loadingFeed;
-  const homeHref = createBlobsHomeHref(feedQueryString);
-  function updateUserState(updater: (current: BlobUserState) => BlobUserState) {
-    setUserState((current) => updater(current));
-  }
-
-  function updateLiveBlob(blobId: string, patch: Partial<BlobItem>) {
-    setLiveBlobs((current) =>
-      current?.map((blob) =>
-        blob.id === blobId
-          ? {
-              ...blob,
-              ...patch,
-            }
-          : blob,
-      ) ?? current,
+        setActiveIndex((current) => {
+          if (current === best?.index) return current;
+          return best?.index ?? current;
+        });
+      },
+      {
+        root,
+        threshold: [0.25, 0.5, 0.72, 0.85],
+      },
     );
-  }
 
-  function bumpCommentsFetchNonce(blobId: string) {
-    const nextNonce = (commentsFetchNonceRef.current[blobId] ?? 0) + 1;
-    commentsFetchNonceRef.current[blobId] = nextNonce;
-    return nextNonce;
-  }
+    blobRefs.current.forEach((node) => {
+      observer.observe(node);
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [orderedBlobs.length]);
 
   useEffect(() => {
-    if (!currentBlob?.videoId) return;
+    if (!hasMore || loadingFeed || loadingMore || !orderedBlobs.length) return;
+    if (activeIndex < orderedBlobs.length - 4) return;
+
+    setLoadingMore(true);
+    setFeedLimit((current) => current + 12);
+  }, [activeIndex, hasMore, loadingFeed, loadingMore, orderedBlobs.length]);
+
+  useEffect(() => {
+    if (!activeRawBlob?.videoId) return;
 
     let active = true;
-    const requestNonce = bumpCommentsFetchNonce(currentBlob.id);
-    const videoId = currentBlob.videoId;
+    const requestNonce = bumpCommentsFetchNonce(activeRawBlob.id);
+    const videoId = activeRawBlob.videoId;
 
     async function loadComments() {
       try {
@@ -401,17 +557,17 @@ export function BlobFeed() {
           cache: "no-store",
         });
         const data = (await response.json()) as { comments?: BlobComment[] };
-        if (!active || commentsFetchNonceRef.current[currentBlob.id] !== requestNonce || !Array.isArray(data.comments)) return;
+        if (!active || commentsFetchNonceRef.current[activeRawBlob.id] !== requestNonce || !Array.isArray(data.comments)) return;
 
         updateUserState((current) => ({
           ...current,
           commentsByBlobId: {
             ...current.commentsByBlobId,
-            [currentBlob.id]: data.comments ?? [],
+            [activeRawBlob.id]: data.comments ?? [],
           },
         }));
       } catch {
-        // Keep the existing cache if the comments request fails.
+        // Keep existing cache on comments fetch failure.
       }
     }
 
@@ -420,145 +576,86 @@ export function BlobFeed() {
     return () => {
       active = false;
     };
-  }, [currentBlob?.id, currentBlob?.videoId]);
+  }, [activeRawBlob?.id, activeRawBlob?.videoId]);
 
-  function moveFeed(direction: 1 | -1) {
-    if (commentsOpen || tipOpen || shareOpen) return;
-    if (!orderedBlobs.length) return;
-    setTransitioning(true);
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2200);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  useEffect(() => {
+    if (!topMenuOpen) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!menuRef.current || !(event.target instanceof Node)) return;
+      if (!menuRef.current.contains(event.target)) {
+        setTopMenuOpen(false);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setTopMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [topMenuOpen]);
+
+  useEffect(() => {
+    if (controlsTimerRef.current) {
+      window.clearTimeout(controlsTimerRef.current);
+      controlsTimerRef.current = null;
+    }
+    pingControls(2600);
+
+    return () => {
+      if (controlsTimerRef.current) {
+        window.clearTimeout(controlsTimerRef.current);
+        controlsTimerRef.current = null;
+      }
+    };
+  }, [activeIndex, pingControls]);
+
+  useEffect(() => {
+    if (commentsOpen || tipOpen || shareOpen) {
+      setControlsVisible(true);
+      if (controlsTimerRef.current) {
+        window.clearTimeout(controlsTimerRef.current);
+        controlsTimerRef.current = null;
+      }
+      return;
+    }
+
+    pingControls(1700);
+  }, [commentsOpen, pingControls, shareOpen, tipOpen]);
+
+  useEffect(() => {
     setPaused(false);
-    setActiveIndex((current) => current + direction);
-  }
-
-  function normalizeVirtualIndex() {
-    const length = orderedBlobs.length;
-    if (!length) return;
-
-    if (activeIndex >= length * 2) {
-      setTransitioning(false);
-      setActiveIndex((current) => current - length);
-      setPaused(false);
-      window.requestAnimationFrame(() => setTransitioning(true));
-      return;
-    }
-
-    if (activeIndex < length) {
-      setTransitioning(false);
-      setActiveIndex((current) => current + length);
-      setPaused(false);
-      window.requestAnimationFrame(() => setTransitioning(true));
-    }
-  }
-
-  function requestConnectFlow(message: string) {
-    connectModalRef.current?.show?.();
-    setToast(message);
-  }
-
-  function handleBackNavigation() {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-      return;
-    }
-    router.push(homeHref);
-  }
-
-  function handleGoHome() {
-    router.push(homeHref);
-  }
-
-  function handleOpenOwnProfile(tab?: string) {
-    const route = tab ? `/profile?tab=${encodeURIComponent(tab)}` : "/profile";
-    router.push(route);
-  }
-
-  function handleTagClick(tag: string) {
-    const normalizedTag = tag.replace(/^#/, "").trim();
-    if (!normalizedTag) return;
-    router.push(`/blobs?q=${encodeURIComponent(normalizedTag)}`);
-  }
-
-  function triggerRefresh() {
-    if (refreshing || loadingFeed) return;
-    setRefreshing(true);
-    setLoadingFeed(true);
-    setRefreshNonce((current) => current + 1);
-  }
-
-  function openTipModal() {
-    setTipOpen(true);
-  }
-
-  async function handleCreateBlob() {
-    if (pendingCreate) return;
-    if (!account?.address) {
-      requestConnectFlow("Connect a wallet to create a Blob.");
-      return;
-    }
-
-    setPendingCreate(true);
-    setIdentityMenuOpen(false);
-    try {
-      await new Promise((resolve) => window.setTimeout(resolve, 120));
-      router.push("/upload?blob=true");
-    } finally {
-      setPendingCreate(false);
-    }
-  }
-
-  async function handleCopyWalletAddress() {
-    if (!account?.address || pendingWalletAction === "copy") return;
-    setPendingWalletAction("copy");
-    try {
-      await navigator.clipboard.writeText(account.address);
-      setToast("Address copied.");
-    } catch {
-      setToast("Could not copy wallet address.");
-    } finally {
-      setPendingWalletAction(null);
-    }
-  }
-
-  async function handleDisconnectWallet() {
-    if (pendingWalletAction === "disconnect") return;
-    setPendingWalletAction("disconnect");
-    try {
-      await dAppKit.disconnectWallet();
-      setWalletMenuOpen(false);
-      setToast("Wallet disconnected.");
-    } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not disconnect wallet.");
-    } finally {
-      setPendingWalletAction(null);
-    }
-  }
-
-  function registerShareSuccess(blobId: string, message: string) {
-    updateUserState((current) => ({
-      ...current,
-      shareAdjustments: {
-        ...current.shareAdjustments,
-        [blobId]: (current.shareAdjustments[blobId] ?? 0) + 1,
-      },
-    }));
-    setToast(message);
-  }
+  }, [activeIndex]);
 
   async function handleLike() {
-    if (!currentBlob) return;
+    if (!activeRawBlob) return;
     if (pendingLike) return;
-    if (currentBlob.videoId && !account?.address) {
+    if (activeRawBlob.videoId && !account?.address) {
       requestConnectFlow("Connect a wallet to like live Blobs.");
       return;
     }
 
     setPendingLike(true);
 
-    const blobId = currentBlob.id;
-    const videoId = currentBlob.videoId ?? null;
-    const previousLiked = typeof userState.likedIds[blobId] === "boolean" ? userState.likedIds[blobId] : currentBlob.likedByUser;
+    const blobId = activeRawBlob.id;
+    const videoId = activeRawBlob.videoId ?? null;
+    const previousLiked =
+      typeof userState.likedIds[blobId] === "boolean" ? userState.likedIds[blobId] : activeRawBlob.likedByUser;
     const previousLikesDelta = userState.likedAdjustments[blobId] ?? 0;
-    const previousLikes = Math.max(0, currentBlob.likesCount + previousLikesDelta);
+    const previousLikes = Math.max(0, activeRawBlob.likesCount + previousLikesDelta);
     const desiredLiked = !previousLiked;
 
     updateLiveBlob(blobId, {
@@ -602,24 +699,21 @@ export function BlobFeed() {
         likedByUser: typeof data.liked === "boolean" ? data.liked : desiredLiked,
         likesCount: Number.isFinite(data.likes) ? Number(data.likes) : Math.max(0, previousLikes + (desiredLiked ? 1 : -1)),
       });
-      updateUserState((current) => {
-        const next = {
-          ...current,
-          likedIds: {
-            ...current.likedIds,
-            [blobId]: typeof data.liked === "boolean" ? data.liked : desiredLiked,
-          },
-          likedAdjustments: {
-            ...current.likedAdjustments,
-            [blobId]: 0,
-          },
-        };
-        return next;
-      });
+      updateUserState((current) => ({
+        ...current,
+        likedIds: {
+          ...current.likedIds,
+          [blobId]: typeof data.liked === "boolean" ? data.liked : desiredLiked,
+        },
+        likedAdjustments: {
+          ...current.likedAdjustments,
+          [blobId]: 0,
+        },
+      }));
     } catch (error) {
       updateLiveBlob(blobId, {
         likedByUser: previousLiked,
-        likesCount: Math.max(0, currentBlob.likesCount + previousLikesDelta),
+        likesCount: Math.max(0, activeRawBlob.likesCount + previousLikesDelta),
       });
       updateUserState((current) => ({
         ...current,
@@ -639,22 +733,22 @@ export function BlobFeed() {
   }
 
   async function handleBookmark() {
-    if (!currentBlob) return;
+    if (!activeRawBlob) return;
     if (pendingBookmark) return;
 
     const actorAddress = account?.address ?? null;
     const previousBookmarked =
-      typeof userState.bookmarkedIds[currentBlob.id] === "boolean"
-        ? userState.bookmarkedIds[currentBlob.id]
-        : currentBlob.bookmarkedByUser;
+      typeof userState.bookmarkedIds[activeRawBlob.id] === "boolean"
+        ? userState.bookmarkedIds[activeRawBlob.id]
+        : activeRawBlob.bookmarkedByUser;
     const desiredBookmarked = !previousBookmarked;
 
-    if (!currentBlob.videoId) {
+    if (!activeRawBlob.videoId) {
       updateUserState((current) => ({
         ...current,
         bookmarkedIds: {
           ...current.bookmarkedIds,
-          [currentBlob.id]: desiredBookmarked,
+          [activeRawBlob.id]: desiredBookmarked,
         },
       }));
       setToast(desiredBookmarked ? "Saved to watch later." : "Removed from watch later.");
@@ -668,8 +762,8 @@ export function BlobFeed() {
 
     setPendingBookmark(true);
 
-    const blobId = currentBlob.id;
-    const videoId = currentBlob.videoId;
+    const blobId = activeRawBlob.id;
+    const videoId = activeRawBlob.videoId;
 
     updateLiveBlob(blobId, {
       bookmarkedByUser: desiredBookmarked,
@@ -775,22 +869,22 @@ export function BlobFeed() {
   }
 
   async function handleToggleFollow() {
-    if (!currentBlob || !currentBlob.followable) return;
+    if (!activeRawBlob || !activeRawBlob.followable) return;
     if (pendingFollow) return;
     const actorAddress = account?.address ?? null;
-    const followKey = creatorFollowKey(currentBlob);
+    const followKey = creatorFollowKey(activeRawBlob);
     const previousFollowed =
       typeof userState.followedHandles[followKey] === "boolean"
         ? userState.followedHandles[followKey]
-        : currentBlob.followedByUser;
+        : activeRawBlob.followedByUser;
     const desiredFollowed = !previousFollowed;
 
-    if (!actorAddress && currentBlob.videoId) {
+    if (!actorAddress && activeRawBlob.videoId) {
       requestConnectFlow("Connect a wallet to follow creators.");
       return;
     }
 
-    if (!currentBlob.videoId) {
+    if (!activeRawBlob.videoId) {
       updateUserState((current) => ({
         ...current,
         followedHandles: {
@@ -798,14 +892,14 @@ export function BlobFeed() {
           [followKey]: desiredFollowed,
         },
       }));
-      setToast(desiredFollowed ? `Following ${currentBlob.creatorName}.` : `Unfollowed ${currentBlob.creatorName}.`);
+      setToast(desiredFollowed ? `Following ${activeRawBlob.creatorName}.` : `Unfollowed ${activeRawBlob.creatorName}.`);
       return;
     }
 
     setPendingFollow(true);
 
-    const blobId = currentBlob.id;
-    const videoId = currentBlob.videoId;
+    const blobId = activeRawBlob.id;
+    const videoId = activeRawBlob.videoId;
 
     updateLiveBlob(blobId, {
       followedByUser: desiredFollowed,
@@ -843,7 +937,7 @@ export function BlobFeed() {
           [followKey]: typeof data.followed === "boolean" ? data.followed : desiredFollowed,
         },
       }));
-      setToast(desiredFollowed ? `Following ${currentBlob.creatorName}.` : `Unfollowed ${currentBlob.creatorName}.`);
+      setToast(desiredFollowed ? `Following ${activeRawBlob.creatorName}.` : `Unfollowed ${activeRawBlob.creatorName}.`);
     } catch (error) {
       updateLiveBlob(blobId, {
         followedByUser: previousFollowed,
@@ -862,7 +956,7 @@ export function BlobFeed() {
   }
 
   async function handleCommentSubmit() {
-    if (!currentBlob) return;
+    if (!activeRawBlob) return;
     if (pendingComment) return;
     const draft = currentDraft.trim();
     if (!draft) return;
@@ -870,9 +964,9 @@ export function BlobFeed() {
     setPendingComment(true);
 
     try {
-      if (!currentBlob.videoId) {
+      if (!activeRawBlob.videoId) {
         const nextComment = createLocalComment({
-          blob: currentBlob,
+          blob: activeRawBlob,
           accountAddress: account?.address,
           walletName: wallet?.name,
           body: draft,
@@ -882,11 +976,11 @@ export function BlobFeed() {
           ...current,
           commentsByBlobId: {
             ...current.commentsByBlobId,
-            [currentBlob.id]: [nextComment, ...(current.commentsByBlobId[currentBlob.id] ?? [])],
+            [activeRawBlob.id]: [nextComment, ...(current.commentsByBlobId[activeRawBlob.id] ?? [])],
           },
           commentDrafts: {
             ...current.commentDrafts,
-            [currentBlob.id]: "",
+            [activeRawBlob.id]: "",
           },
         }));
         setToast("Comment posted.");
@@ -898,13 +992,13 @@ export function BlobFeed() {
         return;
       }
 
-      const requestNonce = bumpCommentsFetchNonce(currentBlob.id);
-      const previousComments = userState.commentsByBlobId[currentBlob.id] ?? [];
+      const requestNonce = bumpCommentsFetchNonce(activeRawBlob.id);
+      const previousComments = userState.commentsByBlobId[activeRawBlob.id] ?? [];
       const previousDraft = currentDraft;
-      const previousCommentsCount = currentBlob.commentsCount;
-      const videoId = currentBlob.videoId;
+      const previousCommentsCount = activeRawBlob.commentsCount;
+      const videoId = activeRawBlob.videoId;
       const nextLocalComment = createLocalComment({
-        blob: currentBlob,
+        blob: activeRawBlob,
         accountAddress: account.address,
         walletName: wallet?.name,
         body: draft,
@@ -914,22 +1008,15 @@ export function BlobFeed() {
         ...current,
         commentsByBlobId: {
           ...current.commentsByBlobId,
-          [currentBlob.id]: [nextLocalComment, ...previousComments],
+          [activeRawBlob.id]: [nextLocalComment, ...previousComments],
         },
         commentDrafts: {
           ...current.commentDrafts,
-          [currentBlob.id]: "",
+          [activeRawBlob.id]: "",
         },
       }));
-      updateLiveBlob(currentBlob.id, {
+      updateLiveBlob(activeRawBlob.id, {
         commentsCount: previousCommentsCount + 1,
-      });
-
-      const nextComment = createLocalComment({
-        blob: currentBlob,
-        accountAddress: account.address,
-        walletName: wallet?.name,
-        body: draft,
       });
 
       try {
@@ -954,24 +1041,27 @@ export function BlobFeed() {
           throw new Error(data.error ?? "Could not post comment.");
         }
 
-        if (commentsFetchNonceRef.current[currentBlob.id] !== requestNonce) {
+        if (commentsFetchNonceRef.current[activeRawBlob.id] !== requestNonce) {
           throw new Error("Comment state changed while posting. Please try again.");
         }
 
-        const persistedComments = Array.isArray(data.comments) && data.comments.length ? data.comments : [data.comment ?? nextComment, ...previousComments];
+        const persistedComments = Array.isArray(data.comments) && data.comments.length
+          ? data.comments
+          : [data.comment ?? nextLocalComment, ...previousComments];
+
         updateUserState((current) => ({
           ...current,
           commentsByBlobId: {
             ...current.commentsByBlobId,
-            [currentBlob.id]: persistedComments,
+            [activeRawBlob.id]: persistedComments,
           },
           commentDrafts: {
             ...current.commentDrafts,
-            [currentBlob.id]: "",
+            [activeRawBlob.id]: "",
           },
         }));
-        updateLiveBlob(currentBlob.id, {
-          commentsCount: Number.isFinite(data.commentsCount) ? Number(data.commentsCount) : currentBlob.commentsCount + 1,
+        updateLiveBlob(activeRawBlob.id, {
+          commentsCount: Number.isFinite(data.commentsCount) ? Number(data.commentsCount) : activeRawBlob.commentsCount + 1,
         });
         setToast("Comment posted.");
       } catch (error) {
@@ -981,14 +1071,14 @@ export function BlobFeed() {
             ...current,
             commentsByBlobId: {
               ...current.commentsByBlobId,
-              [currentBlob.id]: previousComments,
+              [activeRawBlob.id]: previousComments,
             },
             commentDrafts: {
               ...current.commentDrafts,
-              [currentBlob.id]: previousDraft,
+              [activeRawBlob.id]: previousDraft,
             },
           }));
-          updateLiveBlob(currentBlob.id, {
+          updateLiveBlob(activeRawBlob.id, {
             commentsCount: previousCommentsCount,
           });
         }
@@ -1054,105 +1144,27 @@ export function BlobFeed() {
     );
   }
 
-  const canRender = Boolean(currentBlob);
-
   return (
     <section
       aria-label="Blobs"
-      className="relative h-[100dvh] max-h-[100dvh] overflow-x-hidden overflow-y-hidden overscroll-y-contain bg-[#02040b] text-white"
+      className="relative h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[#02040b] text-white"
+      onPointerMove={() => pingControls()}
+      onPointerDown={() => pingControls()}
+      onTouchStart={() => pingControls()}
+      onWheel={() => pingControls()}
       onKeyDown={(event) => {
-      if (commentsOpen || tipOpen || shareOpen) {
-          if (event.key === "Escape") {
-            setCommentsOpen(false);
-            setTipOpen(false);
-            setShareOpen(false);
-          }
-          return;
-        }
+        pingControls();
+        if (!orderedBlobs.length) return;
 
         if (event.key === "ArrowDown" || event.key === "PageDown") {
           event.preventDefault();
-          moveFeed(1);
+          moveToIndex(activeIndex + 1);
         }
 
         if (event.key === "ArrowUp" || event.key === "PageUp") {
           event.preventDefault();
-          moveFeed(-1);
+          moveToIndex(activeIndex - 1);
         }
-
-        if (event.key === "Escape") {
-          setCommentsOpen(false);
-          setTipOpen(false);
-          setShareOpen(false);
-          setIdentityMenuOpen(false);
-          setWalletMenuOpen(false);
-        }
-      }}
-      onPointerDown={(event) => {
-        if (commentsOpen || tipOpen || shareOpen || isInteractiveTarget(event.target)) return;
-        gestureRef.current = {
-          x: event.clientX,
-          y: event.clientY,
-          time: Date.now(),
-        };
-      }}
-      onPointerUp={(event) => {
-        if (commentsOpen || tipOpen || shareOpen || !gestureRef.current || isInteractiveTarget(event.target)) return;
-        const start = gestureRef.current;
-        gestureRef.current = null;
-        const deltaX = event.clientX - start.x;
-        const deltaY = event.clientY - start.y;
-        const moved = Math.hypot(deltaX, deltaY);
-        const elapsed = Date.now() - start.time;
-
-        if (moved < 60 || elapsed > 1000) return;
-        if (Math.abs(deltaY) <= Math.abs(deltaX)) return;
-
-        event.preventDefault();
-        moveFeed(deltaY > 0 ? -1 : 1);
-      }}
-      onWheel={(event) => {
-        if (commentsOpen || tipOpen || shareOpen) return;
-        const now = Date.now();
-        if (now - wheelLockRef.current < 220) return;
-        if (Math.abs(event.deltaY) < 36 || Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
-
-        event.preventDefault();
-        wheelLockRef.current = now;
-        moveFeed(event.deltaY > 0 ? 1 : -1);
-      }}
-      onTouchStart={(event) => {
-        if (commentsOpen || tipOpen || shareOpen || isInteractiveTarget(event.target) || loadingFeed) return;
-        const touch = event.touches[0];
-        if (!touch) return;
-        if (touch.clientY > 140) return;
-        pullStartRef.current = { x: touch.clientX, y: touch.clientY };
-      }}
-      onTouchMove={(event) => {
-        const start = pullStartRef.current;
-        if (!start || commentsOpen || tipOpen || shareOpen || loadingFeed) return;
-        const touch = event.touches[0];
-        if (!touch) return;
-        const deltaX = touch.clientX - start.x;
-        const deltaY = touch.clientY - start.y;
-        if (deltaY <= 0 || Math.abs(deltaX) > Math.abs(deltaY)) {
-          setPullDistance(0);
-          return;
-        }
-        event.preventDefault();
-        setPullDistance(Math.min(96, deltaY * 0.45));
-      }}
-      onTouchEnd={() => {
-        const shouldRefresh = pullDistance >= 72;
-        pullStartRef.current = null;
-        setPullDistance(0);
-        if (shouldRefresh) {
-          triggerRefresh();
-        }
-      }}
-      onTouchCancel={() => {
-        pullStartRef.current = null;
-        setPullDistance(0);
       }}
       style={{
         paddingTop: "env(safe-area-inset-top)",
@@ -1160,138 +1172,65 @@ export function BlobFeed() {
       }}
       tabIndex={0}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(2,6,23,0.04),rgba(2,6,23,0.82))]" />
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_50%_18%,rgba(56,189,248,0.08),transparent_34%),linear-gradient(180deg,rgba(2,6,18,0.06),rgba(2,6,18,0.88))]" />
 
-      <header className="pointer-events-none fixed inset-x-0 top-0 z-30 flex items-start justify-between gap-2 px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.35rem)] md:px-6 md:pt-6">
-        <div ref={identityMenuRef} className="pointer-events-auto relative flex items-center gap-2">
-          <button
-            aria-label="Back"
-            data-blob-interactive="true"
-            className="grid min-h-11 min-w-11 place-items-center rounded-full border border-white/15 bg-[rgba(6,10,24,0.68)] text-white backdrop-blur-xl transition hover:border-white/25 hover:bg-[rgba(6,10,24,0.78)] active:scale-[0.98]"
-            onClick={handleBackNavigation}
-            title="Back"
-            type="button"
-          >
-            <ArrowLeft className="size-4 text-cyan-200" />
-          </button>
-
-          <button
-            aria-expanded={identityMenuOpen}
-            aria-haspopup="menu"
-            aria-label="Profile"
-            data-blob-interactive="true"
-            className="grid min-h-11 min-w-11 place-items-center rounded-full border border-white/15 bg-white/10 text-[10px] font-semibold tracking-[0.28em] text-white backdrop-blur-xl transition hover:border-white/25 hover:bg-white/15 active:scale-[0.98]"
-            onClick={() => setIdentityMenuOpen((open) => !open)}
-            title="Profile"
-            type="button"
-          >
-            B
-          </button>
-
-          <button
-            data-blob-interactive="true"
-            className={`inline-flex min-h-11 items-center rounded-full border border-white/15 bg-[rgba(6,10,24,0.68)] px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-xl transition hover:border-white/25 hover:bg-[rgba(6,10,24,0.78)] active:scale-[0.98] ${isLandscapeMobile ? "hidden" : ""}`}
-            onClick={handleGoHome}
-            title="Blobs feed"
-            type="button"
-          >
-            Blobs
-          </button>
-
-          {identityMenuOpen ? (
-            <div
-              data-blob-interactive="true"
-              className="absolute left-0 top-14 z-40 min-w-[190px] rounded-2xl border border-white/10 bg-[#060b17] p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.4)] backdrop-blur-xl"
-              role="menu"
-            >
-              <button
-                className="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-slate-100 transition hover:bg-white/10"
-                onClick={() => {
-                  setIdentityMenuOpen(false);
-                  handleOpenOwnProfile();
-                }}
-                title="View my profile"
-                type="button"
-              >
-                View my profile
-              </button>
-              <button
-                className="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-slate-100 transition hover:bg-white/10"
-                onClick={() => {
-                  setIdentityMenuOpen(false);
-                  handleOpenOwnProfile("Blobs");
-                }}
-                title="My blobs"
-                type="button"
-              >
-                My blobs
-              </button>
-              <button
-                className="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-slate-100 transition hover:bg-white/10"
-                onClick={() => {
-                  setIdentityMenuOpen(false);
-                  handleOpenOwnProfile("About");
-                }}
-                title="Settings"
-                type="button"
-              >
-                Settings
-              </button>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="pointer-events-auto flex items-center gap-2">
-          <span
-            className={`hidden rounded-full border border-white/15 bg-[rgba(6,10,24,0.68)] px-3 py-2 text-[10px] uppercase tracking-[0.3em] text-slate-300 backdrop-blur-xl md:inline-flex ${isLandscapeMobile ? "md:hidden" : ""}`}
-            title="Current position in feed"
-          >
-            {visibleCount ? `${currentLogicalIndex + 1} / ${visibleCount}` : "0 / 0"}
-          </span>
-
-          <button
-            aria-busy={pendingCreate}
-            data-blob-interactive="true"
-            className={`hidden min-h-11 items-center gap-2 rounded-full border border-white/15 bg-[rgba(6,10,24,0.68)] px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-white backdrop-blur-xl transition hover:border-cyan-300/35 hover:bg-[rgba(6,10,24,0.78)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 md:inline-flex ${isLandscapeMobile ? "md:hidden" : ""}`}
-            disabled={pendingCreate}
-            onClick={handleCreateBlob}
-            title="Create Blob"
-            type="button"
-          >
-            {pendingCreate ? <Loader2 className="size-4 animate-spin" /> : null}
-            Create Blob
-          </button>
-
-          <div ref={walletMenuRef} className="relative">
+      <header
+        className={`pointer-events-none fixed inset-x-0 top-0 z-50 px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.45rem)] transition-opacity duration-300 md:px-5 ${
+          overlayVisible ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        <div className="pointer-events-auto flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
             <button
-              aria-expanded={walletMenuOpen}
-              aria-haspopup="menu"
+              aria-label="Back"
+              className="grid min-h-11 min-w-11 place-items-center rounded-full border border-white/15 bg-black/45 backdrop-blur-xl transition hover:border-white/30"
               data-blob-interactive="true"
-              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/15 bg-[rgba(6,10,24,0.68)] px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-xl transition hover:border-white/25 hover:bg-[rgba(6,10,24,0.78)] active:scale-[0.98]"
+              onClick={handleBackNavigation}
+              type="button"
+            >
+              <ArrowLeft className="size-4 text-cyan-100" />
+            </button>
+
+            <button
+              className="inline-flex min-h-11 items-center rounded-full border border-white/15 bg-black/45 px-4 text-sm font-semibold text-white backdrop-blur-xl transition hover:border-white/25"
+              data-blob-interactive="true"
+              onClick={() => moveToIndex(0)}
+              type="button"
+            >
+              Blobs
+            </button>
+          </div>
+
+          <div ref={menuRef} className="relative">
+            <button
+              aria-expanded={topMenuOpen}
+              aria-haspopup="menu"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/15 bg-black/45 px-4 text-sm font-semibold text-white backdrop-blur-xl transition hover:border-white/25"
+              data-blob-interactive="true"
               onClick={() => {
+                pingControls();
                 if (!account?.address) {
                   connectModalRef.current?.show?.();
                   return;
                 }
-                setWalletMenuOpen((open) => !open);
+                setTopMenuOpen((open) => !open);
               }}
-              title={account?.address ? "Wallet account menu" : "Connect wallet"}
               type="button"
             >
               <span>{account?.address ? shortAddress(account.address, 4) : "Connect"}</span>
-              <ChevronDown className={`size-4 transition ${walletMenuOpen ? "rotate-180" : ""}`} />
+              <ChevronDown className={`size-4 transition ${topMenuOpen ? "rotate-180" : ""}`} />
             </button>
 
-            {walletMenuOpen && account?.address ? (
+            {topMenuOpen && account?.address ? (
               <div
+                className="absolute right-0 top-14 z-50 min-w-[220px] rounded-2xl border border-white/10 bg-[#060b17]/95 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl"
                 data-blob-interactive="true"
-                className="absolute right-0 top-14 z-40 min-w-[220px] rounded-2xl border border-white/10 bg-[#060b17] p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.4)] backdrop-blur-xl"
                 role="menu"
               >
                 <button
                   className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-slate-100 transition hover:bg-white/10"
                   onClick={() => {
-                    setWalletMenuOpen(false);
+                    setTopMenuOpen(false);
                     handleOpenOwnProfile();
                   }}
                   type="button"
@@ -1301,52 +1240,41 @@ export function BlobFeed() {
                 </button>
                 <button
                   className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-slate-100 transition hover:bg-white/10 disabled:opacity-45"
-                  disabled={pendingWalletAction === "copy"}
-                  onClick={async () => {
-                    await handleCopyWalletAddress();
+                  disabled={pendingCreate}
+                  onClick={handleCreateBlob}
+                  type="button"
+                >
+                  {pendingCreate ? <Loader2 className="size-4 animate-spin" /> : <PlusSquare className="size-4" />}
+                  Create Blob
+                </button>
+                <button
+                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-slate-100 transition hover:bg-white/10"
+                  onClick={() => {
+                    setTopMenuOpen(false);
+                    triggerRefresh();
                   }}
+                  type="button"
+                >
+                  <RefreshCcw className="size-4" />
+                  Refresh feed
+                </button>
+                <button
+                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-slate-100 transition hover:bg-white/10 disabled:opacity-45"
+                  disabled={pendingWalletAction === "copy"}
+                  onClick={handleCopyWalletAddress}
                   type="button"
                 >
                   {pendingWalletAction === "copy" ? <Loader2 className="size-4 animate-spin" /> : <Copy className="size-4" />}
                   Copy wallet address
                 </button>
                 <button
-                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-slate-100 transition hover:bg-white/10"
-                  onClick={() => {
-                    setWalletMenuOpen(false);
-                    connectModalRef.current?.show?.();
-                    setToast("Open wallet settings in your wallet app.");
-                  }}
-                  type="button"
-                >
-                  <Settings className="size-4" />
-                  Open wallet settings
-                </button>
-                <button
-                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-slate-100 transition hover:bg-white/10"
-                  onClick={() => {
-                    setWalletMenuOpen(false);
-                    connectModalRef.current?.show?.();
-                  }}
-                  type="button"
-                >
-                  <UserRound className="size-4" />
-                  Switch account
-                </button>
-                <button
                   className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-rose-200 transition hover:bg-rose-500/15 disabled:opacity-45"
                   disabled={pendingWalletAction === "disconnect"}
-                  onClick={async () => {
-                    await handleDisconnectWallet();
-                  }}
+                  onClick={handleDisconnectWallet}
                   type="button"
                 >
-                  {pendingWalletAction === "disconnect" ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <LogOut className="size-4" />
-                  )}
-                  Disconnect wallet
+                  {pendingWalletAction === "disconnect" ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}
+                  Disconnect
                 </button>
               </div>
             ) : null}
@@ -1354,48 +1282,20 @@ export function BlobFeed() {
         </div>
       </header>
 
-      {canRender ? (
-        <div
-          className={`absolute inset-x-0 z-20 px-3 md:px-6 ${isLandscapeMobile ? "hidden" : ""}`}
-          style={{ top: "calc(env(safe-area-inset-top) + 3.3rem)" }}
-        >
-          <div className="h-1 rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full bg-[linear-gradient(90deg,rgba(87,221,255,0.95),rgba(99,102,241,0.92))]"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-        </div>
-      ) : null}
-
       <div
-        aria-hidden="true"
-        className={`pointer-events-none absolute inset-x-0 z-20 flex justify-center transition-opacity duration-200 ${
-          pullDistance > 4 || refreshing ? "opacity-100" : "opacity-0"
+        ref={scrollContainerRef}
+        className={`relative z-10 h-full w-full snap-y snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+          commentsOpen || tipOpen || shareOpen ? "overflow-y-hidden" : "overflow-y-auto"
         }`}
-        style={{ top: "calc(env(safe-area-inset-top) + 4.1rem)" }}
-      >
-        <div
-          className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-[rgba(6,10,24,0.74)] px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-slate-200 backdrop-blur-xl"
-          style={{ transform: `translateY(${Math.max(0, pullDistance - 42)}px)` }}
-        >
-          {refreshing ? <Loader2 className="size-3.5 animate-spin text-cyan-200" /> : <ArrowLeft className="size-3.5 -rotate-90 text-cyan-200" />}
-          {refreshing ? "Refreshing" : "Pull to refresh"}
-        </div>
-      </div>
-
-      <div
-        className={`relative h-full w-full ${transitioning ? "transition-transform duration-300 ease-out" : "transition-none"}`}
-        onTransitionEnd={normalizeVirtualIndex}
         style={{
-          transform: `translate3d(0, calc(${-activeIndex * 100}% + ${pullDistance}px), 0)`,
+          WebkitOverflowScrolling: "touch",
+          overscrollBehaviorY: "contain",
         }}
       >
-        {feedWindow.map(({ blob, virtualIndex }) => {
-          const isActive = virtualIndex === activeIndex;
-          const shouldLoad = Math.abs(virtualIndex - activeIndex) <= 2;
-          const baseBlob = isActive && currentBlob ? currentBlob : blob;
-          const renderBlob = applyUserStateToBlob(baseBlob);
+        {orderedBlobs.map((blob, index) => {
+          const renderBlob = applyUserStateToBlob(blob);
+          const isActive = index === activeIndex;
+          const shouldLoad = Math.abs(index - activeIndex) <= 1;
           const liked = Boolean(renderBlob.likedByUser);
           const bookmarked = Boolean(renderBlob.bookmarkedByUser);
           const followed = Boolean(renderBlob.followedByUser);
@@ -1405,145 +1305,126 @@ export function BlobFeed() {
             account?.address.toLowerCase() === renderBlob.creatorAddress?.toLowerCase();
 
           return (
-            <article key={`${blob.id}-${virtualIndex}`} className="flex h-full w-full items-center justify-center px-0 md:px-6 md:py-6">
-              <div className="relative flex h-full w-full items-center justify-center gap-0 md:gap-8">
-                <div
-                  className={[
-                    "relative h-full w-full overflow-hidden bg-[#02040b]",
-                    "md:max-h-[calc(100dvh-2.5rem)] md:max-w-[min(92vw,420px)] md:rounded-[30px]",
-                  ].join(" ")}
-                >
-                  <BlobPlayer
-                    active={isActive}
-                    blob={blob}
-                    likePulseKey={isActive ? likePulseKey : 0}
-                    muted={userState.muted}
-                    onLike={handleLike}
-                    onToggleMute={() => {
-                      updateUserState((current) => ({
-                        ...current,
-                        muted: !current.muted,
-                      }));
-                    }}
-                    onTogglePlay={() => {
-                      if (!isActive) return;
-                      setPaused((current) => !current);
-                    }}
-                    paused={isActive ? paused : false}
-                    shouldLoad={shouldLoad}
-                  />
+            <article
+              key={blob.id}
+              className="relative h-[100dvh] w-full snap-start snap-always"
+              data-index={index}
+              ref={(node) => setBlobRef(index, node)}
+            >
+              <div className="absolute inset-0">
+                <BlobPlayer
+                  active={isActive}
+                  blob={blob}
+                  controlsVisible={overlayVisible && isActive}
+                  likePulseKey={isActive ? likePulseKey : 0}
+                  muted={userState.muted}
+                  onLike={handleLike}
+                  onToggleMute={() => {
+                    updateUserState((current) => ({
+                      ...current,
+                      muted: !current.muted,
+                    }));
+                    pingControls();
+                  }}
+                  onTogglePlay={() => {
+                    if (!isActive) return;
+                    setPaused((current) => !current);
+                    pingControls();
+                  }}
+                  paused={isActive ? paused : false}
+                  shouldLoad={shouldLoad}
+                />
+              </div>
 
-                  <div className="pointer-events-none absolute inset-0 z-20">
-                    <div className={`absolute bottom-6 left-4 right-24 md:bottom-6 md:left-6 ${isLandscapeMobile ? "hidden" : ""}`}>
-                      <BlobCreatorMeta
-                        key={renderBlob.id}
-                        blob={renderBlob}
-                        followLoading={isActive ? pendingFollow : false}
-                        followed={followed}
-                        isCreatorOwner={isCreatorOwner}
-                        onOpenOwnProfile={() => handleOpenOwnProfile()}
-                        onTagClick={handleTagClick}
-                        onToggleFollow={handleToggleFollow}
-                      />
-                    </div>
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-64 bg-gradient-to-t from-black/80 via-black/38 to-transparent" />
 
-                    <div className={`absolute right-[max(0.5rem,env(safe-area-inset-right))] top-1/2 -translate-y-1/2 md:hidden ${commentsOpen || tipOpen || shareOpen ? "opacity-50" : ""}`}>
-                      <BlobActions
-                        blob={renderBlob}
-                        bookmarked={bookmarked}
-                        isCreatorOwner={isCreatorOwner}
-                        followed={followed}
-                        liked={liked}
-                        pendingBookmark={isActive ? pendingBookmark : false}
-                        pendingComment={isActive ? pendingComment : false}
-                        pendingFollow={isActive ? pendingFollow : false}
-                        pendingLike={isActive ? pendingLike : false}
-                        pendingShare={isActive ? pendingShareAction !== null : false}
-                        onBookmark={handleBookmark}
-                        onComment={() => setCommentsOpen(true)}
-                        onLike={handleLike}
-                        onOpenOwnProfile={() => handleOpenOwnProfile()}
-                        onShare={handleShare}
-                        onTip={openTipModal}
-                        onToggleFollow={handleToggleFollow}
-                      />
-                    </div>
-                  </div>
+              <div
+                className={`absolute right-[max(0.5rem,env(safe-area-inset-right))] z-30 transition-opacity duration-300 md:right-4 ${
+                  overlayVisible ? "opacity-100" : "pointer-events-none opacity-0"
+                }`}
+                style={{ bottom: "max(1rem, calc(env(safe-area-inset-bottom) + 0.35rem))" }}
+              >
+                <div className="pointer-events-auto mb-3 flex flex-col items-center gap-1.5">
+                  <button
+                    className="grid min-h-12 min-w-12 place-items-center rounded-full border border-white/15 bg-black/40 text-sm font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-xl transition hover:border-white/30"
+                    data-blob-interactive="true"
+                    onClick={() => {
+                      pingControls();
+                      if (isCreatorOwner) {
+                        handleOpenOwnProfile();
+                        return;
+                      }
+                      void handleToggleFollow();
+                    }}
+                    title={isCreatorOwner ? "Open profile" : followed ? "Following" : "Follow creator"}
+                    type="button"
+                  >
+                    {renderBlob.creatorAvatar}
+                  </button>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-100">
+                    {isCreatorOwner ? "Profile" : followed ? "Following" : "Follow"}
+                  </span>
                 </div>
 
-                <div className="hidden md:flex md:flex-none md:items-center">
-                  <BlobActions
-                    blob={renderBlob}
-                    bookmarked={bookmarked}
-                    isCreatorOwner={isCreatorOwner}
-                    followed={followed}
-                    liked={liked}
-                    pendingBookmark={isActive ? pendingBookmark : false}
-                    pendingComment={isActive ? pendingComment : false}
-                    pendingFollow={isActive ? pendingFollow : false}
-                    pendingLike={isActive ? pendingLike : false}
-                    pendingShare={isActive ? pendingShareAction !== null : false}
-                    onBookmark={handleBookmark}
-                    onComment={() => setCommentsOpen(true)}
-                    onLike={handleLike}
-                    onOpenOwnProfile={() => handleOpenOwnProfile()}
-                    onShare={handleShare}
-                    onTip={openTipModal}
-                    onToggleFollow={handleToggleFollow}
-                  />
-                </div>
+                <BlobActions
+                  blob={renderBlob}
+                  bookmarked={bookmarked}
+                  followed={followed}
+                  isCreatorOwner={isCreatorOwner}
+                  liked={liked}
+                  pendingBookmark={isActive ? pendingBookmark : false}
+                  pendingComment={isActive ? pendingComment : false}
+                  pendingFollow={isActive ? pendingFollow : false}
+                  pendingLike={isActive ? pendingLike : false}
+                  pendingShare={isActive ? pendingShareAction !== null : false}
+                  onBookmark={handleBookmark}
+                  onComment={() => {
+                    setCommentsOpen(true);
+                    pingControls();
+                  }}
+                  onLike={handleLike}
+                  onOpenOwnProfile={() => handleOpenOwnProfile()}
+                  onShare={handleShare}
+                  onTip={() => {
+                    setTipOpen(true);
+                    pingControls();
+                  }}
+                  onToggleFollow={handleToggleFollow}
+                  showFollowAction={false}
+                />
+              </div>
+
+              <div
+                className={`absolute left-[max(0.65rem,env(safe-area-inset-left))] right-[5.15rem] z-30 transition-opacity duration-300 md:left-4 md:right-[6.25rem] ${
+                  overlayVisible ? "opacity-100" : "pointer-events-none opacity-0"
+                }`}
+                style={{ bottom: "max(0.8rem, calc(env(safe-area-inset-bottom) + 0.25rem))" }}
+              >
+                <BlobCreatorMeta
+                  blob={renderBlob}
+                  followLoading={isActive ? pendingFollow : false}
+                  followed={followed}
+                  isCreatorOwner={isCreatorOwner}
+                  onOpenOwnProfile={() => handleOpenOwnProfile()}
+                  onTagClick={handleTagClick}
+                  onToggleFollow={handleToggleFollow}
+                  showFollowButton={false}
+                />
               </div>
             </article>
           );
         })}
       </div>
 
-      {!isLandscapeMobile ? (
+      {loadingMore && hasMore ? (
         <div
-          className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-3 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] md:hidden"
+          className="pointer-events-none fixed left-1/2 z-40 -translate-x-1/2 rounded-full border border-white/10 bg-black/45 px-4 py-2 text-xs uppercase tracking-[0.2em] text-slate-200 backdrop-blur-xl"
+          style={{ bottom: "max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem))" }}
         >
-          <nav className="pointer-events-auto mx-auto grid max-w-[560px] grid-cols-4 gap-1.5 rounded-2xl border border-white/15 bg-[rgba(6,10,24,0.72)] p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-            <button
-              className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-transparent px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-200 transition hover:border-white/15 hover:bg-white/8"
-              data-blob-interactive="true"
-              onClick={handleBackNavigation}
-              type="button"
-            >
-              <ArrowLeft className="size-4" />
-              Back
-            </button>
-            <button
-              className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-transparent px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-200 transition hover:border-white/15 hover:bg-white/8 disabled:opacity-45"
-              data-blob-interactive="true"
-              disabled={!currentBlob}
-              onClick={() => setCommentsOpen(true)}
-              type="button"
-            >
-              <MessageCircleMore className="size-4" />
-              Comment
-            </button>
-            <button
-              aria-busy={pendingCreate}
-              className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-cyan-300/30 bg-cyan-300/16 px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100 transition hover:bg-cyan-300/24 disabled:opacity-45"
-              data-blob-interactive="true"
-              disabled={pendingCreate}
-              onClick={handleCreateBlob}
-              type="button"
-            >
-              {pendingCreate ? <Loader2 className="size-4 animate-spin" /> : <PlusSquare className="size-4" />}
-              Create
-            </button>
-            <button
-              className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-transparent px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-200 transition hover:border-white/15 hover:bg-white/8 disabled:opacity-45"
-              data-blob-interactive="true"
-              disabled={!currentBlob}
-              onClick={openTipModal}
-              type="button"
-            >
-              <Gift className="size-4" />
-              Tip
-            </button>
-          </nav>
+          <span className="inline-flex items-center gap-2">
+            <Loader2 className="size-3.5 animate-spin text-cyan-200" />
+            Loading more
+          </span>
         </div>
       ) : null}
 
@@ -1553,12 +1434,12 @@ export function BlobFeed() {
         draft={currentDraft}
         onClose={() => setCommentsOpen(false)}
         onDraftChange={(value) => {
-          if (!currentBlob) return;
+          if (!activeRawBlob) return;
           updateUserState((current) => ({
             ...current,
             commentDrafts: {
               ...current.commentDrafts,
-              [currentBlob.id]: value,
+              [activeRawBlob.id]: value,
             },
           }));
         }}
@@ -1578,7 +1459,7 @@ export function BlobFeed() {
       {toast ? (
         <div
           className="pointer-events-none fixed left-1/2 z-40 -translate-x-1/2 rounded-full border border-white/10 bg-black/45 px-4 py-3 text-sm text-slate-100 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl"
-          style={{ bottom: isLandscapeMobile ? "max(1rem, env(safe-area-inset-bottom))" : "max(5rem, calc(env(safe-area-inset-bottom) + 4.4rem))" }}
+          style={{ bottom: "max(1rem, calc(env(safe-area-inset-bottom) + 4.8rem))" }}
         >
           {toast}
         </div>
@@ -1595,21 +1476,28 @@ export function BlobFeed() {
       />
 
       {!visibleCount ? (
-        <div className="absolute inset-0 grid place-items-center p-6 text-center">
+        <div className="absolute inset-0 z-40 grid place-items-center p-6 text-center">
           <div className="max-w-md rounded-[28px] border border-white/10 bg-black/40 p-6 backdrop-blur-xl">
             <p className="text-xs uppercase tracking-[0.34em] text-slate-400">Blobs</p>
-            <h1 className="mt-3 text-3xl font-semibold text-white">No short-form feed yet</h1>
+            <h1 className="mt-3 text-3xl font-semibold text-white">No blob videos yet</h1>
             <p className="mt-3 text-sm leading-7 text-slate-300">
-              The Blobs feed is waiting for sample or live short videos. Connect a creator upload next to populate the
-              swipe stack.
+              This feed has no videos right now. Try another tag or upload a new Blob.
             </p>
+            <button
+              className="btn-primary mt-6 min-h-11"
+              data-blob-interactive="true"
+              onClick={handleCreateBlob}
+              type="button"
+            >
+              Create Blob
+            </button>
           </div>
         </div>
       ) : null}
 
-      {loading ? (
-        <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/20">
-          <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-black/45 px-4 py-3 text-sm text-slate-200 backdrop-blur-xl">
+      {loadingPlatform || (loadingFeed && liveBlobs === null) ? (
+        <div className="pointer-events-none absolute inset-0 z-40 grid place-items-center bg-black/25">
+          <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-black/55 px-4 py-3 text-sm text-slate-200 backdrop-blur-xl">
             <Loader2 className="size-4 animate-spin text-cyan-200" />
             Preparing Blobs...
           </div>

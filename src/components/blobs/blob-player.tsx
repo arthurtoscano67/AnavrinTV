@@ -27,6 +27,7 @@ type BlobPlayerProps = {
   shouldLoad: boolean;
   muted: boolean;
   paused: boolean;
+  controlsVisible?: boolean;
   likePulseKey: number;
   onTogglePlay: () => void;
   onToggleMute: () => void;
@@ -56,6 +57,7 @@ export function BlobPlayer({
   shouldLoad,
   muted,
   paused,
+  controlsVisible = true,
   likePulseKey,
   onTogglePlay,
   onToggleMute,
@@ -424,12 +426,12 @@ export function BlobPlayer({
         className="absolute inset-0 flex items-center justify-center bg-black"
         style={landscapeViewport ? { height: "100dvh", width: "100vw" } : undefined}
       >
-        <div className="relative aspect-video w-full max-h-full">
+        <div className="relative h-full w-full">
           {shouldLoad && !error ? (
             <video
               key={`${blob.id}-${retryToken}`}
               ref={videoRef}
-              className="absolute inset-0 h-full w-full object-contain"
+              className="absolute inset-0 h-full w-full object-cover"
               loop
               muted={muted}
               onEnded={() => {
@@ -465,7 +467,11 @@ export function BlobPlayer({
 
       <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/60 to-transparent" />
 
-      <div className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] z-20 flex items-center gap-2 md:right-6 md:top-6">
+      <div
+        className={`absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] z-20 flex items-center gap-2 transition-opacity duration-300 md:right-6 md:top-6 ${
+          controlsVisible ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      >
         <button
           aria-busy={fullscreenPending}
           aria-label="Enter fullscreen"

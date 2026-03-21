@@ -12,6 +12,7 @@ type BlobCreatorMetaProps = {
   followed: boolean;
   followLoading?: boolean;
   isCreatorOwner: boolean;
+  showFollowButton?: boolean;
   onOpenOwnProfile: () => void;
   onToggleFollow: () => void;
   onTagClick: (tag: string) => void;
@@ -52,6 +53,7 @@ export function BlobCreatorMeta({
   followed,
   followLoading,
   isCreatorOwner,
+  showFollowButton = true,
   onOpenOwnProfile,
   onToggleFollow,
   onTagClick,
@@ -94,26 +96,32 @@ export function BlobCreatorMeta({
               </CreatorLink>
             </div>
 
-            {isCreatorOwner ? (
-              <button
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/15 active:scale-[0.98]"
-                onClick={onOpenOwnProfile}
-                title="Edit profile"
-                type="button"
-              >
-                Edit profile
-              </button>
+            {showFollowButton ? (
+              isCreatorOwner ? (
+                <button
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/15 active:scale-[0.98]"
+                  onClick={onOpenOwnProfile}
+                  title="Edit profile"
+                  type="button"
+                >
+                  Edit profile
+                </button>
+              ) : (
+                <button
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/15 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
+                  disabled={!blob.followable || followLoading}
+                  onClick={onToggleFollow}
+                  title={followed ? "Unfollow creator" : "Follow creator"}
+                  type="button"
+                >
+                  {followed ? <UserCheck className="size-4" /> : <UserPlus className="size-4" />}
+                  {followLoading ? "Saving..." : followed ? "Following" : "Follow"}
+                </button>
+              )
             ) : (
-              <button
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/15 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
-                disabled={!blob.followable || followLoading}
-                onClick={onToggleFollow}
-                title={followed ? "Unfollow creator" : "Follow creator"}
-                type="button"
-              >
-                {followed ? <UserCheck className="size-4" /> : <UserPlus className="size-4" />}
-                {followLoading ? "Saving..." : followed ? "Following" : "Follow"}
-              </button>
+              <div className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-100">
+                {isCreatorOwner ? "Your Blob" : followed ? "Following" : "Not following"}
+              </div>
             )}
           </div>
         </div>
@@ -126,7 +134,7 @@ export function BlobCreatorMeta({
             ? undefined
             : {
                 display: "-webkit-box",
-                WebkitLineClamp: 3,
+                WebkitLineClamp: 2,
                 WebkitBoxOrient: "vertical",
               }
         }

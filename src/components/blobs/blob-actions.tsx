@@ -23,6 +23,8 @@ type BlobActionsProps = {
   bookmarked: boolean;
   followed: boolean;
   isCreatorOwner: boolean;
+  className?: string;
+  showFollowAction?: boolean;
   pendingLike?: boolean;
   pendingComment?: boolean;
   pendingShare?: boolean;
@@ -104,6 +106,8 @@ export function BlobActions({
   bookmarked,
   followed,
   isCreatorOwner,
+  className,
+  showFollowAction = true,
   pendingLike,
   pendingComment,
   pendingShare,
@@ -121,7 +125,7 @@ export function BlobActions({
   return (
     <aside
       data-blob-interactive="true"
-      className="pointer-events-auto flex flex-col items-center gap-3 md:gap-4"
+      className={["pointer-events-auto flex flex-col items-center gap-3 md:gap-4", className ?? ""].join(" ")}
     >
       <ActionButton
         active={liked}
@@ -164,25 +168,27 @@ export function BlobActions({
         onClick={onTip}
         tooltip={blob.tipEnabled ? "Tip creator" : "Tips unavailable"}
       />
-      {isCreatorOwner ? (
-        <ActionButton
-          icon={UserRound}
-          label="Profile"
-          loading={pendingFollow}
-          onClick={onOpenOwnProfile}
-          tooltip="Edit profile"
-        />
-      ) : (
-        <ActionButton
-          active={followed}
-          disabled={!blob.followable}
-          icon={followed ? UserRoundCheck : UserRoundPlus}
-          label={followed ? "Following" : "Follow"}
-          loading={pendingFollow}
-          onClick={onToggleFollow}
-          tooltip={followed ? "Unfollow creator" : "Follow creator"}
-        />
-      )}
+      {showFollowAction
+        ? isCreatorOwner ? (
+            <ActionButton
+              icon={UserRound}
+              label="Profile"
+              loading={pendingFollow}
+              onClick={onOpenOwnProfile}
+              tooltip="Edit profile"
+            />
+          ) : (
+            <ActionButton
+              active={followed}
+              disabled={!blob.followable}
+              icon={followed ? UserRoundCheck : UserRoundPlus}
+              label={followed ? "Following" : "Follow"}
+              loading={pendingFollow}
+              onClick={onToggleFollow}
+              tooltip={followed ? "Unfollow creator" : "Follow creator"}
+            />
+          )
+        : null}
     </aside>
   );
 }
