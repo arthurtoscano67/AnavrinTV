@@ -235,15 +235,15 @@ export function EditProfileModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-[#030714]/85 px-3 py-3 backdrop-blur-sm md:py-4">
-      <div className="w-full max-w-[680px] max-h-[88vh] overflow-y-auto rounded-2xl border border-white/10 bg-[#0b1120] p-3.5 shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:p-4">
-        <div className="flex items-center justify-between gap-3">
+    <div className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-[#030714]/85 px-3 py-3 backdrop-blur-sm md:px-4 md:py-5">
+      <div className="flex w-full max-w-[760px] max-h-[86vh] min-h-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0b1120] p-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:p-4">
+        <div className="flex items-center justify-between gap-2.5">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Profile</p>
-            <h2 className="mt-1 text-base font-semibold text-white md:text-lg">Edit profile</h2>
+            <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Profile</p>
+            <h2 className="mt-0.5 text-[17px] font-semibold text-white">Edit profile</h2>
           </div>
           <button
-            className="btn-ghost rounded-full px-3 py-2 text-xs uppercase tracking-[0.22em]"
+            className="btn-ghost rounded-full px-2.5 py-1.5 text-[11px] uppercase tracking-[0.2em]"
             onClick={onClose}
             type="button"
           >
@@ -251,182 +251,184 @@ export function EditProfileModal({
           </button>
         </div>
 
-        <div className="mt-3.5 grid gap-2">
-          <div className="grid gap-1.5">
-            <label className="text-xs uppercase tracking-[0.2em] text-slate-400" htmlFor="profile-display-name">
-              Display name
-            </label>
-            <input
-              className="input"
-              id="profile-display-name"
-              maxLength={80}
-              onChange={(event) => setDisplayName(event.target.value)}
-              placeholder="Anavrin Studio"
-              value={displayName}
-            />
-          </div>
-
-          <div className="grid gap-1.5">
-            <label className="text-xs uppercase tracking-[0.2em] text-slate-400" htmlFor="profile-username">
-              Username
-            </label>
-            <input
-              className="input"
-              id="profile-username"
-              maxLength={MAX_USERNAME_LENGTH}
-              onChange={(event) => setUsername(event.target.value)}
-              placeholder="anavrinstudio"
-              value={username}
-            />
-            <p className="text-xs text-slate-500">
-              Route preview: <span className="text-slate-300">/profile/{normalizeUsernameInput(username) || "username"}</span> ·{" "}
-              {usernamePreview}
-            </p>
-            <p
-              className={[
-                "text-xs",
-                availabilityStatus === "available"
-                  ? "text-emerald-300"
-                  : availabilityStatus === "checking"
-                    ? "text-slate-400"
-                    : "text-rose-300",
-              ].join(" ")}
-            >
-              {availabilityMessage ||
-                (availabilityStatus === "available" ? "Username is available" : "Username is unavailable")}
-            </p>
-          </div>
-
-          <div className="grid gap-1.5">
-            <label className="text-xs uppercase tracking-[0.2em] text-slate-400" htmlFor="profile-bio">
-              Bio
-            </label>
-            <textarea
-              className="textarea min-h-[88px]"
-              id="profile-bio"
-              maxLength={400}
-              onChange={(event) => setBio(event.target.value)}
-              placeholder="Tell viewers what you create."
-              value={bio}
-            />
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-[#0e152a] p-2">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Profile media</p>
-              <p className="text-[11px] text-slate-500">Banner is rectangle. Avatar is circle.</p>
+        <div className="mt-3 flex-1 overflow-y-auto pr-0.5">
+          <div className="grid gap-2">
+            <div className="grid gap-1">
+              <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400" htmlFor="profile-display-name">
+                Display name
+              </label>
+              <input
+                className="input !rounded-xl !px-3 !py-2.5 !text-sm"
+                id="profile-display-name"
+                maxLength={80}
+                onChange={(event) => setDisplayName(event.target.value)}
+                placeholder="Anavrin Studio"
+                value={displayName}
+              />
             </div>
 
-            <div className="relative mt-2.5 overflow-hidden rounded-xl border border-white/10">
-              <div className="aspect-[5/1] max-h-[118px] w-full bg-[linear-gradient(135deg,#172554_0%,#1d4ed8_58%,#0f172a_100%)]">
-                {bannerUrl ? (
-                  <img
-                    alt="Banner preview"
-                    className="size-full object-cover"
-                    draggable={false}
-                    src={bannerUrl}
-                  />
-                ) : (
-                  <div className="grid size-full place-items-center text-xs uppercase tracking-[0.24em] text-slate-400">
-                    Banner (Rectangle)
-                  </div>
-                )}
-              </div>
-
-              <div className="absolute bottom-2 left-2 size-12 overflow-hidden rounded-full border-[3px] border-[#0e152a] bg-[#101a31] md:size-14">
-                {avatarUrl ? (
-                  <img
-                    alt="Avatar preview"
-                    className="size-full object-cover"
-                    draggable={false}
-                    src={avatarUrl}
-                  />
-                ) : (
-                  <div className="grid size-full place-items-center text-sm font-semibold text-white md:text-base">
-                    {displayName.trim().slice(0, 2).toUpperCase() || "AT"}
-                  </div>
-                )}
-              </div>
+            <div className="grid gap-1">
+              <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400" htmlFor="profile-username">
+                Username
+              </label>
+              <input
+                className="input !rounded-xl !px-3 !py-2.5 !text-sm"
+                id="profile-username"
+                maxLength={MAX_USERNAME_LENGTH}
+                onChange={(event) => setUsername(event.target.value)}
+                placeholder="anavrinstudio"
+                value={username}
+              />
+              <p className="text-[11px] leading-4 text-slate-500">
+                Route preview: <span className="text-slate-300">/profile/{normalizeUsernameInput(username) || "username"}</span> ·{" "}
+                {usernamePreview}
+              </p>
+              <p
+                className={[
+                  "text-[11px] leading-4",
+                  availabilityStatus === "available"
+                    ? "text-emerald-300"
+                    : availabilityStatus === "checking"
+                      ? "text-slate-400"
+                      : "text-rose-300",
+                ].join(" ")}
+              >
+                {availabilityMessage ||
+                  (availabilityStatus === "available" ? "Username is available" : "Username is unavailable")}
+              </p>
             </div>
 
-            <div className="mt-2.5 grid gap-2.5 md:grid-cols-2">
-              <div className="grid gap-2">
-                <label className="text-xs uppercase tracking-[0.2em] text-slate-400" htmlFor="profile-avatar-upload">
-                  Avatar image (circle)
-                </label>
-                <input
-                  accept="image/*"
-                  className="input file:mr-2.5 file:rounded-full file:border-0 file:bg-cyan-300/15 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:uppercase file:tracking-[0.18em] file:text-cyan-100"
-                  id="profile-avatar-upload"
-                  onChange={async (event) => {
-                    await handleImageUpload("avatar", event.target.files?.[0] ?? null);
-                    event.currentTarget.value = "";
-                  }}
-                  type="file"
-                />
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-xs text-slate-400">{avatarUploadLabel ?? "No new avatar selected."}</p>
-                  {avatarUrl ? (
-                    <button
-                      className="btn-ghost px-2.5 py-1 text-[10px] uppercase tracking-[0.18em]"
-                      onClick={() => {
-                        setAvatarUrl("");
-                        setAvatarUploadLabel(null);
-                      }}
-                      type="button"
-                    >
-                      Remove
-                    </button>
-                  ) : null}
-                </div>
+            <div className="grid gap-1">
+              <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400" htmlFor="profile-bio">
+                Bio
+              </label>
+              <textarea
+                className="textarea !min-h-[74px] !rounded-xl !px-3 !py-2.5 !text-sm"
+                id="profile-bio"
+                maxLength={400}
+                onChange={(event) => setBio(event.target.value)}
+                placeholder="Tell viewers what you create."
+                value={bio}
+              />
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-[#0e152a] p-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Profile media</p>
+                <p className="text-[10px] text-slate-500">Banner is rectangle. Avatar is circle.</p>
               </div>
 
-              <div className="grid gap-2">
-                <label className="text-xs uppercase tracking-[0.2em] text-slate-400" htmlFor="profile-banner-upload">
-                  Banner image (rectangle)
-                </label>
-                <input
-                  accept="image/*"
-                  className="input file:mr-2.5 file:rounded-full file:border-0 file:bg-cyan-300/15 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:uppercase file:tracking-[0.18em] file:text-cyan-100"
-                  id="profile-banner-upload"
-                  onChange={async (event) => {
-                    await handleImageUpload("banner", event.target.files?.[0] ?? null);
-                    event.currentTarget.value = "";
-                  }}
-                  type="file"
-                />
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-xs text-slate-400">{bannerUploadLabel ?? "No new banner selected."}</p>
+              <div className="relative mt-2 overflow-hidden rounded-lg border border-white/10">
+                <div className="aspect-[11/2] max-h-[94px] w-full bg-[linear-gradient(135deg,#172554_0%,#1d4ed8_58%,#0f172a_100%)]">
                   {bannerUrl ? (
-                    <button
-                      className="btn-ghost px-2.5 py-1 text-[10px] uppercase tracking-[0.18em]"
-                      onClick={() => {
-                        setBannerUrl("");
-                        setBannerUploadLabel(null);
-                      }}
-                      type="button"
-                    >
-                      Remove
-                    </button>
-                  ) : null}
+                    <img
+                      alt="Banner preview"
+                      className="size-full object-cover"
+                      draggable={false}
+                      src={bannerUrl}
+                    />
+                  ) : (
+                    <div className="grid size-full place-items-center text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                      Banner (Rectangle)
+                    </div>
+                  )}
+                </div>
+
+                <div className="absolute bottom-1.5 left-1.5 size-10 overflow-hidden rounded-full border-[3px] border-[#0e152a] bg-[#101a31] md:size-11">
+                  {avatarUrl ? (
+                    <img
+                      alt="Avatar preview"
+                      className="size-full object-cover"
+                      draggable={false}
+                      src={avatarUrl}
+                    />
+                  ) : (
+                    <div className="grid size-full place-items-center text-xs font-semibold text-white md:text-sm">
+                      {displayName.trim().slice(0, 2).toUpperCase() || "AT"}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                <div className="grid gap-1.5">
+                  <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400" htmlFor="profile-avatar-upload">
+                    Avatar image (circle)
+                  </label>
+                  <input
+                    accept="image/*"
+                    className="input !rounded-xl !px-2.5 !py-2 !text-xs file:mr-2 file:rounded-full file:border-0 file:bg-cyan-300/15 file:px-2 file:py-1 file:text-[10px] file:font-semibold file:uppercase file:tracking-[0.16em] file:text-cyan-100"
+                    id="profile-avatar-upload"
+                    onChange={async (event) => {
+                      await handleImageUpload("avatar", event.target.files?.[0] ?? null);
+                      event.currentTarget.value = "";
+                    }}
+                    type="file"
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-[11px] leading-4 text-slate-400">{avatarUploadLabel ?? "No new avatar selected."}</p>
+                    {avatarUrl ? (
+                      <button
+                        className="btn-ghost px-2 py-0.5 text-[10px] uppercase tracking-[0.16em]"
+                        onClick={() => {
+                          setAvatarUrl("");
+                          setAvatarUploadLabel(null);
+                        }}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="grid gap-1.5">
+                  <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400" htmlFor="profile-banner-upload">
+                    Banner image (rectangle)
+                  </label>
+                  <input
+                    accept="image/*"
+                    className="input !rounded-xl !px-2.5 !py-2 !text-xs file:mr-2 file:rounded-full file:border-0 file:bg-cyan-300/15 file:px-2 file:py-1 file:text-[10px] file:font-semibold file:uppercase file:tracking-[0.16em] file:text-cyan-100"
+                    id="profile-banner-upload"
+                    onChange={async (event) => {
+                      await handleImageUpload("banner", event.target.files?.[0] ?? null);
+                      event.currentTarget.value = "";
+                    }}
+                    type="file"
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-[11px] leading-4 text-slate-400">{bannerUploadLabel ?? "No new banner selected."}</p>
+                    {bannerUrl ? (
+                      <button
+                        className="btn-ghost px-2 py-0.5 text-[10px] uppercase tracking-[0.16em]"
+                        onClick={() => {
+                          setBannerUrl("");
+                          setBannerUploadLabel(null);
+                        }}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+
+          {error ? (
+            <p className="mt-2.5 rounded-xl border border-rose-300/20 bg-rose-300/10 px-2.5 py-2 text-xs text-rose-100">
+              {error}
+            </p>
+          ) : null}
         </div>
 
-        {error ? (
-          <p className="mt-3 rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
-            {error}
-          </p>
-        ) : null}
-
-        <div className="mt-4 flex justify-end gap-2">
-          <button className="btn-secondary px-3.5 py-2 text-xs uppercase tracking-[0.2em]" onClick={onClose} type="button">
+        <div className="mt-3 flex items-center justify-end gap-2 border-t border-white/10 pt-3">
+          <button className="btn-secondary px-3 py-1.5 text-[11px] uppercase tracking-[0.18em]" onClick={onClose} type="button">
             Cancel
           </button>
           <button
-            className="btn-primary px-3.5 py-2 text-xs uppercase tracking-[0.2em]"
+            className="btn-primary px-3 py-1.5 text-[11px] uppercase tracking-[0.18em]"
             disabled={!canSave}
             onClick={handleSave}
             type="button"
