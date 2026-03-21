@@ -18,6 +18,7 @@ import { useCurrentAccount, useCurrentWallet, useDAppKit } from "@mysten/dapp-ki
 
 import { formatBytes, formatCompact, formatDate, formatPercent, shortAddress } from "@/lib/format";
 import { getPolicyPackageId } from "@/lib/anavrin-config";
+import { usernameFromDisplayName } from "@/lib/creator-identity";
 import { calculateStorageHealthSummary } from "@/lib/platform-settings";
 import { buildSeedDatabase } from "@/lib/seed";
 import { buildRenewTransaction } from "@/lib/video-policy";
@@ -72,9 +73,12 @@ function buildFallbackDashboardSnapshot(address: string, walletName?: string | n
   const now = new Date();
   const walletMode = inferWalletMode(walletName);
   const fallbackName = walletName?.trim() || "Creator";
+  const fallbackUsername = usernameFromDisplayName(fallbackName, address);
   const derivedAccount = {
     id: `acct-${address.slice(2, 10) || "wallet"}`,
     displayName: fallbackName,
+    username: fallbackUsername,
+    handle: fallbackUsername,
     address,
     mode: walletMode,
     avatarSeed: fallbackName.slice(0, 2).toUpperCase() || "AT",
@@ -86,6 +90,11 @@ function buildFallbackDashboardSnapshot(address: string, walletName?: string | n
     totalViews: owned.reduce((sum, video) => sum + video.views, 0),
     totalTips: owned.reduce((sum, video) => sum + video.tips, 0),
     followers: 0,
+    followersCount: 0,
+    following: 0,
+    followingCount: 0,
+    totalVideos: owned.length,
+    totalBlobs: owned.filter((video) => video.category === "Shorts").length,
   };
   const account = seeded.accounts.find((item) => item.address === address) ?? derivedAccount;
   const openReports = seeded.reports.filter((report) => report.status === "open");

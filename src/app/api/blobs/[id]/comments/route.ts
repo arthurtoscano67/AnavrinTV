@@ -19,7 +19,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     body?: string;
   };
 
-  const address = body.address?.trim();
+  const address = body.address?.trim().toLowerCase();
   const commentBody = body.body?.trim();
 
   if (!address) {

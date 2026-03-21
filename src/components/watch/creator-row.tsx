@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import { CreatorLink } from "@/components/creator-link";
 import { formatCompact } from "@/lib/format";
 import type { VideoRecord } from "@/lib/types";
 
@@ -14,19 +13,50 @@ function initials(name: string) {
 }
 
 export function CreatorRow({ video }: CreatorRowProps) {
+  const creatorName = video.creatorDisplayName || video.ownerName;
+  const creatorHandle = video.creatorUsername ? `@${video.creatorUsername}` : null;
+
   return (
     <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#0b1120] p-3.5">
       <div className="flex min-w-0 items-center gap-3">
-        <div className="grid size-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-sm font-semibold tracking-wide text-white">
-          {initials(video.ownerName)}
-        </div>
+        <CreatorLink
+          username={video.creatorUsername}
+          className="block size-11 shrink-0 overflow-hidden rounded-full border border-white/10 bg-white/5"
+          title={creatorName}
+        >
+          {video.creatorAvatarUrl ? (
+            <img
+              alt={creatorName}
+              className="size-full object-cover"
+              draggable={false}
+              src={video.creatorAvatarUrl}
+            />
+          ) : (
+            <span className="grid size-full place-items-center text-sm font-semibold tracking-wide text-white">
+              {initials(creatorName)}
+            </span>
+          )}
+        </CreatorLink>
         <div className="min-w-0">
-          <Link className="block truncate text-sm font-semibold text-white hover:text-cyan-100" href={`/browse?q=${encodeURIComponent(video.ownerName)}`}>
-            {video.ownerName}
-          </Link>
-          <p className="truncate text-xs text-slate-400">
-            {formatCompact(video.subscribers)} subscribers
-          </p>
+          <CreatorLink
+            className="block truncate text-sm font-semibold text-white hover:text-cyan-100"
+            title={creatorName}
+            username={video.creatorUsername}
+          >
+            {creatorName}
+          </CreatorLink>
+          <div className="flex flex-wrap items-center gap-1 text-xs text-slate-400">
+            {creatorHandle ? (
+              <CreatorLink
+                className="truncate text-xs text-slate-400 hover:text-cyan-100"
+                title={creatorHandle}
+                username={video.creatorUsername}
+              >
+                {creatorHandle}
+              </CreatorLink>
+            ) : null}
+            <span>{formatCompact(video.subscribers)} subscribers</span>
+          </div>
         </div>
       </div>
 

@@ -1,200 +1,132 @@
-import { ProfilePage, type ProfilePageData } from "@/components/profile/profile-page";
-import type { ProfileContentItem } from "@/components/profile/content-card";
-import { formatCompact, formatDate, shortAddress } from "@/lib/format";
-import { loadDb } from "@/lib/db";
-import type { VideoRecord, WalletSession } from "@/lib/types";
+"use client";
 
-type OwnerAggregate = {
-  address: string;
-  ownerName: string;
-  videos: VideoRecord[];
-  totalViews: number;
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ConnectButton } from "@mysten/dapp-kit-react/ui";
+import { useCurrentAccount, useCurrentWallet } from "@mysten/dapp-kit-react";
+
+import { shortAddress } from "@/lib/format";
+import type { DashboardSnapshot, WalletSession } from "@/lib/types";
+
+type ResolverState = {
+  loading: boolean;
+  error: string | null;
 };
 
-function initials(value: string) {
-  const parts = value.trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "AT";
-  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("");
+function pickDisplayName(walletName: string | null | undefined, address: string) {
+  const fromWallet = walletName?.trim();
+  if (fromWallet) return fromWallet;
+  return `creator_${shortAddress(address.replace(/^0x/, ""), 4).replace(/…/g, "")}`;
 }
 
-function durationToSeconds(duration: string) {
-  const [minutes, seconds] = duration.split(":").map((part) => Number(part) || 0);
-  return minutes * 60 + seconds;
-}
+export default function ProfileResolverPage() {
+  const router = useRouter();
+  const account = useCurrentAccount();
+  const wallet = useCurrentWallet();
+  const [state, setState] = useState<ResolverState>({
+    loading: false,
+    error: null,
+  });
 
-function pickProfileOwner(videos: VideoRecord[]) {
-  const byOwner = new Map<string, OwnerAggregate>();
-
-  for (const video of videos) {
-    const entry = byOwner.get(video.ownerAddress);
-    if (entry) {
-      entry.videos.push(video);
-      entry.totalViews += video.views;
-    } else {
-      byOwner.set(video.ownerAddress, {
-        address: video.ownerAddress,
-        ownerName: video.ownerName,
-        videos: [video],
-        totalViews: video.views,
-      });
-    }
-  }
-
-  const ranked = [...byOwner.values()].sort((a, b) => b.totalViews - a.totalViews);
-  return ranked[0] ?? null;
-}
-
-function toContentItem(video: VideoRecord): ProfileContentItem {
-  return {
-    id: video.id,
-    href: `/video/${video.id}`,
-    title: video.title,
-    creatorName: video.ownerName,
-    views: video.views,
-    createdAt: video.publishedAt ?? video.createdAt,
-    durationLabel: video.duration,
-    coverFrom: video.coverFrom,
-    coverVia: video.coverVia,
-    coverTo: video.coverTo,
-  };
-}
-
-function buildPlaylistItems(videos: VideoRecord[], ownerName: string): ProfileContentItem[] {
-  const grouped = new Map<string, VideoRecord[]>();
-
-  for (const video of videos) {
-    const bucket = grouped.get(video.category) ?? [];
-    bucket.push(video);
-    grouped.set(video.category, bucket);
-  }
-
-  return [...grouped.entries()]
-    .map(([category, categoryVideos]) => {
-      const sorted = [...categoryVideos].sort(
-        (a, b) => new Date(b.publishedAt ?? b.createdAt).getTime() - new Date(a.publishedAt ?? a.createdAt).getTime(),
-      );
-      const lead = sorted[0];
-
-      return {
-        id: `playlist-${category.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-        href: `/browse?category=${encodeURIComponent(category)}`,
-        title: `${category} Collection`,
-        creatorName: ownerName,
-        views: categoryVideos.reduce((total, video) => total + video.views, 0),
-        createdAt: lead.publishedAt ?? lead.createdAt,
-        durationLabel: `${categoryVideos.length} vids`,
-        coverFrom: lead.coverFrom,
-        coverVia: lead.coverVia,
-        coverTo: lead.coverTo,
-      } satisfies ProfileContentItem;
-    })
-    .sort((a, b) => b.views - a.views);
-}
-
-function pickAccount(accounts: WalletSession[], address: string) {
-  return accounts.find((account) => account.address === address) ?? null;
-}
-
-function buildProfileData(owner: OwnerAggregate, account: WalletSession | null): ProfilePageData {
-  const sorted = [...owner.videos].sort(
-    (a, b) => new Date(b.publishedAt ?? b.createdAt).getTime() - new Date(a.publishedAt ?? a.createdAt).getTime(),
+  const displayName = useMemo(
+    () => (account?.address ? pickDisplayName(wallet?.name, account.address) : ""),
+    [account?.address, wallet?.name],
   );
-  const videos = sorted.map(toContentItem);
-  const blobs = sorted
-    .filter(
-      (video) =>
-        video.category === "Shorts" ||
-        video.tags.some((tag) => tag.toLowerCase().includes("short")) ||
-        durationToSeconds(video.duration) <= 120,
-    )
-    .map(toContentItem);
-  const playlists = buildPlaylistItems(sorted, owner.ownerName);
-  const lead = sorted[0];
-  const joinedDate = formatDate(account?.createdAt ?? sorted[sorted.length - 1]?.createdAt ?? new Date().toISOString());
-  const followers = account?.followers ?? Math.max(320, Math.round(owner.totalViews * 0.032));
-  const following = 32;
-  const totalViews = owner.totalViews;
 
-  return {
-    bannerFrom: lead?.coverFrom ?? "#1f2937",
-    bannerVia: lead?.coverVia ?? "#334155",
-    bannerTo: lead?.coverTo ?? "#0f172a",
-    avatarLabel: initials(owner.ownerName),
-    displayName: account?.displayName ?? owner.ownerName,
-    handle:
-      account?.handle && account.handle.trim()
-        ? account.handle.startsWith("@")
-          ? account.handle
-          : `@${account.handle}`
-        : `@${owner.ownerName.toLowerCase().replace(/[^a-z0-9]+/g, "")}`,
-    bio:
-      account?.bio?.trim() ||
-      "Sui-native creator sharing encrypted uploads, curated blobs, and weekly platform content.",
-    verified: true,
-    walletBadge: `Wallet ${shortAddress(owner.address, 4)}`,
-    stats: {
-      followers,
-      following,
-      totalVideos: videos.length,
-      totalBlobs: blobs.length,
-      totalViews,
-    },
-    about: {
-      joinedDate,
-      walletAddress: `${shortAddress(owner.address, 8)} (${formatCompact(totalViews)} views)`,
-      links: [
-        { label: "Website", href: "https://www.anavritv.xyz" },
-        { label: "Walrus", href: "https://walrus.space" },
-      ],
-      socials: [
-        { label: "X / Twitter", href: "https://x.com" },
-        { label: "Discord", href: "https://discord.com" },
-      ],
-    },
-    videos,
-    blobs,
-    playlists,
-  };
-}
+  useEffect(() => {
+    if (!account?.address) return;
+    const address = account.address;
 
-export default async function ProfileRoute() {
-  const db = await loadDb();
-  const visibleVideos = db.videos.filter((video) => video.visibility === "public");
-  const owner = pickProfileOwner(visibleVideos);
+    let active = true;
 
-  if (!owner) {
-    const empty: ProfilePageData = {
-      bannerFrom: "#0f172a",
-      bannerVia: "#1e293b",
-      bannerTo: "#334155",
-      avatarLabel: "AT",
-      displayName: "Anavrin Creator",
-      handle: "@anavrincreator",
-      bio: "Creator profile is ready. Publish videos to populate this page.",
-      verified: false,
-      stats: {
-        followers: 0,
-        following: 0,
-        totalVideos: 0,
-        totalBlobs: 0,
-        totalViews: 0,
-      },
-      about: {
-        joinedDate: formatDate(new Date()),
-        walletAddress: "Not connected",
-        links: [],
-        socials: [],
-      },
-      videos: [],
-      blobs: [],
-      playlists: [],
+    async function resolveProfileRoute() {
+      setState({
+        loading: true,
+        error: null,
+      });
+
+      try {
+        const dashboardResponse = await fetch(`/api/dashboard?address=${encodeURIComponent(address)}`, {
+          cache: "no-store",
+        });
+        const dashboard = (await dashboardResponse.json().catch(() => ({}))) as DashboardSnapshot;
+        const existingUsername = dashboard.account?.username?.trim();
+        if (existingUsername) {
+          router.replace(`/profile/${existingUsername}`);
+          return;
+        }
+
+        const profileResponse = await fetch("/api/accounts/profile", {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            address,
+            displayName,
+          }),
+        });
+        const payload = (await profileResponse.json().catch(() => ({}))) as {
+          account?: WalletSession;
+          error?: string;
+        };
+
+        if (!profileResponse.ok || !payload.account?.username) {
+          throw new Error(payload.error || "Could not resolve profile route.");
+        }
+
+        router.replace(`/profile/${payload.account.username}`);
+      } catch (cause) {
+        if (!active) return;
+        setState({
+          loading: false,
+          error: cause instanceof Error ? cause.message : "Could not load your profile.",
+        });
+      }
+    }
+
+    void resolveProfileRoute();
+
+    return () => {
+      active = false;
     };
+  }, [account?.address, displayName, router]);
 
-    return <ProfilePage data={empty} />;
+  if (!account?.address) {
+    return (
+      <section className="mx-auto flex w-full max-w-[720px] flex-col items-center rounded-2xl border border-white/10 bg-[#0b1120] px-6 py-14 text-center">
+        <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Profile</p>
+        <h1 className="mt-3 text-2xl font-semibold text-white">Connect wallet to open your profile</h1>
+        <p className="mt-2 max-w-[520px] text-sm text-slate-300">
+          Your creator profile is wallet-bound. Connect first, then Anavrin TV routes you to `/profile/:username`.
+        </p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <ConnectButton className="btn-primary" />
+          <Link className="btn-secondary" href="/browse">
+            Browse creators
+          </Link>
+        </div>
+      </section>
+    );
   }
 
-  const account = pickAccount(db.accounts, owner.address);
-  const data = buildProfileData(owner, account);
-
-  return <ProfilePage data={data} />;
+  return (
+    <section className="mx-auto flex w-full max-w-[720px] flex-col items-center rounded-2xl border border-white/10 bg-[#0b1120] px-6 py-14 text-center">
+      <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Profile</p>
+      <h1 className="mt-3 text-2xl font-semibold text-white">Opening your creator profile</h1>
+      <p className="mt-2 max-w-[520px] text-sm text-slate-300">
+        {state.loading ? "Resolving username and routing..." : state.error || "Preparing profile route..."}
+      </p>
+      {state.error ? (
+        <button
+          className="btn-secondary mt-5"
+          onClick={() => window.location.reload()}
+          type="button"
+        >
+          Retry
+        </button>
+      ) : null}
+    </section>
+  );
 }

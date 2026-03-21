@@ -1,6 +1,15 @@
 "use client";
 
-import { Gift, Heart, MessageCircleMore, Share2, UserRoundPlus, UserRoundCheck } from "lucide-react";
+import {
+  Gift,
+  Heart,
+  Loader2,
+  MessageCircleMore,
+  Share2,
+  UserRound,
+  UserRoundCheck,
+  UserRoundPlus,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { formatCompact } from "@/lib/format";
@@ -10,11 +19,18 @@ type BlobActionsProps = {
   blob: BlobItem;
   liked: boolean;
   followed: boolean;
+  isCreatorOwner: boolean;
+  pendingLike?: boolean;
+  pendingComment?: boolean;
+  pendingShare?: boolean;
+  pendingTip?: boolean;
+  pendingFollow?: boolean;
   onLike: () => void;
   onComment: () => void;
   onShare: () => void;
   onTip: () => void;
   onToggleFollow: () => void;
+  onOpenOwnProfile: () => void;
 };
 
 function ActionButton({
@@ -22,25 +38,35 @@ function ActionButton({
   value,
   active,
   disabled,
+  loading,
   icon: Icon,
+  tooltip,
   onClick,
 }: {
   label: string;
   value?: string;
   active?: boolean;
   disabled?: boolean;
+  loading?: boolean;
   icon: LucideIcon;
+  tooltip?: string;
   onClick: () => void;
 }) {
+  const interactiveDisabled = Boolean(disabled || loading);
+
   return (
     <button
       className={[
         "group flex w-16 flex-col items-center gap-1.5 text-white transition",
-        disabled ? "cursor-not-allowed opacity-40" : "hover:scale-[1.02]",
+        interactiveDisabled
+          ? "cursor-not-allowed opacity-45"
+          : "hover:scale-[1.02] active:scale-[0.98]",
       ].join(" ")}
-      aria-label={label}
-      disabled={disabled}
+      aria-busy={loading}
+      aria-label={value ? `${label} ${value}` : label}
+      disabled={interactiveDisabled}
       onClick={onClick}
+      title={tooltip ?? label}
       type="button"
     >
       <span
@@ -49,7 +75,7 @@ function ActionButton({
           active ? "border-rose-300/25 bg-rose-500/20 text-rose-100" : "hover:bg-black/45",
         ].join(" ")}
       >
-        <Icon className={`size-5 ${active ? "fill-current" : ""}`} />
+        {loading ? <Loader2 className="size-5 animate-spin" /> : <Icon className={`size-5 ${active ? "fill-current" : ""}`} />}
       </span>
       <span className="text-center text-[11px] font-medium leading-tight text-white/90">
         {value ?? label}
@@ -62,11 +88,18 @@ export function BlobActions({
   blob,
   liked,
   followed,
+  isCreatorOwner,
+  pendingLike,
+  pendingComment,
+  pendingShare,
+  pendingTip,
+  pendingFollow,
   onLike,
   onComment,
   onShare,
   onTip,
   onToggleFollow,
+  onOpenOwnProfile,
 }: BlobActionsProps) {
   return (
     <aside
@@ -77,29 +110,54 @@ export function BlobActions({
         active={liked}
         icon={Heart}
         label="Like"
+        loading={pendingLike}
         onClick={onLike}
+        tooltip={liked ? "Unlike" : "Like"}
         value={formatCompact(blob.likesCount)}
       />
       <ActionButton
         icon={MessageCircleMore}
         label="Comment"
+        loading={pendingComment}
         onClick={onComment}
+        tooltip="Comments"
         value={formatCompact(blob.commentsCount)}
       />
       <ActionButton
         icon={Share2}
         label="Share"
+        loading={pendingShare}
         onClick={onShare}
+        tooltip="Share"
         value={formatCompact(blob.sharesCount)}
       />
-      <ActionButton disabled={!blob.tipEnabled} icon={Gift} label="Tip" onClick={onTip} />
       <ActionButton
-        active={followed}
-        disabled={!blob.followable}
-        icon={followed ? UserRoundCheck : UserRoundPlus}
-        label="Follow"
-        onClick={onToggleFollow}
+        disabled={!blob.tipEnabled}
+        icon={Gift}
+        label="Tip"
+        loading={pendingTip}
+        onClick={onTip}
+        tooltip={blob.tipEnabled ? "Tip creator" : "Tips unavailable"}
       />
+      {isCreatorOwner ? (
+        <ActionButton
+          icon={UserRound}
+          label="Profile"
+          loading={pendingFollow}
+          onClick={onOpenOwnProfile}
+          tooltip="Edit profile"
+        />
+      ) : (
+        <ActionButton
+          active={followed}
+          disabled={!blob.followable}
+          icon={followed ? UserRoundCheck : UserRoundPlus}
+          label={followed ? "Following" : "Follow"}
+          loading={pendingFollow}
+          onClick={onToggleFollow}
+          tooltip={followed ? "Unfollow creator" : "Follow creator"}
+        />
+      )}
     </aside>
   );
 }

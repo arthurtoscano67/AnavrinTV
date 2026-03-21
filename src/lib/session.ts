@@ -1,4 +1,5 @@
 import type { WalletMode, WalletSession } from "@/lib/types";
+import { usernameFromDisplayName } from "@/lib/creator-identity";
 
 const STORAGE_KEY = "anavrin-tv-session";
 const SESSION_EVENT = "anavrin-session-change";
@@ -32,13 +33,16 @@ export function createDemoSession(displayName: string, mode: WalletMode): Wallet
   const safeName = displayName.trim() || "Creator";
   const slug = seedFromText(safeName) || "creator";
   const address = `0x${slug.slice(0, 6)}${randomSuffix()}`;
+  const username = usernameFromDisplayName(safeName, address);
   const storageLimitBytes = 500 * 1024 * 1024 * 1024;
   return {
     id: `session-${randomSuffix()}`,
     displayName: safeName,
+    username,
     address,
     mode,
     avatarSeed: safeName.slice(0, 2).toUpperCase() || "TV",
+    handle: username,
     storageLimitBytes,
     storageUsedBytes: 0,
     treasuryFeeBps: treasuryFeeForMode(mode),

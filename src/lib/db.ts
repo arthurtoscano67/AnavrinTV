@@ -2,6 +2,12 @@ import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import crypto from "node:crypto";
 
+import {
+  ensureUniqueUsername,
+  normalizeUsernameInput,
+  usernameFromDisplayName,
+  validateUsername,
+} from "@/lib/creator-identity";
 import { buildSeedDatabase, gradientForTopic } from "@/lib/seed";
 import { formatBytes, shortAddress, slugifyText } from "@/lib/format";
 import {
@@ -40,6 +46,10 @@ async function ensureStorage() {
   await mkdir(WALRUS_DIR, { recursive: true });
 }
 
+function normalizeAddress(value: string | null | undefined) {
+  return value?.trim().toLowerCase() ?? "";
+}
+
 function normalizeMetrics(metrics?: Partial<SiteMetrics>): SiteMetrics {
   return {
     visitorsToday: Number(metrics?.visitorsToday) || 0,
@@ -70,17 +80,27 @@ function normalizeAccountRecord(
   account: Partial<WalletSession> & Pick<WalletSession, "address" | "displayName" | "mode">,
 ): WalletSession {
   const now = timestamp();
+  const normalizedAddress = normalizeAddress(account.address);
+  const preferredUsername =
+    normalizeUsernameInput(account.username) ||
+    normalizeUsernameInput(account.handle) ||
+    usernameFromDisplayName(account.displayName, normalizedAddress);
+  const followers = Number(account.followersCount ?? account.followers) || 0;
+  const following = Number(account.followingCount ?? account.following) || 0;
+
   return {
     id:
       account.id ??
-      `acct-${slugify(account.displayName)}-${shortAddress(account.address, 4).replace(/…/g, "")}`,
+      `acct-${slugify(account.displayName)}-${shortAddress(normalizedAddress, 4).replace(/…/g, "")}`,
     displayName: account.displayName || "Creator",
-    address: account.address,
+    username: preferredUsername,
+    address: normalizedAddress,
     mode: account.mode,
     avatarSeed: account.avatarSeed || account.displayName.slice(0, 2).toUpperCase() || "AT",
-    handle: account.handle,
+    handle: preferredUsername,
     bio: account.bio,
     avatarUrl: account.avatarUrl,
+    bannerUrl: account.bannerUrl,
     storageLimitBytes: Number(account.storageLimitBytes) || DEFAULT_STORAGE_LIMIT_BYTES,
     storageUsedBytes: Number(account.storageUsedBytes) || 0,
     treasuryFeeBps: Number(account.treasuryFeeBps) || 0,
@@ -90,7 +110,12 @@ function normalizeAccountRecord(
     uploadsPublished: Number(account.uploadsPublished) || 0,
     totalViews: Number(account.totalViews) || 0,
     totalTips: Number(account.totalTips) || 0,
-    followers: Number(account.followers) || 0,
+    followers,
+    followersCount: followers,
+    following,
+    followingCount: following,
+    totalVideos: Number(account.totalVideos) || 0,
+    totalBlobs: Number(account.totalBlobs) || 0,
   };
 }
 
@@ -118,9 +143,26 @@ function normalizeVideoAsset(asset: VideoAsset | null, ownerAddress: string, cre
   };
 }
 
+function durationToSeconds(duration: string) {
+  const [minutes, seconds] = duration.split(":").map((part) => Number(part) || 0);
+  return minutes * 60 + seconds;
+}
+
+function isBlobVideoForCreator(video: Pick<VideoRecord, "category" | "duration" | "tags">) {
+  if (video.category === "Shorts") return true;
+  if (video.tags.some((tag) => tag.toLowerCase().includes("short"))) return true;
+  return durationToSeconds(video.duration) > 0 && durationToSeconds(video.duration) <= 120;
+}
+
 function normalizeVideoRecord(video: Partial<VideoRecord> & Pick<VideoRecord, "id" | "title" | "ownerAddress" | "ownerName">): VideoRecord {
   const createdAt = video.createdAt || timestamp();
-  const asset = normalizeVideoAsset(video.asset ?? null, video.ownerAddress, createdAt);
+  const ownerAddress = normalizeAddress(video.ownerAddress);
+  const asset = normalizeVideoAsset(video.asset ?? null, ownerAddress, createdAt);
+  const creatorUsername =
+    normalizeUsernameInput(video.creatorUsername) ||
+    normalizeUsernameInput(video.ownerName) ||
+    usernameFromDisplayName(video.ownerName, ownerAddress);
+
   return {
     id: video.id,
     slug: video.slug || slugifyText(video.title || video.id),
@@ -130,8 +172,12 @@ function normalizeVideoRecord(video: Partial<VideoRecord> & Pick<VideoRecord, "i
     category: video.category || "Launches",
     visibility: video.visibility || "draft",
     status: video.status || "draft",
-    ownerAddress: video.ownerAddress,
+    ownerAddress,
     ownerName: video.ownerName || "Creator",
+    creatorId: video.creatorId || `creator-${slugify(ownerAddress || video.id)}`,
+    creatorUsername,
+    creatorDisplayName: video.creatorDisplayName || video.ownerName || "Creator",
+    creatorAvatarUrl: video.creatorAvatarUrl,
     coverFrom: video.coverFrom || "#22d3ee",
     coverVia: video.coverVia || "#3b82f6",
     coverTo: video.coverTo || "#0f172a",
@@ -158,7 +204,7 @@ function normalizeVideoRecord(video: Partial<VideoRecord> & Pick<VideoRecord, "i
 
 function normalizeDb(db: Partial<Database> & { videos?: Partial<VideoRecord>[]; reports?: Partial<ReportRecord>[]; accounts?: Partial<WalletSession>[]; settings?: Partial<PlatformSettings>; metrics?: Partial<SiteMetrics> }): Database {
   const settings = normalizePlatformSettings(db.settings ?? defaultPlatformSettings());
-  const accounts = Array.isArray(db.accounts)
+  const accountsRaw = Array.isArray(db.accounts)
     ? db.accounts.map((account) =>
         normalizeAccountRecord({
           ...(account ?? {}),
@@ -168,17 +214,64 @@ function normalizeDb(db: Partial<Database> & { videos?: Partial<VideoRecord>[]; 
         }),
       )
     : [];
+
+  const usernames = new Set<string>();
+  const accounts = accountsRaw.map((account) => {
+    const uniqueUsername = ensureUniqueUsername(
+      account.username || usernameFromDisplayName(account.displayName, account.address),
+      usernames,
+    );
+
+    return {
+      ...account,
+      username: uniqueUsername,
+      handle: uniqueUsername,
+    };
+  });
+
+  const accountByAddress = new Map(accounts.map((account) => [account.address, account]));
+
   const videos = Array.isArray(db.videos)
-    ? db.videos.map((video) =>
-        normalizeVideoRecord({
+    ? db.videos.map((video) => {
+        const normalized = normalizeVideoRecord({
           ...(video ?? {}),
           id: video.id ?? crypto.randomUUID(),
           title: video.title ?? "Untitled video",
           ownerAddress: video.ownerAddress ?? "0x0",
           ownerName: video.ownerName ?? "Creator",
-        }),
-      )
+        });
+        const owner = accountByAddress.get(normalized.ownerAddress);
+        const creatorUsername =
+          owner?.username ||
+          normalizeUsernameInput(normalized.creatorUsername) ||
+          usernameFromDisplayName(normalized.ownerName, normalized.ownerAddress);
+
+        return {
+          ...normalized,
+          ownerName: owner?.displayName ?? normalized.ownerName,
+          creatorId: owner?.id ?? normalized.creatorId,
+          creatorUsername,
+          creatorDisplayName: owner?.displayName ?? normalized.creatorDisplayName ?? normalized.ownerName,
+          creatorAvatarUrl: owner?.avatarUrl ?? normalized.creatorAvatarUrl,
+        };
+      })
     : [];
+
+  for (const account of accounts) {
+    const ownedVideos = videos.filter((video) => video.ownerAddress === account.address);
+    const blobCount = ownedVideos.filter(isBlobVideoForCreator).length;
+    const totalViews = ownedVideos.reduce((sum, video) => sum + (Number(video.views) || 0), 0);
+    const followers = Number(account.followersCount ?? account.followers) || 0;
+    const following = Number(account.followingCount ?? account.following) || 0;
+
+    account.totalVideos = ownedVideos.length;
+    account.totalBlobs = blobCount;
+    account.totalViews = totalViews;
+    account.followers = followers;
+    account.followersCount = followers;
+    account.following = following;
+    account.followingCount = following;
+  }
   const reports = Array.isArray(db.reports)
     ? db.reports.map((report) => ({
         id: report.id ?? crypto.randomUUID(),
@@ -310,14 +403,18 @@ function createAccountRecord(input: {
   displayName: string;
   mode: WalletMode;
   storageUsedBytes?: number;
-}) {
+  username?: string;
+}): WalletSession {
   const createdAt = timestamp();
+  const username = normalizeUsernameInput(input.username) || usernameFromDisplayName(input.displayName, input.address);
   return {
     id: `acct-${slugify(input.displayName)}-${shortAddress(input.address, 4).replace(/…/g, "")}`,
     displayName: input.displayName,
+    username,
     address: input.address,
     mode: input.mode,
     avatarSeed: input.displayName.slice(0, 2).toUpperCase() || "AT",
+    handle: username,
     storageLimitBytes: DEFAULT_STORAGE_LIMIT_BYTES,
     storageUsedBytes: input.storageUsedBytes ?? 0,
     treasuryFeeBps: input.mode === "zklogin" ? 90 : input.mode === "slush" ? 75 : 65,
@@ -328,6 +425,11 @@ function createAccountRecord(input: {
     totalViews: 0,
     totalTips: 0,
     followers: 0,
+    followersCount: 0,
+    following: 0,
+    followingCount: 0,
+    totalVideos: 0,
+    totalBlobs: 0,
   };
 }
 
@@ -345,7 +447,7 @@ function normalizeBlobLikeRecord(record: Partial<BlobLikeRecord> & Pick<BlobLike
   return {
     id: record.id ?? crypto.randomUUID(),
     blobId: record.blobId,
-    userAddress: record.userAddress,
+    userAddress: normalizeAddress(record.userAddress),
     createdAt: record.createdAt ?? timestamp(),
   };
 }
@@ -356,8 +458,8 @@ function normalizeBlobFollowRecord(
   return {
     id: record.id ?? crypto.randomUUID(),
     blobId: record.blobId,
-    creatorAddress: record.creatorAddress,
-    userAddress: record.userAddress,
+    creatorAddress: normalizeAddress(record.creatorAddress),
+    userAddress: normalizeAddress(record.userAddress),
     createdAt: record.createdAt ?? timestamp(),
   };
 }
@@ -367,7 +469,7 @@ function normalizeBlobCommentRecord(
     Pick<BlobCommentRecord, "blobId" | "authorAddress" | "authorName" | "authorHandle" | "authorAvatar" | "body">,
 ): BlobCommentRecord {
   const authorName = record.authorName?.trim() || "Creator";
-  const authorAddress = record.authorAddress?.trim() || "0x0";
+  const authorAddress = normalizeAddress(record.authorAddress) || "0x0";
   const authorHandle = record.authorHandle?.trim()
     ? record.authorHandle.trim().startsWith("@")
       ? record.authorHandle.trim()
@@ -433,10 +535,26 @@ async function upsertAccount(
     mode: WalletMode;
     storageDeltaBytes?: number;
   },
-) {
-  const existing = db.accounts.find((account) => account.address === input.address);
+): Promise<WalletSession> {
+  const normalizedAddress = normalizeAddress(input.address);
+  const existing = db.accounts.find((account) => normalizeAddress(account.address) === normalizedAddress);
   if (existing) {
     existing.displayName = input.displayName;
+    if (!existing.username) {
+      const taken = new Set(
+        db.accounts
+          .filter((account) => normalizeAddress(account.address) !== normalizedAddress)
+          .map((account) => normalizeUsernameInput(account.username || account.handle))
+          .filter(Boolean),
+      );
+      const nextUsername = ensureUniqueUsername(
+        usernameFromDisplayName(input.displayName, normalizedAddress),
+        taken,
+      );
+      existing.username = nextUsername;
+      existing.handle = nextUsername;
+    }
+    existing.address = normalizedAddress;
     existing.mode = input.mode;
     existing.storageUsedBytes += input.storageDeltaBytes ?? 0;
     existing.renewalAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString();
@@ -444,11 +562,18 @@ async function upsertAccount(
     return existing;
   }
 
+  const taken = new Set(
+    db.accounts
+      .map((account) => normalizeUsernameInput(account.username || account.handle))
+      .filter(Boolean),
+  );
+  const username = ensureUniqueUsername(usernameFromDisplayName(input.displayName, normalizedAddress), taken);
   const account = createAccountRecord({
-    address: input.address,
+    address: normalizedAddress,
     displayName: input.displayName,
     mode: input.mode,
     storageUsedBytes: input.storageDeltaBytes ?? 0,
+    username,
   });
 
   db.accounts.push(account);
@@ -459,20 +584,30 @@ export async function updateAccountProfile(
   address: string,
   input: {
     displayName?: string;
+    username?: string;
     handle?: string;
     bio?: string;
     avatarUrl?: string;
+    bannerUrl?: string;
     mode?: WalletMode;
   },
 ) {
   const db = await loadDb();
-  let account = db.accounts.find((item) => item.address === address);
+  const normalizedAddress = normalizeAddress(address);
+  let account = db.accounts.find((item) => normalizeAddress(item.address) === normalizedAddress);
+  const rawUsernameInput =
+    typeof input.username === "string"
+      ? input.username
+      : typeof input.handle === "string"
+        ? input.handle
+        : undefined;
 
   if (!account) {
     account = createAccountRecord({
-      address,
+      address: normalizedAddress,
       displayName: input.displayName ?? "Creator",
       mode: input.mode ?? "wallet",
+      username: normalizeUsernameInput(rawUsernameInput) || undefined,
     });
     db.accounts.push(account);
   }
@@ -481,8 +616,46 @@ export async function updateAccountProfile(
     account.displayName = input.displayName.trim();
   }
 
-  if (input.handle !== undefined) {
-    account.handle = input.handle.trim() || undefined;
+  const requestedUsername = normalizeUsernameInput(rawUsernameInput);
+  if (input.username !== undefined || input.handle !== undefined) {
+    if (rawUsernameInput !== undefined) {
+      const rawUsernameError = validateUsername(rawUsernameInput);
+      if (rawUsernameError) {
+        throw new Error(rawUsernameError);
+      }
+    }
+
+    const nextUsername = requestedUsername || usernameFromDisplayName(account.displayName, normalizedAddress);
+    const usernameError = validateUsername(nextUsername);
+    if (usernameError) {
+      throw new Error(usernameError);
+    }
+
+    const duplicate = db.accounts.find(
+      (item) =>
+        normalizeAddress(item.address) !== normalizedAddress &&
+        normalizeUsernameInput(item.username || item.handle) === nextUsername,
+    );
+
+    if (duplicate) {
+      throw new Error("Username is already taken.");
+    }
+
+    account.username = nextUsername;
+    account.handle = nextUsername;
+  } else if (!account.username) {
+    const taken = new Set(
+      db.accounts
+        .filter((item) => normalizeAddress(item.address) !== normalizedAddress)
+        .map((item) => normalizeUsernameInput(item.username || item.handle))
+        .filter(Boolean),
+    );
+    const fallbackUsername = ensureUniqueUsername(
+      usernameFromDisplayName(account.displayName, normalizedAddress),
+      taken,
+    );
+    account.username = fallbackUsername;
+    account.handle = fallbackUsername;
   }
 
   if (input.bio !== undefined) {
@@ -493,8 +666,37 @@ export async function updateAccountProfile(
     account.avatarUrl = input.avatarUrl.trim() || undefined;
   }
 
+  if (input.bannerUrl !== undefined) {
+    account.bannerUrl = input.bannerUrl.trim() || undefined;
+  }
+
   if (input.mode) {
     account.mode = input.mode;
+  }
+
+  const normalizedUsername = account.username || usernameFromDisplayName(account.displayName, normalizedAddress);
+  account.username = normalizedUsername;
+  account.handle = normalizedUsername;
+  account.followersCount = Number(account.followersCount ?? account.followers) || 0;
+  account.followingCount = Number(account.followingCount ?? account.following) || 0;
+  account.followers = account.followersCount;
+  account.following = account.followingCount;
+  account.totalVideos = db.videos.filter((video) => normalizeAddress(video.ownerAddress) === normalizedAddress).length;
+  account.totalBlobs = db.videos.filter(
+    (video) => normalizeAddress(video.ownerAddress) === normalizedAddress && isBlobVideoForCreator(video),
+  ).length;
+  account.totalViews = db.videos
+    .filter((video) => normalizeAddress(video.ownerAddress) === normalizedAddress)
+    .reduce((sum, video) => sum + (Number(video.views) || 0), 0);
+
+  for (const video of db.videos) {
+    if (normalizeAddress(video.ownerAddress) !== normalizedAddress) continue;
+    video.ownerName = account.displayName;
+    video.creatorId = account.id;
+    video.creatorUsername = normalizedUsername;
+    video.creatorDisplayName = account.displayName;
+    video.creatorAvatarUrl = account.avatarUrl;
+    video.updatedAt = timestamp();
   }
 
   account.lastActiveAt = timestamp();
@@ -514,7 +716,9 @@ export async function getVideos(options?: {
 
   return db.videos
     .filter((video) => {
-      if (options?.ownerAddress && video.ownerAddress !== options.ownerAddress) return false;
+      if (options?.ownerAddress && normalizeAddress(video.ownerAddress) !== normalizeAddress(options.ownerAddress)) {
+        return false;
+      }
       if (options?.publicOnly && video.visibility !== "public") return false;
       if (!options?.includeDrafts && video.status === "hidden") return false;
       if (options?.category && options.category !== "All" && video.category !== options.category) return false;
@@ -523,6 +727,8 @@ export async function getVideos(options?: {
           video.title,
           video.description,
           video.ownerName,
+          video.creatorDisplayName,
+          video.creatorUsername,
           video.category,
           video.tags.join(" "),
         ]
@@ -552,7 +758,20 @@ export async function getMetrics() {
 
 export async function getAccount(address: string) {
   const db = await loadDb();
-  return db.accounts.find((account) => account.address === address) ?? null;
+  const normalizedAddress = normalizeAddress(address);
+  return db.accounts.find((account) => normalizeAddress(account.address) === normalizedAddress) ?? null;
+}
+
+export async function getAccountByUsername(username: string) {
+  const db = await loadDb();
+  const normalized = normalizeUsernameInput(username);
+  if (!normalized) return null;
+
+  return (
+    db.accounts.find(
+      (account) => normalizeUsernameInput(account.username || account.handle) === normalized,
+    ) ?? null
+  );
 }
 
 export async function getBlobComments(blobId: string, limit = 100) {
@@ -568,22 +787,24 @@ export async function getBlobComments(blobId: string, limit = 100) {
 
 export async function setBlobLike(input: { blobId: string; userAddress: string; liked?: boolean }) {
   const db = await loadDb();
-  const video = db.videos.find((item) => item.id === input.blobId);
+  const blobId = input.blobId.trim();
+  const userAddress = normalizeAddress(input.userAddress);
+  const video = db.videos.find((item) => item.id === blobId);
   if (!video) return null;
-  const actor = db.accounts.find((account) => account.address === input.userAddress);
+  const actor = db.accounts.find((account) => normalizeAddress(account.address) === userAddress);
 
-  const matches = db.blobLikes.filter((record) => record.blobId === input.blobId && record.userAddress === input.userAddress);
+  const matches = db.blobLikes.filter((record) => record.blobId === blobId && normalizeAddress(record.userAddress) === userAddress);
   const desiredLiked = typeof input.liked === "boolean" ? input.liked : !matches.length;
 
   db.blobLikes = db.blobLikes.filter(
-    (record) => !(record.blobId === input.blobId && record.userAddress === input.userAddress),
+    (record) => !(record.blobId === blobId && normalizeAddress(record.userAddress) === userAddress),
   );
 
   if (desiredLiked) {
     db.blobLikes.unshift(
       normalizeBlobLikeRecord({
-        blobId: input.blobId,
-        userAddress: input.userAddress,
+        blobId,
+        userAddress,
       }),
     );
   }
@@ -606,28 +827,30 @@ export async function setBlobLike(input: { blobId: string; userAddress: string; 
 
 export async function setBlobFollow(input: { blobId: string; userAddress: string; followed?: boolean }) {
   const db = await loadDb();
-  const video = db.videos.find((item) => item.id === input.blobId);
+  const blobId = input.blobId.trim();
+  const userAddress = normalizeAddress(input.userAddress);
+  const video = db.videos.find((item) => item.id === blobId);
   if (!video) return null;
-  const actor = db.accounts.find((account) => account.address === input.userAddress);
+  const actor = db.accounts.find((account) => normalizeAddress(account.address) === userAddress);
 
-  const creatorAddress = video.ownerAddress;
+  const creatorAddress = normalizeAddress(video.ownerAddress);
   const matches = db.blobFollows.filter(
-    (record) => record.creatorAddress === creatorAddress && record.userAddress === input.userAddress,
+    (record) => normalizeAddress(record.creatorAddress) === creatorAddress && normalizeAddress(record.userAddress) === userAddress,
   );
   const desiredFollowed = typeof input.followed === "boolean" ? input.followed : !matches.length;
 
   db.blobFollows = db.blobFollows.filter(
-    (record) => !(record.creatorAddress === creatorAddress && record.userAddress === input.userAddress),
+    (record) => !(normalizeAddress(record.creatorAddress) === creatorAddress && normalizeAddress(record.userAddress) === userAddress),
   );
 
-  const creator = db.accounts.find((account) => account.address === creatorAddress);
+  const creator = db.accounts.find((account) => normalizeAddress(account.address) === creatorAddress);
 
   if (desiredFollowed) {
     db.blobFollows.unshift(
       normalizeBlobFollowRecord({
-        blobId: input.blobId,
+        blobId,
         creatorAddress,
-        userAddress: input.userAddress,
+        userAddress,
       }),
     );
   }
@@ -635,9 +858,18 @@ export async function setBlobFollow(input: { blobId: string; userAddress: string
   const delta = desiredFollowed ? 1 - matches.length : -matches.length;
   if (creator && delta !== 0) {
     creator.followers = Math.max(0, (creator.followers ?? 0) + delta);
+    creator.followersCount = creator.followers;
     creator.lastActiveAt = timestamp();
   } else if (creator && matches.length > 1) {
     creator.lastActiveAt = timestamp();
+  }
+
+  if (actor && delta !== 0) {
+    actor.following = Math.max(0, (actor.following ?? actor.followingCount ?? 0) + delta);
+    actor.followingCount = actor.following;
+    actor.lastActiveAt = timestamp();
+  } else if (actor && matches.length > 1) {
+    actor.lastActiveAt = timestamp();
   }
 
   if (delta !== 0 || matches.length > 1) {
@@ -648,25 +880,27 @@ export async function setBlobFollow(input: { blobId: string; userAddress: string
     await saveDb(db);
   }
 
-  return { video, followed: desiredFollowed, followers: creator?.followers ?? 0 };
+  return { video, followed: desiredFollowed, followers: creator?.followersCount ?? creator?.followers ?? 0 };
 }
 
 export async function addBlobComment(input: { blobId: string; authorAddress: string; body: string }) {
   const db = await loadDb();
-  const video = db.videos.find((item) => item.id === input.blobId);
+  const blobId = input.blobId.trim();
+  const authorAddress = normalizeAddress(input.authorAddress);
+  const video = db.videos.find((item) => item.id === blobId);
   if (!video) return null;
 
-  const account = db.accounts.find((item) => item.address === input.authorAddress);
-  const authorName = account?.displayName?.trim() || shortAddress(input.authorAddress, 4);
+  const account = db.accounts.find((item) => normalizeAddress(item.address) === authorAddress);
+  const authorName = account?.displayName?.trim() || shortAddress(authorAddress, 4);
   const authorHandle =
     account?.handle?.trim()
       ? account.handle.startsWith("@")
         ? account.handle
         : `@${account.handle}`
-      : `@${shortAddress(input.authorAddress.replace(/^0x/, ""), 4)}`;
+      : `@${shortAddress(authorAddress.replace(/^0x/, ""), 4)}`;
   const comment = normalizeBlobCommentRecord({
-    blobId: input.blobId,
-    authorAddress: input.authorAddress,
+    blobId,
+    authorAddress,
     authorName,
     authorHandle,
     authorAvatar: account?.avatarSeed?.trim() || initialsFromName(authorName),
@@ -721,7 +955,7 @@ export async function createUpload(input: {
   });
 
   const cover = chooseCover(input.category);
-  const storageOwnerAddress = input.storageOwnerAddress ?? input.ownerAddress;
+  const storageOwnerAddress = normalizeAddress(input.storageOwnerAddress ?? input.ownerAddress);
   const storageDays = Math.max(1, Math.min(730, Math.floor(input.storageDays ?? DEFAULT_STORAGE_DAYS)));
   const video: VideoRecord = {
     id,
@@ -732,8 +966,12 @@ export async function createUpload(input: {
     category: input.category,
     visibility: input.visibility,
     status: input.publishNow ? "published" : "draft",
-    ownerAddress: input.ownerAddress,
-    ownerName: input.ownerName,
+    ownerAddress: account.address,
+    ownerName: account.displayName,
+    creatorId: account.id,
+    creatorUsername: account.username,
+    creatorDisplayName: account.displayName,
+    creatorAvatarUrl: account.avatarUrl,
     coverFrom: cover.from,
     coverVia: cover.via,
     coverTo: cover.to,
@@ -769,6 +1007,10 @@ export async function createUpload(input: {
 
   db.videos.unshift(video);
   account.uploadsPublished = (account.uploadsPublished ?? 0) + 1;
+  const ownerVideos = db.videos.filter((item) => item.ownerAddress === account.address);
+  account.totalVideos = ownerVideos.length;
+  account.totalBlobs = ownerVideos.filter(isBlobVideoForCreator).length;
+  account.totalViews = ownerVideos.reduce((sum, item) => sum + (Number(item.views) || 0), 0);
   db.metrics.uploadsToday += 1;
   db.metrics.storageUsedBytes = db.accounts.reduce((sum, item) => sum + item.storageUsedBytes, 0);
   db.metrics.creatorCount = db.accounts.length;
@@ -808,7 +1050,7 @@ export async function persistUploadRecord(input: {
   const id = crypto.randomUUID();
   const slug = `${slugifyText(input.title)}-${id.slice(0, 6)}`;
   const cover = chooseCover(input.category);
-  const storageOwnerAddress = input.storageOwnerAddress ?? input.ownerAddress;
+  const storageOwnerAddress = normalizeAddress(input.storageOwnerAddress ?? input.ownerAddress);
   const asset = normalizeVideoAsset(
     {
       ...input.asset,
@@ -849,8 +1091,12 @@ export async function persistUploadRecord(input: {
     capObjectId: input.capObjectId,
     policyNonce: input.policyNonce,
     uploadTxDigest: input.uploadTxDigest,
-    ownerAddress: input.ownerAddress,
-    ownerName: input.ownerName,
+    ownerAddress: account.address,
+    ownerName: account.displayName,
+    creatorId: account.id,
+    creatorUsername: account.username,
+    creatorDisplayName: account.displayName,
+    creatorAvatarUrl: account.avatarUrl,
     coverFrom: cover.from,
     coverVia: cover.via,
     coverTo: cover.to,
@@ -870,6 +1116,10 @@ export async function persistUploadRecord(input: {
 
   db.videos.unshift(video);
   account.uploadsPublished = (account.uploadsPublished ?? 0) + 1;
+  const ownerVideos = db.videos.filter((item) => item.ownerAddress === account.address);
+  account.totalVideos = ownerVideos.length;
+  account.totalBlobs = ownerVideos.filter(isBlobVideoForCreator).length;
+  account.totalViews = ownerVideos.reduce((sum, item) => sum + (Number(item.views) || 0), 0);
   db.metrics.uploadsToday += 1;
   db.metrics.storageUsedBytes = db.accounts.reduce((sum, item) => sum + item.storageUsedBytes, 0);
   db.metrics.creatorCount = db.accounts.length;
@@ -931,6 +1181,10 @@ export async function removeVideo(id: string) {
     const account = db.accounts.find((item) => item.address === video.ownerAddress);
     if (account) {
       account.storageUsedBytes = Math.max(0, account.storageUsedBytes - video.asset.sizeBytes);
+      const ownerVideos = db.videos.filter((item) => item.ownerAddress === account.address);
+      account.totalVideos = ownerVideos.length;
+      account.totalBlobs = ownerVideos.filter(isBlobVideoForCreator).length;
+      account.totalViews = ownerVideos.reduce((sum, item) => sum + (Number(item.views) || 0), 0);
     }
   }
 
@@ -968,6 +1222,7 @@ export async function recordReaction(
 
     if (type === "subscribe") {
       account.followers = (account.followers ?? 0) + amount;
+      account.followersCount = account.followers;
     }
   }
 
@@ -1031,7 +1286,8 @@ export async function updatePlatformSettings(patch: Partial<PlatformSettings>) {
 
 export async function renewAccount(address: string, additionalDays = 30) {
   const db = await loadDb();
-  const account = db.accounts.find((item) => item.address === address);
+  const normalizedAddress = normalizeAddress(address);
+  const account = db.accounts.find((item) => normalizeAddress(item.address) === normalizedAddress);
   if (!account) return null;
 
   account.renewalAt = new Date(
@@ -1051,7 +1307,7 @@ export async function renewVideoStorage(input: {
   const db = await loadDb();
   const video = db.videos.find((item) => item.id === input.videoId);
   if (!video) return null;
-  if (input.ownerAddress && video.ownerAddress !== input.ownerAddress) return null;
+  if (input.ownerAddress && normalizeAddress(video.ownerAddress) !== normalizeAddress(input.ownerAddress)) return null;
 
   const now = timestamp();
   const days = Math.max(1, Math.min(db.settings.fees.maxStorageExtensionDays, Math.floor(input.days)));
@@ -1072,9 +1328,11 @@ export async function renewVideoStorage(input: {
   video.storageExpiresAt = nextExpiry;
   video.updatedAt = now;
 
-  const account = db.accounts.find((item) => item.address === video.ownerAddress);
+  const account = db.accounts.find((item) => normalizeAddress(item.address) === normalizeAddress(video.ownerAddress));
   if (account) {
-    const ownedVideos = db.videos.filter((item) => item.ownerAddress === account.address && item.asset?.storageExpiresAt);
+    const ownedVideos = db.videos.filter(
+      (item) => normalizeAddress(item.ownerAddress) === normalizeAddress(account.address) && item.asset?.storageExpiresAt,
+    );
     const earliestExpiry = ownedVideos
       .map((item) => new Date(item.asset!.storageExpiresAt!).getTime())
       .sort((a, b) => a - b)[0];
@@ -1094,11 +1352,16 @@ export async function renewVideoStorage(input: {
 
 export async function getDashboardSnapshot(address?: string) {
   const db = await loadDb();
-  const owned = address ? db.videos.filter((video) => video.ownerAddress === address) : [];
+  const normalizedAddress = normalizeAddress(address);
+  const owned = normalizedAddress
+    ? db.videos.filter((video) => normalizeAddress(video.ownerAddress) === normalizedAddress)
+    : [];
   return {
     metrics: computeMetrics(db),
     videos: owned,
-    account: address ? db.accounts.find((item) => item.address === address) ?? null : null,
+    account: normalizedAddress
+      ? db.accounts.find((item) => normalizeAddress(item.address) === normalizedAddress) ?? null
+      : null,
     reports: db.reports.filter((item) => item.status === "open"),
     settings: db.settings,
     storageHealth: calculateStorageHealthSummary({

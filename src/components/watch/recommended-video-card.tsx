@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { CreatorLink } from "@/components/creator-link";
 import { formatCompact, formatRelativeTime } from "@/lib/format";
 import type { VideoRecord } from "@/lib/types";
 
@@ -10,39 +11,69 @@ type RecommendedVideoCardProps = {
 
 export function RecommendedVideoCard({ video, active = false }: RecommendedVideoCardProps) {
   const publishedAt = video.publishedAt ?? video.createdAt;
+  const creatorName = video.creatorDisplayName || video.ownerName;
+  const creatorUsername = video.creatorUsername;
+  const creatorLabel = creatorUsername ? `${creatorName} · @${creatorUsername}` : creatorName;
 
   return (
-    <Link
+    <article
       className={[
-        "group block rounded-xl border p-2 transition",
+        "group rounded-xl border p-2 transition",
         active
           ? "border-cyan-300/35 bg-cyan-300/8"
           : "border-white/10 bg-[#0b1120] hover:border-white/20 hover:bg-white/5",
       ].join(" ")}
-      href={`/video/${video.id}`}
     >
       <div className="flex gap-3">
-        <div
-          className="relative h-24 w-40 shrink-0 overflow-hidden rounded-lg border border-white/10"
-          style={{
-            background: `linear-gradient(145deg, ${video.coverFrom} 0%, ${video.coverVia} 48%, ${video.coverTo} 100%)`,
-          }}
-        >
-          <span className="absolute bottom-1.5 right-1.5 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-semibold text-white">
-            {video.duration}
-          </span>
-        </div>
+        <Link href={`/video/${video.id}`}>
+          <div
+            className="relative h-24 w-40 shrink-0 overflow-hidden rounded-lg border border-white/10"
+            style={{
+              background: `linear-gradient(145deg, ${video.coverFrom} 0%, ${video.coverVia} 48%, ${video.coverTo} 100%)`,
+            }}
+          >
+            <span className="absolute bottom-1.5 right-1.5 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+              {video.duration}
+            </span>
+          </div>
+        </Link>
 
         <div className="min-w-0 pt-0.5">
-          <h3 className="line-clamp-2 text-sm font-medium leading-5 text-white group-hover:text-cyan-100">
-            {video.title}
-          </h3>
-          <p className="mt-1 truncate text-xs text-slate-300">{video.ownerName}</p>
+          <Link href={`/video/${video.id}`} className="line-clamp-2 block text-sm font-medium leading-5 text-white group-hover:text-cyan-100">
+            <h3>{video.title}</h3>
+          </Link>
+          <div className="mt-1 flex items-center gap-1.5">
+            <CreatorLink
+              className="block size-5 overflow-hidden rounded-full border border-white/10 bg-white/5"
+              title={creatorName}
+              username={creatorUsername}
+            >
+              {video.creatorAvatarUrl ? (
+                <img
+                  alt={creatorName}
+                  className="size-full object-cover"
+                  draggable={false}
+                  src={video.creatorAvatarUrl}
+                />
+              ) : (
+                <span className="grid size-full place-items-center text-[10px] font-semibold uppercase text-white/90">
+                  {(creatorName || "AT").slice(0, 1).toUpperCase()}
+                </span>
+              )}
+            </CreatorLink>
+            <CreatorLink
+              className="truncate text-xs text-slate-300 hover:text-cyan-100"
+              title={creatorName}
+              username={creatorUsername}
+            >
+              {creatorLabel}
+            </CreatorLink>
+          </div>
           <p className="mt-1 text-xs text-slate-400">
             {formatCompact(video.views)} views • {formatRelativeTime(publishedAt)}
           </p>
         </div>
       </div>
-    </Link>
+    </article>
   );
 }

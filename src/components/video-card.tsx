@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { CreatorLink } from "@/components/creator-link";
 import { formatCompact, formatRelativeTime } from "@/lib/format";
 import type { VideoRecord } from "@/lib/types";
 
@@ -25,13 +26,13 @@ export function VideoCard({
   compact?: boolean;
 }) {
   const publishedAt = video.publishedAt ?? video.createdAt;
+  const creatorName = video.creatorDisplayName || video.ownerName;
+  const creatorUsername = video.creatorUsername;
+  const watchHref = `/video/${video.id}`;
 
   return (
-    <Link
-      href={`/video/${video.id}`}
-      className="group block transition duration-200 hover:-translate-y-0.5"
-    >
-      <article className="overflow-hidden rounded-2xl border border-white/10 bg-[#0a1020] transition duration-200 group-hover:border-white/15 group-hover:bg-[#0c1326]">
+    <article className="group overflow-hidden rounded-2xl border border-white/10 bg-[#0a1020] transition duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-[#0c1326]">
+      <Link href={watchHref} className="block">
         <div
           className="relative aspect-video overflow-hidden"
           style={{
@@ -43,27 +44,50 @@ export function VideoCard({
             {video.duration}
           </div>
         </div>
+      </Link>
 
-        <div className={`flex gap-3 ${compact ? "p-3" : "p-3.5 md:p-4"}`}>
-          <div className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/90">
-            {getInitials(video.ownerName)}
-          </div>
+      <div className={`flex gap-3 ${compact ? "p-3" : "p-3.5 md:p-4"}`}>
+        <CreatorLink
+          username={creatorUsername}
+          className="mt-0.5 block size-9 shrink-0 overflow-hidden rounded-full border border-white/10 bg-white/5"
+          title={creatorName}
+        >
+          {video.creatorAvatarUrl ? (
+            <img
+              alt={creatorName}
+              className="size-full object-cover"
+              draggable={false}
+              src={video.creatorAvatarUrl}
+            />
+          ) : (
+            <span className="grid size-full place-items-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/90">
+              {getInitials(creatorName)}
+            </span>
+          )}
+        </CreatorLink>
 
-          <div className="min-w-0 flex-1">
-            <h3
-              className={`line-clamp-2 font-medium leading-5 text-white transition group-hover:text-cyan-100 ${
-                compact ? "text-[14px]" : "text-[15px]"
-              }`}
-            >
+        <div className="min-w-0 flex-1">
+          <Link
+            href={watchHref}
+            className={`line-clamp-2 block font-medium leading-5 text-white transition group-hover:text-cyan-100 ${
+              compact ? "text-[14px]" : "text-[15px]"
+            }`}
+          >
+            <h3>
               {video.title}
             </h3>
-            <p className="mt-1 truncate text-sm text-slate-300">{video.ownerName}</p>
-            <p className="mt-1 text-xs text-slate-400">
-              {formatCompact(video.views)} views · {formatRelativeTime(publishedAt)}
-            </p>
-          </div>
+          </Link>
+          <CreatorLink
+            username={creatorUsername}
+            className="mt-1 block truncate text-sm text-slate-300 hover:text-cyan-100"
+          >
+            {creatorUsername ? `${creatorName} · @${creatorUsername}` : creatorName}
+          </CreatorLink>
+          <p className="mt-1 text-xs text-slate-400">
+            {formatCompact(video.views)} views · {formatRelativeTime(publishedAt)}
+          </p>
         </div>
-      </article>
-    </Link>
+      </div>
+    </article>
   );
 }

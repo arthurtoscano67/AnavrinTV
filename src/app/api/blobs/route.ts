@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const limit = Math.max(1, Math.min(100, Number(searchParams.get("limit") ?? 24) || 24));
   const q = searchParams.get("q") ?? "";
-  const address = searchParams.get("address")?.trim() ?? "";
+  const address = searchParams.get("address")?.trim().toLowerCase() ?? "";
 
   const db = await loadDb();
   const publicVideos = db.videos.filter((video) => {
@@ -43,17 +43,27 @@ export async function GET(request: NextRequest) {
   );
 
   const userLikedBlobIds = address
-    ? new Set(db.blobLikes.filter((record) => record.userAddress === address).map((record) => record.blobId))
+    ? new Set(
+        db.blobLikes
+          .filter((record) => record.userAddress.trim().toLowerCase() === address)
+          .map((record) => record.blobId),
+      )
     : null;
   const userFollowedCreatorAddresses = address
-    ? new Set(db.blobFollows.filter((record) => record.userAddress === address).map((record) => record.creatorAddress))
+    ? new Set(
+        db.blobFollows
+          .filter((record) => record.userAddress.trim().toLowerCase() === address)
+          .map((record) => record.creatorAddress.trim().toLowerCase()),
+      )
     : null;
 
   const blobs = buildBlobFeedFromVideos(publicVideos, accountsByAddress)
     .map((blob) => ({
       ...blob,
       likedByUser: userLikedBlobIds ? userLikedBlobIds.has(blob.id) : blob.likedByUser,
-      followedByUser: userFollowedCreatorAddresses ? userFollowedCreatorAddresses.has(blob.creatorAddress ?? "") : blob.followedByUser,
+      followedByUser: userFollowedCreatorAddresses
+        ? userFollowedCreatorAddresses.has((blob.creatorAddress ?? "").trim().toLowerCase())
+        : blob.followedByUser,
     }))
     .slice(0, limit);
   return NextResponse.json({ blobs });

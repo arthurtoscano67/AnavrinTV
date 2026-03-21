@@ -66,6 +66,8 @@ export function BlobPlayer({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const tapTimerRef = useRef<number | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const holdPauseRef = useRef(false);
   const lastPulseKeyRef = useRef(likePulseKey);
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -228,8 +230,26 @@ export function BlobPlayer({
       if (tapTimerRef.current) {
         window.clearTimeout(tapTimerRef.current);
       }
+      if (longPressTimerRef.current) {
+        window.clearTimeout(longPressTimerRef.current);
+      }
     };
   }, []);
+
+  function clearLongPressTimer() {
+    if (!longPressTimerRef.current) return;
+    window.clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+  }
+
+  function resumeHoldPause() {
+    if (!holdPauseRef.current) return;
+    holdPauseRef.current = false;
+
+    const video = videoRef.current;
+    if (!video || !active || paused || !sourceUrl) return;
+    void video.play().catch(() => undefined);
+  }
 
   function handleTap(x: number, y: number) {
     const current = touchStartRef.current;
@@ -297,8 +317,10 @@ export function BlobPlayer({
 
       <button
         aria-label={muted ? "Unmute video" : "Mute video"}
+        data-blob-interactive="true"
         className="absolute right-4 top-4 z-20 grid size-10 place-items-center rounded-full border border-white/10 bg-black/35 text-white backdrop-blur-md transition hover:border-white/20 hover:bg-black/45 md:right-6 md:top-6"
         onClick={onToggleMute}
+        title={muted ? "Unmute" : "Mute"}
         type="button"
       >
         {muted ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}
@@ -334,11 +356,13 @@ export function BlobPlayer({
             {error ? (
               <button
                 aria-label="Retry playback"
+                data-blob-interactive="true"
                 className="grid size-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
                 onClick={() => {
                   setError(null);
                   setRetryToken((current) => current + 1);
                 }}
+                title="Retry playback"
                 type="button"
               >
                 <RotateCcw className="size-4" />
@@ -356,14 +380,30 @@ export function BlobPlayer({
             y: event.clientY,
             time: Date.now(),
           };
+          clearLongPressTimer();
+          longPressTimerRef.current = window.setTimeout(() => {
+            const video = videoRef.current;
+            if (!video || !active || paused) return;
+            holdPauseRef.current = true;
+            video.pause();
+          }, 280);
         }}
         onPointerUp={(event) => {
           if (!touchStartRef.current) return;
+          clearLongPressTimer();
           handleTap(event.clientX, event.clientY);
           touchStartRef.current = null;
+          resumeHoldPause();
         }}
         onPointerLeave={() => {
+          clearLongPressTimer();
           touchStartRef.current = null;
+          resumeHoldPause();
+        }}
+        onPointerCancel={() => {
+          clearLongPressTimer();
+          touchStartRef.current = null;
+          resumeHoldPause();
         }}
       />
     </div>

@@ -11,6 +11,7 @@ type BlobCommentsPanelProps = {
   comments: BlobComment[];
   open: boolean;
   draft: string;
+  submitting?: boolean;
   onDraftChange: (value: string) => void;
   onSubmit: () => void;
   onClose: () => void;
@@ -21,6 +22,7 @@ export function BlobCommentsPanel({
   comments,
   open,
   draft,
+  submitting,
   onDraftChange,
   onSubmit,
   onClose,
@@ -53,8 +55,10 @@ export function BlobCommentsPanel({
           </div>
 
           <button
+            aria-label="Close comments panel"
             className="grid size-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
             onClick={onClose}
+            title="Close comments"
             type="button"
           >
             <X className="size-4" />
@@ -133,9 +137,15 @@ export function BlobCommentsPanel({
               <p className="text-xs text-slate-400">
                 Keep the feed playing while you comment. Posts stay compact and fast.
               </p>
-              <button className="btn-primary px-4 py-2.5 text-xs uppercase tracking-[0.22em]" type="submit">
+              <button
+                aria-busy={submitting}
+                className="btn-primary px-4 py-2.5 text-xs uppercase tracking-[0.22em] disabled:cursor-not-allowed disabled:opacity-45"
+                disabled={!draft.trim() || submitting}
+                title="Send comment"
+                type="submit"
+              >
                 <Send className="size-4" />
-                Send
+                {submitting ? "Sending..." : "Send"}
               </button>
             </div>
           </div>
@@ -144,4 +154,3 @@ export function BlobCommentsPanel({
     </div>
   );
 }
-

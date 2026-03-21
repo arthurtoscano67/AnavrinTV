@@ -11,7 +11,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     liked?: boolean;
   };
 
-  const address = body.address?.trim();
+  const address = body.address?.trim().toLowerCase();
   if (!address) {
     return NextResponse.json({ error: "Wallet address is required." }, { status: 400 });
   }

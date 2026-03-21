@@ -1,5 +1,6 @@
 import type { Database, ReportRecord, SiteMetrics, VideoRecord, WalletMode, WalletSession } from "@/lib/types";
 import { defaultPlatformSettings } from "@/lib/platform-settings";
+import { usernameFromDisplayName } from "@/lib/creator-identity";
 
 function slugify(value: string) {
   return value
@@ -268,6 +269,10 @@ function makeSeedVideo(
     status: "published",
     ownerAddress: seed.ownerAddress,
     ownerName: seed.ownerName,
+    creatorId: `acct-${slugify(seed.ownerName)}`,
+    creatorUsername: usernameFromDisplayName(seed.ownerName, seed.ownerAddress),
+    creatorDisplayName: seed.ownerName,
+    creatorAvatarUrl: undefined,
     coverFrom: gradient.from,
     coverVia: gradient.via,
     coverTo: gradient.to,
@@ -298,6 +303,8 @@ export function buildSeedDatabase(): Database {
   const accounts: WalletSession[] = creatorSeeds.map((creator) => ({
     id: `acct-${slugify(creator.displayName)}`,
     displayName: creator.displayName,
+    username: usernameFromDisplayName(creator.displayName, creator.address),
+    handle: usernameFromDisplayName(creator.displayName, creator.address),
     address: creator.address,
     mode: creator.mode,
     avatarSeed: creator.displayName.slice(0, 2).toUpperCase(),
@@ -305,6 +312,15 @@ export function buildSeedDatabase(): Database {
     storageUsedBytes: creator.storageUsedBytes,
     treasuryFeeBps: creator.treasuryFeeBps,
     renewalAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(),
+    followers: 0,
+    followersCount: 0,
+    following: 0,
+    followingCount: 0,
+    totalVideos: videos.filter((video) => video.ownerAddress === creator.address).length,
+    totalBlobs: videos.filter((video) => video.ownerAddress === creator.address && video.category === "Shorts").length,
+    totalViews: videos
+      .filter((video) => video.ownerAddress === creator.address)
+      .reduce((sum, video) => sum + video.views, 0),
   }));
 
   const metrics: SiteMetrics = {

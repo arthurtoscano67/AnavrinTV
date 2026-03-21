@@ -64,6 +64,9 @@ export function BlobTipModal({ blob, open, platform, onClose, onSend }: BlobTipM
     try {
       await onSend(preview.amountSui);
       setStatus(`Sent ${preview.amountSui.toFixed(2)} SUI to ${activeBlob.creatorName}.`);
+      window.setTimeout(() => {
+        onClose();
+      }, 420);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Tip failed.");
     } finally {
@@ -128,6 +131,18 @@ export function BlobTipModal({ blob, open, platform, onClose, onSend }: BlobTipM
               );
             })}
           </div>
+
+          <label className="block">
+            <span className="text-xs uppercase tracking-[0.28em] text-slate-400">Token</span>
+            <select
+              className="select mt-2 rounded-[18px] border-white/10 bg-white/5 text-white"
+              defaultValue="SUI"
+              disabled
+              title="SUI tips only"
+            >
+              <option value="SUI">SUI</option>
+            </select>
+          </label>
 
           <label className="block">
             <span className="text-xs uppercase tracking-[0.28em] text-slate-400">Custom amount</span>

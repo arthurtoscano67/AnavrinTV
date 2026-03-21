@@ -37,12 +37,14 @@ export interface PlatformSettings {
 export interface WalletSession {
   id: string;
   displayName: string;
+  username: string;
   address: string;
   mode: WalletMode;
   avatarSeed: string;
   handle?: string;
   bio?: string;
   avatarUrl?: string;
+  bannerUrl?: string;
   storageLimitBytes: number;
   storageUsedBytes: number;
   treasuryFeeBps: number;
@@ -53,6 +55,11 @@ export interface WalletSession {
   totalViews?: number;
   totalTips?: number;
   followers?: number;
+  followersCount?: number;
+  following?: number;
+  followingCount?: number;
+  totalVideos?: number;
+  totalBlobs?: number;
 }
 
 export interface VideoAsset {
@@ -90,6 +97,10 @@ export interface VideoRecord {
   status: VideoStatus;
   ownerAddress: string;
   ownerName: string;
+  creatorId: string;
+  creatorUsername: string;
+  creatorDisplayName: string;
+  creatorAvatarUrl?: string;
   coverFrom: string;
   coverVia: string;
   coverTo: string;
