@@ -235,8 +235,8 @@ export function EditProfileModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#030714]/85 px-4 py-6 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0b1120] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+    <div className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-[#030714]/85 px-4 py-4 backdrop-blur-sm md:py-6">
+      <div className="w-full max-w-[760px] rounded-2xl border border-white/10 bg-[#0b1120] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Profile</p>
@@ -251,7 +251,7 @@ export function EditProfileModal({
           </button>
         </div>
 
-        <div className="mt-4 grid gap-3">
+        <div className="mt-4 grid gap-2.5">
           <div className="grid gap-1.5">
             <label className="text-xs uppercase tracking-[0.2em] text-slate-400" htmlFor="profile-display-name">
               Display name
@@ -302,7 +302,7 @@ export function EditProfileModal({
               Bio
             </label>
             <textarea
-              className="textarea min-h-[100px]"
+              className="textarea min-h-[88px]"
               id="profile-bio"
               maxLength={400}
               onChange={(event) => setBio(event.target.value)}
@@ -311,14 +311,14 @@ export function EditProfileModal({
             />
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-[#0e152a] p-3">
+          <div className="rounded-2xl border border-white/10 bg-[#0e152a] p-2.5">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Profile media</p>
               <p className="text-[11px] text-slate-500">Banner is rectangle. Avatar is circle.</p>
             </div>
 
             <div className="relative mt-3 overflow-hidden rounded-xl border border-white/10">
-              <div className="aspect-[3/1] w-full bg-[linear-gradient(135deg,#172554_0%,#1d4ed8_58%,#0f172a_100%)]">
+              <div className="aspect-[4/1] max-h-[150px] w-full bg-[linear-gradient(135deg,#172554_0%,#1d4ed8_58%,#0f172a_100%)]">
                 {bannerUrl ? (
                   <img
                     alt="Banner preview"
@@ -333,7 +333,7 @@ export function EditProfileModal({
                 )}
               </div>
 
-              <div className="absolute bottom-3 left-3 size-20 overflow-hidden rounded-full border-4 border-[#0e152a] bg-[#101a31]">
+              <div className="absolute bottom-2.5 left-2.5 size-16 overflow-hidden rounded-full border-4 border-[#0e152a] bg-[#101a31] md:size-18">
                 {avatarUrl ? (
                   <img
                     alt="Avatar preview"
@@ -342,7 +342,7 @@ export function EditProfileModal({
                     src={avatarUrl}
                   />
                 ) : (
-                  <div className="grid size-full place-items-center text-lg font-semibold text-white">
+                  <div className="grid size-full place-items-center text-base font-semibold text-white md:text-lg">
                     {displayName.trim().slice(0, 2).toUpperCase() || "AT"}
                   </div>
                 )}
