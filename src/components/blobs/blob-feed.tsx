@@ -1215,8 +1215,6 @@ export function BlobFeed() {
             Boolean(account?.address) &&
             Boolean(renderBlob.creatorAddress) &&
             account?.address.toLowerCase() === renderBlob.creatorAddress?.toLowerCase();
-          const commentDraft = userState.commentDrafts[blob.id] ?? "";
-          const comments = isActive ? currentComments : renderBlob.comments;
 
           return (
             <article key={`${blob.id}-${virtualIndex}`} className="flex h-full w-full items-center justify-center px-0 md:px-6 md:py-6">
@@ -1301,41 +1299,38 @@ export function BlobFeed() {
                   />
                 </div>
               </div>
-
-              {isActive ? (
-                <>
-                  <BlobCommentsPanel
-                    blob={blob}
-                    comments={comments}
-                    draft={commentDraft}
-                    onClose={() => setCommentsOpen(false)}
-                    onDraftChange={(value) => {
-                      updateUserState((current) => ({
-                        ...current,
-                        commentDrafts: {
-                          ...current.commentDrafts,
-                          [blob.id]: value,
-                        },
-                      }));
-                    }}
-                    submitting={pendingComment}
-                    onSubmit={handleCommentSubmit}
-                    open={commentsOpen}
-                  />
-
-                  <BlobTipModal
-                    blob={blob}
-                    open={tipOpen}
-                    platform={platform}
-                    onClose={() => setTipOpen(false)}
-                    onSend={handleSendTip}
-                  />
-                </>
-              ) : null}
             </article>
           );
         })}
       </div>
+
+      <BlobCommentsPanel
+        blob={currentBlob}
+        comments={currentComments}
+        draft={currentDraft}
+        onClose={() => setCommentsOpen(false)}
+        onDraftChange={(value) => {
+          if (!currentBlob) return;
+          updateUserState((current) => ({
+            ...current,
+            commentDrafts: {
+              ...current.commentDrafts,
+              [currentBlob.id]: value,
+            },
+          }));
+        }}
+        submitting={pendingComment}
+        onSubmit={handleCommentSubmit}
+        open={commentsOpen}
+      />
+
+      <BlobTipModal
+        blob={currentBlob}
+        open={tipOpen}
+        platform={platform}
+        onClose={() => setTipOpen(false)}
+        onSend={handleSendTip}
+      />
 
       {toast ? (
         <div className="pointer-events-none fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-full border border-white/10 bg-black/45 px-4 py-3 text-sm text-slate-100 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl">
