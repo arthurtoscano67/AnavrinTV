@@ -1,5 +1,6 @@
 "use client";
 
+import type { SyntheticEvent } from "react";
 import {
   Gift,
   Heart,
@@ -33,6 +34,10 @@ type BlobActionsProps = {
   onOpenOwnProfile: () => void;
 };
 
+function stopEventPropagation(event: SyntheticEvent) {
+  event.stopPropagation();
+}
+
 function ActionButton({
   label,
   value,
@@ -65,7 +70,12 @@ function ActionButton({
       aria-busy={loading}
       aria-label={value ? `${label} ${value}` : label}
       disabled={interactiveDisabled}
-      onClick={onClick}
+      onClick={(event) => {
+        stopEventPropagation(event);
+        onClick();
+      }}
+      onPointerDown={stopEventPropagation}
+      onPointerUp={stopEventPropagation}
       title={tooltip ?? label}
       type="button"
     >

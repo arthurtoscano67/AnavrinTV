@@ -40,7 +40,7 @@ import type { PlatformSettings } from "@/lib/types";
 const VIRTUAL_COPIES = 3;
 
 function isInteractiveTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false;
+  if (!(target instanceof Element)) return false;
   return Boolean(target.closest('[data-blob-interactive="true"]'));
 }
 
