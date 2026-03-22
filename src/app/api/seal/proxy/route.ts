@@ -114,6 +114,7 @@ async function proxySealRequest(request: Request) {
   headers.delete("origin");
   headers.delete("referer");
   headers.delete("content-length");
+  headers.delete("accept-encoding");
 
   const init: RequestInit = {
     method: request.method,
