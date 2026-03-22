@@ -206,6 +206,7 @@ export function EditProfileModal({
         method: "PATCH",
         headers: {
           "content-type": "application/json",
+          "x-anavrin-actor-address": address.trim().toLowerCase(),
         },
         body: JSON.stringify({
           address,

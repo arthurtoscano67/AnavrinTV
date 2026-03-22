@@ -72,6 +72,9 @@ export function ProfileResolverClient({
       try {
         const dashboardResponse = await fetch(`/api/dashboard?address=${encodeURIComponent(address)}`, {
           cache: "no-store",
+          headers: {
+            "x-anavrin-actor-address": normalizedAddress,
+          },
         });
         const dashboard = (await dashboardResponse.json().catch(() => ({}))) as DashboardSnapshot;
         const existingUsername = dashboard.account?.username?.trim();
@@ -84,6 +87,7 @@ export function ProfileResolverClient({
           method: "PATCH",
           headers: {
             "content-type": "application/json",
+            "x-anavrin-actor-address": normalizedAddress,
           },
           body: JSON.stringify({
             address,

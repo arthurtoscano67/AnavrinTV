@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getVideo, removeVideo, updateVideoStatus } from "@/lib/db";
+import { readActorAddress, requireAdmin } from "@/lib/request-auth";
 import type { VideoStatus, VideoVisibility } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -13,14 +14,28 @@ function isStatus(value: unknown): value is VideoStatus {
   return value === "published" || value === "processing" || value === "draft" || value === "hidden";
 }
 
-export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const video = await getVideo(id);
   if (!video) return NextResponse.json({ error: "Video not found" }, { status: 404 });
+
+  const viewerAddress = readActorAddress(request);
+  const isOwner = Boolean(viewerAddress) && viewerAddress === video.ownerAddress.toLowerCase();
+  const adminCheck = requireAdmin(request);
+  const isAdmin = adminCheck.ok;
+  const isVisible = video.visibility === "public" && video.status !== "hidden";
+
+  if (!isVisible && !isOwner && !isAdmin) {
+    return NextResponse.json({ error: "Video not found" }, { status: 404 });
+  }
+
   return NextResponse.json({ video });
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const adminCheck = requireAdmin(request);
+  if (!adminCheck.ok) return adminCheck.response;
+
   const { id } = await params;
   const payload = (await request.json().catch(() => ({}))) as {
     visibility?: VideoVisibility;
@@ -42,10 +57,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   return NextResponse.json({ video });
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const adminCheck = requireAdmin(request);
+  if (!adminCheck.ok) return adminCheck.response;
+
   const { id } = await params;
   const ok = await removeVideo(id);
   if (!ok) return NextResponse.json({ error: "Video not found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }
-

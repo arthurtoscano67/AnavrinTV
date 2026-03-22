@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { setBlobLike } from "@/lib/db";
+import { ensureSameActorAddress } from "@/lib/request-auth";
 
 export const runtime = "nodejs";
 
@@ -16,15 +17,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Wallet address is required." }, { status: 400 });
   }
 
-  const result = await setBlobLike({
-    blobId: id,
-    userAddress: address,
-    liked: typeof body.liked === "boolean" ? body.liked : undefined,
-  });
+  const actorCheck = ensureSameActorAddress(request, address);
+  if (!actorCheck.ok) return actorCheck.response;
 
-  if (!result) return NextResponse.json({ error: "Blob not found" }, { status: 404 });
-  return NextResponse.json({
-    liked: result.liked,
-    likes: result.video.likes,
-  });
+  try {
+    const result = await setBlobLike({
+      blobId: id,
+      userAddress: address,
+      liked: typeof body.liked === "boolean" ? body.liked : undefined,
+    });
+
+    if (!result) return NextResponse.json({ error: "Blob not found" }, { status: 404 });
+    return NextResponse.json({
+      liked: result.liked,
+      likes: result.video.likes,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not update like.";
+    const status = message.toLowerCase().includes("banned") ? 403 : 400;
+    return NextResponse.json({ error: message }, { status });
+  }
 }

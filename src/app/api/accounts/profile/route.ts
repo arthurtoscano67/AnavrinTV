@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { updateAccountProfile } from "@/lib/db";
+import { ensureSameActorAddress } from "@/lib/request-auth";
 import type { WalletMode } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -28,6 +29,9 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Wallet address is required." }, { status: 400 });
   }
 
+  const actorCheck = ensureSameActorAddress(request, body.address);
+  if (!actorCheck.ok) return actorCheck.response;
+
   try {
     const account = await updateAccountProfile(body.address, {
       displayName: body.displayName,
@@ -42,7 +46,8 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ account });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not update profile.";
-    const status = message.toLowerCase().includes("taken") ? 409 : 400;
+    const lower = message.toLowerCase();
+    const status = lower.includes("taken") ? 409 : lower.includes("banned") ? 403 : 400;
     return NextResponse.json({ error: message }, { status });
   }
 }

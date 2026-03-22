@@ -8,15 +8,18 @@ import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
+  Ban,
   Eye,
+  Settings2,
   ShieldAlert,
   Sparkles,
   TriangleAlert,
+  UserCog,
 } from "lucide-react";
 
 import { isAdminAddress } from "@/lib/anavrin-config";
 import { formatBytes, formatCompact, formatDate, shortAddress } from "@/lib/format";
-import type { AdminSnapshot, ReportRecord, VideoRecord } from "@/lib/types";
+import type { AdminSnapshot, PlatformSettings, ReportRecord, VideoRecord, WalletSession } from "@/lib/types";
 
 function SeverityBadge({ severity }: { severity: ReportRecord["severity"] }) {
   const className =
@@ -30,8 +33,16 @@ function SeverityBadge({ severity }: { severity: ReportRecord["severity"] }) {
 
 type ModerationTarget = Pick<VideoRecord, "id" | "title">;
 
-async function fetchAdminSnapshot() {
-  const response = await fetch("/api/admin");
+function adminHeaders(adminAddress: string) {
+  return {
+    "x-anavrin-admin-address": adminAddress,
+  };
+}
+
+async function fetchAdminSnapshot(adminAddress: string) {
+  const response = await fetch("/api/admin", {
+    headers: adminHeaders(adminAddress),
+  });
   if (!response.ok) {
     throw new Error("Could not load the admin dashboard.");
   }
@@ -39,9 +50,9 @@ async function fetchAdminSnapshot() {
   return (await response.json()) as AdminSnapshot;
 }
 
-async function tryRefreshAdminSnapshot(setSnapshot: (snapshot: AdminSnapshot) => void) {
+async function tryRefreshAdminSnapshot(adminAddress: string, setSnapshot: (snapshot: AdminSnapshot) => void) {
   try {
-    const data = await fetchAdminSnapshot();
+    const data = await fetchAdminSnapshot(adminAddress);
     setSnapshot(data);
   } catch {
     // Keep the last successful dashboard state if refresh fails.
@@ -52,16 +63,22 @@ export default function AdminPage() {
   const account = useCurrentAccount();
   const [snapshot, setSnapshot] = useState<AdminSnapshot | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsDraft, setSettingsDraft] = useState<PlatformSettings | null>(null);
+  const [pendingAccountAction, setPendingAccountAction] = useState<string | null>(null);
+  const [feeDrafts, setFeeDrafts] = useState<Record<string, string>>({});
+  const [banDrafts, setBanDrafts] = useState<Record<string, string>>({});
   const isAdminWallet = Boolean(account?.address && isAdminAddress(account.address));
 
   useEffect(() => {
-    if (!isAdminWallet) return;
+    const adminAddress = account?.address ?? "";
+    if (!isAdminWallet || !adminAddress) return;
 
     let active = true;
 
     async function loadSnapshot() {
       try {
-        const data = await fetchAdminSnapshot();
+        const data = await fetchAdminSnapshot(adminAddress);
         if (active) setSnapshot(data);
       } catch {
         if (active) setMessage("Could not load the admin dashboard.");
@@ -73,7 +90,7 @@ export default function AdminPage() {
     return () => {
       active = false;
     };
-  }, [isAdminWallet]);
+  }, [account?.address, isAdminWallet]);
 
   const stats = useMemo(() => {
     const metrics = snapshot?.metrics;
@@ -85,21 +102,58 @@ export default function AdminPage() {
     ];
   }, [snapshot]);
 
+  useEffect(() => {
+    if (!snapshot?.accounts?.length) return;
+    setFeeDrafts((current) => {
+      const next = { ...current };
+      for (const accountRecord of snapshot.accounts) {
+        if (next[accountRecord.address] == null) {
+          next[accountRecord.address] = String(accountRecord.treasuryFeeBps ?? 0);
+        }
+      }
+      return next;
+    });
+    setBanDrafts((current) => {
+      const next = { ...current };
+      for (const accountRecord of snapshot.accounts) {
+        if (next[accountRecord.address] == null) {
+          next[accountRecord.address] = accountRecord.bannedReason ?? "";
+        }
+      }
+      return next;
+    });
+  }, [snapshot?.accounts]);
+
+  useEffect(() => {
+    if (!snapshot?.settings) return;
+    setSettingsDraft(snapshot.settings);
+  }, [snapshot?.settings]);
+
   async function resolveReport(id: string) {
-    const response = await fetch(`/api/reports/${id}`, { method: "PATCH" });
+    if (!account?.address) return;
+
+    const response = await fetch(`/api/reports/${id}`, {
+      method: "PATCH",
+      headers: adminHeaders(account.address),
+    });
     if (!response.ok) {
       setMessage("Could not resolve the report.");
       return;
     }
 
     setMessage("Report resolved.");
-    void tryRefreshAdminSnapshot(setSnapshot);
+    void tryRefreshAdminSnapshot(account.address, setSnapshot);
   }
 
   async function hideVideoFromPlatform(video: ModerationTarget) {
+    if (!account?.address) return;
+
     const response = await fetch(`/api/videos/${video.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...adminHeaders(account.address),
+      },
       body: JSON.stringify({
         visibility: "private",
         status: "hidden",
@@ -112,16 +166,19 @@ export default function AdminPage() {
     }
 
     setMessage(`${video.title} removed from public visibility.`);
-    void tryRefreshAdminSnapshot(setSnapshot);
+    void tryRefreshAdminSnapshot(account.address, setSnapshot);
   }
 
   async function deleteVideoFromPlatform(video: ModerationTarget) {
+    if (!account?.address) return;
+
     if (!window.confirm(`Delete "${video.title}" from the platform? This cannot be undone.`)) {
       return;
     }
 
     const response = await fetch(`/api/videos/${video.id}`, {
       method: "DELETE",
+      headers: adminHeaders(account.address),
     });
 
     if (!response.ok) {
@@ -130,7 +187,91 @@ export default function AdminPage() {
     }
 
     setMessage(`${video.title} deleted from the platform.`);
-    void tryRefreshAdminSnapshot(setSnapshot);
+    void tryRefreshAdminSnapshot(account.address, setSnapshot);
+  }
+
+  async function savePlatformSettings(settings: PlatformSettings) {
+    if (!account?.address) return;
+
+    setSavingSettings(true);
+    try {
+      const response = await fetch("/api/admin", {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          ...adminHeaders(account.address),
+        },
+        body: JSON.stringify({ settings }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not save settings.");
+      }
+
+      setMessage("Platform fees updated.");
+      void tryRefreshAdminSnapshot(account.address, setSnapshot);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save settings.");
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
+  function getFeeDraft(accountRecord: WalletSession) {
+    return feeDrafts[accountRecord.address] ?? String(accountRecord.treasuryFeeBps ?? 0);
+  }
+
+  function getBanReasonDraft(accountRecord: WalletSession) {
+    return banDrafts[accountRecord.address] ?? accountRecord.bannedReason ?? "";
+  }
+
+  async function updateAccount(
+    accountRecord: WalletSession,
+    patch: {
+      banned?: boolean;
+      bannedReason?: string | null;
+      treasuryFeeBps?: number;
+    },
+  ) {
+    if (!account?.address) return;
+
+    const key = `${accountRecord.address}:${patch.banned ?? "fee"}`;
+    setPendingAccountAction(key);
+    try {
+      const response = await fetch(`/api/admin/accounts/${encodeURIComponent(accountRecord.address)}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          ...adminHeaders(account.address),
+        },
+        body: JSON.stringify({
+          ...patch,
+          moderationNotes: accountRecord.moderationNotes ?? null,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not update account.");
+      }
+      void tryRefreshAdminSnapshot(account.address, setSnapshot);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update account.");
+    } finally {
+      setPendingAccountAction(null);
+    }
+  }
+
+  function updateFeeDraft(key: keyof PlatformSettings["fees"], value: number) {
+    setSettingsDraft((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        fees: {
+          ...current.fees,
+          [key]: Number.isFinite(value) ? value : current.fees[key],
+        },
+      };
+    });
   }
 
   if (!account) {
@@ -292,10 +433,13 @@ export default function AdminPage() {
                     <div>
                       <p className="font-semibold text-white">{report.videoTitle}</p>
                       <p className="mt-1 text-sm text-slate-400">
-                        {report.reason} · {formatDate(report.createdAt)}
+                        {report.reason} · {formatDate(report.createdAt)} · @{report.reporter}
                       </p>
                     </div>
-                    <SeverityBadge severity={report.severity} />
+                    <div className="flex items-center gap-2">
+                      <span className="badge border-white/10 bg-white/5 text-slate-200">{report.contentType}</span>
+                      <SeverityBadge severity={report.severity} />
+                    </div>
                   </div>
 
                   <p className="mt-3 text-sm leading-7 text-slate-300">{report.detail}</p>
@@ -385,6 +529,225 @@ export default function AdminPage() {
             ) : (
               <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 p-8 text-center text-sm text-slate-300">
                 Top videos will appear here once the admin feed loads.
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[0.95fr,1.05fr]">
+        <div className="surface p-6 md:p-8">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="section-label">Fee controls</p>
+              <h2 className="mt-2 text-3xl font-semibold text-white">Platform fee schedule</h2>
+            </div>
+            <Settings2 className="size-10 text-cyan-200" />
+          </div>
+
+          {settingsDraft ? (
+            <form
+              className="mt-6 space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void savePlatformSettings(settingsDraft);
+              }}
+            >
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm text-slate-300">
+                  Upload fee (mist)
+                  <input
+                    className="input"
+                    min={0}
+                    onChange={(event) => updateFeeDraft("uploadFeeMist", Number(event.target.value))}
+                    type="number"
+                    value={settingsDraft.fees.uploadFeeMist}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm text-slate-300">
+                  Min tip (mist)
+                  <input
+                    className="input"
+                    min={0}
+                    onChange={(event) => updateFeeDraft("minimumTipMist", Number(event.target.value))}
+                    type="number"
+                    value={settingsDraft.fees.minimumTipMist}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm text-slate-300">
+                  Tip platform fee (bps)
+                  <input
+                    className="input"
+                    max={10000}
+                    min={0}
+                    onChange={(event) => updateFeeDraft("tipPlatformBps", Number(event.target.value))}
+                    type="number"
+                    value={settingsDraft.fees.tipPlatformBps}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm text-slate-300">
+                  Video publish fee (mist)
+                  <input
+                    className="input"
+                    min={0}
+                    onChange={(event) => updateFeeDraft("videoPublishFeeMist", Number(event.target.value))}
+                    type="number"
+                    value={settingsDraft.fees.videoPublishFeeMist}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm text-slate-300">
+                  Video unpublish fee (mist)
+                  <input
+                    className="input"
+                    min={0}
+                    onChange={(event) => updateFeeDraft("videoUnpublishFeeMist", Number(event.target.value))}
+                    type="number"
+                    value={settingsDraft.fees.videoUnpublishFeeMist}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm text-slate-300">
+                  Storage extension fee/day (mist)
+                  <input
+                    className="input"
+                    min={0}
+                    onChange={(event) => updateFeeDraft("storageExtensionFeeMistPerDay", Number(event.target.value))}
+                    type="number"
+                    value={settingsDraft.fees.storageExtensionFeeMistPerDay}
+                  />
+                </label>
+              </div>
+
+              <div className="flex justify-end">
+                <button className="btn-primary" disabled={savingSettings} type="submit">
+                  {savingSettings ? "Saving..." : "Save fee settings"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="mt-6 rounded-[28px] border border-dashed border-white/10 bg-black/20 p-8 text-center text-sm text-slate-300">
+              Settings unavailable.
+            </div>
+          )}
+        </div>
+
+        <div className="surface p-6 md:p-8">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="section-label">User moderation</p>
+              <h2 className="mt-2 text-3xl font-semibold text-white">Ban users and edit creator fee</h2>
+            </div>
+            <UserCog className="size-10 text-cyan-200" />
+          </div>
+
+          <div className="mt-6 space-y-3">
+            {snapshot?.accounts?.length ? (
+              snapshot.accounts.map((accountRecord) => {
+                const actionKeyBan = `${accountRecord.address}:true`;
+                const actionKeyUnban = `${accountRecord.address}:false`;
+                const actionKeyFee = `${accountRecord.address}:fee`;
+                const feeDraft = getFeeDraft(accountRecord);
+                const banReasonDraft = getBanReasonDraft(accountRecord);
+
+                return (
+                  <article key={accountRecord.address} className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-white">{accountRecord.displayName}</p>
+                        <p className="mt-1 text-xs text-slate-400">{shortAddress(accountRecord.address, 6)}</p>
+                      </div>
+                      <span
+                        className={[
+                          "badge",
+                          accountRecord.isBanned
+                            ? "border-rose-300/30 bg-rose-300/15 text-rose-100"
+                            : "border-emerald-300/30 bg-emerald-300/15 text-emerald-100",
+                        ].join(" ")}
+                      >
+                        {accountRecord.isBanned ? "Banned" : "Active"}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-2">
+                      <label className="text-xs text-slate-400">
+                        Ban reason
+                        <input
+                          className="input mt-1"
+                          onChange={(event) =>
+                            setBanDrafts((current) => ({
+                              ...current,
+                              [accountRecord.address]: event.target.value,
+                            }))
+                          }
+                          placeholder="Policy violation reason"
+                          value={banReasonDraft}
+                        />
+                      </label>
+
+                      <label className="text-xs text-slate-400">
+                        Creator treasury fee (bps)
+                        <div className="mt-1 flex items-center gap-2">
+                          <input
+                            className="input"
+                            max={10000}
+                            min={0}
+                            onChange={(event) =>
+                              setFeeDrafts((current) => ({
+                                ...current,
+                                [accountRecord.address]: event.target.value,
+                              }))
+                            }
+                            type="number"
+                            value={feeDraft}
+                          />
+                          <button
+                            className="btn-secondary"
+                            disabled={pendingAccountAction === actionKeyFee}
+                            onClick={() =>
+                              void updateAccount(accountRecord, {
+                                treasuryFeeBps: Number(feeDraft),
+                              })
+                            }
+                            type="button"
+                          >
+                            {pendingAccountAction === actionKeyFee ? "Saving..." : "Save fee"}
+                          </button>
+                        </div>
+                      </label>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {accountRecord.isBanned ? (
+                        <button
+                          className="btn-secondary"
+                          disabled={pendingAccountAction === actionKeyUnban}
+                          onClick={() => void updateAccount(accountRecord, { banned: false, bannedReason: null })}
+                          type="button"
+                        >
+                          {pendingAccountAction === actionKeyUnban ? "Updating..." : "Unban"}
+                        </button>
+                      ) : (
+                        <button
+                          className="btn-danger"
+                          disabled={pendingAccountAction === actionKeyBan}
+                          onClick={() =>
+                            void updateAccount(accountRecord, {
+                              banned: true,
+                              bannedReason: banReasonDraft || "Policy violation",
+                            })
+                          }
+                          type="button"
+                        >
+                          <Ban className="size-4" />
+                          {pendingAccountAction === actionKeyBan ? "Banning..." : "Ban user"}
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                );
+              })
+            ) : (
+              <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 p-8 text-center text-sm text-slate-300">
+                No creator accounts found.
               </div>
             )}
           </div>

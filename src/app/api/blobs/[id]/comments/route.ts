@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { addBlobComment, getBlobComments } from "@/lib/db";
+import { ensureSameActorAddress } from "@/lib/request-auth";
 
 export const runtime = "nodejs";
 
@@ -30,18 +31,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Comment body is required." }, { status: 400 });
   }
 
-  const result = await addBlobComment({
-    blobId: id,
-    authorAddress: address,
-    body: commentBody,
-  });
+  const actorCheck = ensureSameActorAddress(request, address);
+  if (!actorCheck.ok) return actorCheck.response;
 
-  if (!result) return NextResponse.json({ error: "Blob not found" }, { status: 404 });
+  try {
+    const result = await addBlobComment({
+      blobId: id,
+      authorAddress: address,
+      body: commentBody,
+    });
 
-  const comments = await getBlobComments(id, 200);
-  return NextResponse.json({
-    comment: result.comment,
-    comments,
-    commentsCount: result.video.comments,
-  });
+    if (!result) return NextResponse.json({ error: "Blob not found" }, { status: 404 });
+
+    const comments = await getBlobComments(id, 200);
+    return NextResponse.json({
+      comment: result.comment,
+      comments,
+      commentsCount: result.video.comments,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not post comment.";
+    const status = message.toLowerCase().includes("banned") ? 403 : 400;
+    return NextResponse.json({ error: message }, { status });
+  }
 }

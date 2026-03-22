@@ -114,6 +114,7 @@ export function BlobFeed() {
   const [pendingComment, setPendingComment] = useState(false);
   const [pendingShareAction, setPendingShareAction] = useState<BlobShareAction | null>(null);
   const [pendingFollow, setPendingFollow] = useState(false);
+  const [pendingReport, setPendingReport] = useState(false);
   const [pendingCreate, setPendingCreate] = useState(false);
   const [pendingWalletAction, setPendingWalletAction] = useState<"copy" | "disconnect" | null>(null);
 
@@ -127,6 +128,12 @@ export function BlobFeed() {
   const skipUrlSyncRef = useRef(false);
 
   const storageKey = blobStateStorageKey(account?.address);
+  const actorAddress = account?.address?.trim().toLowerCase() ?? "";
+  const actorHeaders = actorAddress
+    ? {
+        "x-anavrin-actor-address": actorAddress,
+      }
+    : undefined;
   const homeHref = createBlobsHomeHref(searchParamsString);
   const overlayVisible = controlsVisible || commentsOpen || tipOpen || shareOpen;
 
@@ -684,6 +691,7 @@ export function BlobFeed() {
         method: "POST",
         headers: {
           "content-type": "application/json",
+          ...(actorHeaders ?? {}),
         },
         body: JSON.stringify({
           address: account.address,
@@ -781,6 +789,7 @@ export function BlobFeed() {
         method: "POST",
         headers: {
           "content-type": "application/json",
+          ...(actorHeaders ?? {}),
         },
         body: JSON.stringify({
           address: actorAddress,
@@ -917,6 +926,7 @@ export function BlobFeed() {
         method: "POST",
         headers: {
           "content-type": "application/json",
+          ...(actorHeaders ?? {}),
         },
         body: JSON.stringify({
           address: actorAddress,
@@ -1024,6 +1034,7 @@ export function BlobFeed() {
           method: "POST",
           headers: {
             "content-type": "application/json",
+            ...(actorHeaders ?? {}),
           },
           body: JSON.stringify({
             address: account.address,
@@ -1123,8 +1134,10 @@ export function BlobFeed() {
           method: "POST",
           headers: {
             "content-type": "application/json",
+            ...(actorHeaders ?? {}),
           },
           body: JSON.stringify({
+            address: actorAddress,
             amount: tipPreview.amountSui,
             platformFeeSui: tipPreview.platformFeeSui,
           }),
@@ -1142,6 +1155,54 @@ export function BlobFeed() {
         ? `Tipped ${tipPreview.amountSui.toFixed(2)} SUI to ${currentBlob.creatorName}.`
         : `Tip sent to ${currentBlob.creatorName}. Feed stats will sync shortly.`,
     );
+  }
+
+  async function handleReport() {
+    if (!currentBlob?.videoId) {
+      setToast("Report is unavailable for this Blob.");
+      return;
+    }
+
+    if (!actorAddress) {
+      requestConnectFlow("Connect a wallet to report Blobs.");
+      return;
+    }
+
+    if (pendingReport) return;
+
+    const detailInput = window.prompt("Describe the issue:", "Describe the policy issue you are reporting.");
+    const detail = detailInput?.trim();
+    if (!detail) {
+      setToast("Report cancelled.");
+      return;
+    }
+
+    setPendingReport(true);
+    try {
+      const response = await fetch(`/api/videos/${encodeURIComponent(currentBlob.videoId)}/report`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(actorHeaders ?? {}),
+        },
+        body: JSON.stringify({
+          reporterAddress: actorAddress,
+          reporter: actorAddress,
+          reason: "Blob policy review",
+          detail,
+          severity: "medium",
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not submit report.");
+      }
+      setToast("Report submitted to admin.");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Could not submit report.");
+    } finally {
+      setPendingReport(false);
+    }
   }
 
   return (
@@ -1377,6 +1438,7 @@ export function BlobFeed() {
                   pendingFollow={isActive ? pendingFollow : false}
                   pendingLike={isActive ? pendingLike : false}
                   pendingShare={isActive ? pendingShareAction !== null : false}
+                  pendingReport={isActive ? pendingReport : false}
                   onBookmark={handleBookmark}
                   onComment={() => {
                     setCommentsOpen(true);
@@ -1389,6 +1451,7 @@ export function BlobFeed() {
                     setTipOpen(true);
                     pingControls();
                   }}
+                  onReport={handleReport}
                   onToggleFollow={handleToggleFollow}
                   showFollowAction={false}
                 />

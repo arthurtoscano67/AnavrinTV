@@ -8,6 +8,8 @@ export type ReportSeverity = "low" | "medium" | "high";
 
 export type ReportStatus = "open" | "resolved";
 
+export type ReportContentType = "video" | "blob" | "live";
+
 export interface PlatformFeeSchedule {
   uploadFeeMist: number;
   videoPublishFeeMist: number;
@@ -60,6 +62,12 @@ export interface WalletSession {
   followingCount?: number;
   totalVideos?: number;
   totalBlobs?: number;
+  isBanned?: boolean;
+  bannedAt?: string;
+  bannedUntil?: string;
+  bannedReason?: string;
+  bannedBy?: string;
+  moderationNotes?: string;
 }
 
 export interface VideoAsset {
@@ -128,6 +136,7 @@ export interface ReportRecord {
   id: string;
   videoId: string;
   videoTitle: string;
+  contentType: ReportContentType;
   reason: string;
   detail: string;
   severity: ReportSeverity;
@@ -233,6 +242,7 @@ export interface AdminSnapshot {
   metrics: SiteMetrics;
   reports: ReportRecord[];
   videos: VideoRecord[];
+  accounts: WalletSession[];
   moderationQueue: ReportRecord[];
   topVideos: VideoRecord[];
   settings: PlatformSettings;

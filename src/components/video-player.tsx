@@ -48,7 +48,11 @@ export function VideoPlayer({
       setStatus(null);
 
       if (storageMode !== "walrus") {
-        setSourceUrl(`/api/videos/${videoId}/stream`);
+        const url = new URL(`/api/videos/${videoId}/stream`, window.location.origin);
+        if (account?.address) {
+          url.searchParams.set("address", account.address.toLowerCase());
+        }
+        setSourceUrl(url.toString());
         return;
       }
 
@@ -71,7 +75,14 @@ export function VideoPlayer({
 
       try {
         setStatus("Loading encrypted bytes from Walrus...");
-        const response = await fetch(`/api/videos/${videoId}/stream`, { cache: "no-store" });
+        const response = await fetch(`/api/videos/${videoId}/stream`, {
+          cache: "no-store",
+          headers: account?.address
+            ? {
+                "x-anavrin-actor-address": account.address.toLowerCase(),
+              }
+            : undefined,
+        });
         if (!response.ok) {
           throw new Error("Could not load the encrypted video bundle.");
         }

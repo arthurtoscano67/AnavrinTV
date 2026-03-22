@@ -16,6 +16,14 @@ function matchesQuery(video: VideoRecord, query: string) {
   return searchable.includes(needle);
 }
 
+function isBannedAccount(account?: { isBanned?: boolean; bannedUntil?: string } | null) {
+  if (!account?.isBanned) return false;
+  if (!account.bannedUntil) return true;
+  const bannedUntilMs = new Date(account.bannedUntil).getTime();
+  if (!Number.isFinite(bannedUntilMs)) return true;
+  return bannedUntilMs > Date.now();
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const limit = Math.max(1, Math.min(100, Number(searchParams.get("limit") ?? 24) || 24));
@@ -23,10 +31,12 @@ export async function GET(request: NextRequest) {
   const address = searchParams.get("address")?.trim().toLowerCase() ?? "";
 
   const db = await loadDb();
+  const accountByAddress = new Map(db.accounts.map((account) => [account.address.toLowerCase(), account] as const));
   const publicVideos = db.videos.filter((video) => {
     if (video.visibility !== "public") return false;
     if (video.status !== "published") return false;
     if (!isBlobVideoRecord(video)) return false;
+    if (isBannedAccount(accountByAddress.get(video.ownerAddress.toLowerCase()))) return false;
     return matchesQuery(video, q);
   });
 

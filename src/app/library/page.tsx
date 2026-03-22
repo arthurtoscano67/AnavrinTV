@@ -320,7 +320,11 @@ export default function LibraryPage() {
       }
 
       try {
-        const response = await fetch(`/api/dashboard?address=${encodeURIComponent(address)}`);
+        const response = await fetch(`/api/dashboard?address=${encodeURIComponent(address)}`, {
+          headers: {
+            "x-anavrin-actor-address": address.toLowerCase(),
+          },
+        });
         if (!response.ok) {
           throw new Error("Dashboard API unavailable.");
         }
@@ -373,7 +377,10 @@ export default function LibraryPage() {
     async function seedProfile() {
       const response = await fetch("/api/accounts/profile", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-anavrin-actor-address": address.toLowerCase(),
+        },
         body: JSON.stringify({
           address,
           displayName: wallet?.name ?? "Creator",
@@ -385,7 +392,11 @@ export default function LibraryPage() {
         return;
       }
 
-      const refreshResponse = await fetch(`/api/dashboard?address=${encodeURIComponent(address)}`);
+      const refreshResponse = await fetch(`/api/dashboard?address=${encodeURIComponent(address)}`, {
+        headers: {
+          "x-anavrin-actor-address": address.toLowerCase(),
+        },
+      });
       const data = (await refreshResponse.json()) as DashboardSnapshot;
       if (cancelled) {
         return;
@@ -443,7 +454,11 @@ export default function LibraryPage() {
     if (!address) return;
 
     try {
-      const response = await fetch(`/api/dashboard?address=${encodeURIComponent(address)}`);
+      const response = await fetch(`/api/dashboard?address=${encodeURIComponent(address)}`, {
+        headers: {
+          "x-anavrin-actor-address": address.toLowerCase(),
+        },
+      });
       if (!response.ok) {
         throw new Error("Dashboard API unavailable.");
       }
@@ -489,7 +504,10 @@ export default function LibraryPage() {
 
       const response = await fetch("/api/accounts/renew", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-anavrin-actor-address": account.address.toLowerCase(),
+        },
         body: JSON.stringify({ address: account.address, days: 30 }),
       });
 

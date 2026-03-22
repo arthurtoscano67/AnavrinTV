@@ -10,6 +10,7 @@ import {
   collectDiscoveryTopics,
   paginateVideos,
 } from "@/lib/discovery-feed";
+import { ensureSameActorAddress, normalizeAddress, readActorAddress, requireAdmin } from "@/lib/request-auth";
 import type { VideoVisibility, WalletMode } from "@/lib/types";
 import { videoPolicyCapType, videoPolicyType } from "@/lib/video-policy";
 import {
@@ -42,6 +43,9 @@ export async function GET(request: NextRequest) {
   const query = searchParams.get("q") ?? undefined;
   const rawCategory = searchParams.get("category");
   const category = rawCategory?.trim() ? rawCategory.trim() : undefined;
+  const ownerAddress = searchParams.get("ownerAddress")?.trim() || undefined;
+  const publicOnly = searchParams.get("publicOnly") !== "false";
+  const includeDrafts = searchParams.get("includeDrafts") === "true";
   const topicParam = searchParams.get("topic");
   const topic = topicParam?.trim() ? topicParam.trim() : category && category !== "All" ? category : undefined;
   const tag = searchParams.get("tag") ?? undefined;
@@ -54,12 +58,22 @@ export async function GET(request: NextRequest) {
     searchParams.has("tag") ||
     searchParams.has("sort");
 
+  const actorAddress = readActorAddress(request);
+  const adminCheck = requireAdmin(request);
+  const ownerAddressNormalized = normalizeAddress(ownerAddress);
+  const ownsRequestedProfile = Boolean(ownerAddressNormalized && actorAddress && ownerAddressNormalized === actorAddress);
+  const requestingRestrictedData = !publicOnly || includeDrafts;
+
+  if (requestingRestrictedData && !adminCheck.ok && !ownsRequestedProfile) {
+    return NextResponse.json({ error: "Not authorized to access non-public videos." }, { status: 403 });
+  }
+
   const videos = await getVideos({
-    ownerAddress: searchParams.get("ownerAddress") ?? undefined,
-    publicOnly: searchParams.get("publicOnly") !== "false",
+    ownerAddress,
+    publicOnly,
     query,
     category,
-    includeDrafts: searchParams.get("includeDrafts") === "true",
+    includeDrafts,
   });
 
   if (includeDiscoveryPayload) {
@@ -114,6 +128,9 @@ export async function POST(request: NextRequest) {
   if (!ownerAddress) {
     return NextResponse.json({ error: "Wallet address is required." }, { status: 400 });
   }
+
+  const actorCheck = ensureSameActorAddress(request, ownerAddress);
+  if (!actorCheck.ok) return actorCheck.response;
 
   const ownerName = String(formData.get("ownerName") ?? "Creator").trim() || "Creator";
   const walletMode = parseWalletMode(String(formData.get("walletMode") ?? null));
@@ -305,11 +322,13 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error("POST /api/videos failed", error);
+    const message = error instanceof Error ? error.message : "Upload failed.";
+    const status = message.toLowerCase().includes("banned") ? 403 : 500;
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Upload failed.",
+        error: message,
       },
-      { status: 500 },
+      { status },
     );
   }
 }

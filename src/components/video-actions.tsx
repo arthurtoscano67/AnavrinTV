@@ -53,6 +53,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
   const [bookmarkPending, setBookmarkPending] = useState(false);
   const [tipAmount, setTipAmount] = useState("1");
   const [platform, setPlatform] = useState(defaultPlatformSettings());
+  const actorAddress = account?.address?.trim().toLowerCase() ?? "";
 
   useEffect(() => {
     let active = true;
@@ -85,7 +86,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
 
   useEffect(() => {
     let active = true;
-    const address = account?.address?.trim().toLowerCase() ?? "";
+    const address = actorAddress;
 
     if (!address) {
       setSaved(false);
@@ -100,6 +101,11 @@ export function VideoActions({ video }: { video: VideoRecord }) {
       try {
         const data = (await jsonFetch(
           `/api/videos/${video.id}/bookmark?address=${encodeURIComponent(address)}`,
+          {
+            headers: {
+              "x-anavrin-actor-address": address,
+            },
+          },
         )) as { saved?: boolean };
         if (!active) return;
         setSaved(Boolean(data.saved));
@@ -118,7 +124,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
     return () => {
       active = false;
     };
-  }, [account?.address, video.id]);
+  }, [actorAddress, video.id]);
 
   const tipPreview = useMemo(() => {
     const amount = Number(tipAmount);
@@ -132,7 +138,19 @@ export function VideoActions({ video }: { video: VideoRecord }) {
   }
 
   async function handleLike() {
-    const next = await jsonFetch(`/api/videos/${video.id}/like`, { method: "POST" });
+    const next = await jsonFetch(`/api/videos/${video.id}/like`, {
+      method: "POST",
+      headers: actorAddress
+        ? {
+            "x-anavrin-actor-address": actorAddress,
+          }
+        : undefined,
+      body: actorAddress
+        ? JSON.stringify({
+            address: actorAddress,
+          })
+        : undefined,
+    });
     setLikes(next.likes);
     setStatus("Liked.");
   }
@@ -181,7 +199,11 @@ export function VideoActions({ video }: { video: VideoRecord }) {
 
       const next = await jsonFetch(`/api/videos/${video.id}/tip`, {
         method: "POST",
+        headers: {
+          "x-anavrin-actor-address": account.address,
+        },
         body: JSON.stringify({
+          address: account.address,
           amount: tipPreview.amountSui,
           platformFeeSui: tipPreview.platformFeeSui,
         }),
@@ -199,13 +221,26 @@ export function VideoActions({ video }: { video: VideoRecord }) {
   }
 
   async function handleReport() {
+    const detailInput = window.prompt("Report issue (required):", "Describe the issue with this content.");
+    const detail = detailInput?.trim();
+    if (!detail) {
+      setStatus("Report cancelled.");
+      return;
+    }
+
     await jsonFetch(`/api/videos/${video.id}/report`, {
       method: "POST",
+      headers: actorAddress
+        ? {
+            "x-anavrin-actor-address": actorAddress,
+          }
+        : undefined,
       body: JSON.stringify({
         reason: "Needs review",
-        detail: "Reported from the Anavrin TV viewer UI.",
+        detail,
         severity: "medium",
-        reporter: "viewer",
+        reporter: actorAddress || "viewer",
+        reporterAddress: actorAddress || undefined,
       }),
     });
     setShowMorePanel(false);
@@ -225,6 +260,9 @@ export function VideoActions({ video }: { video: VideoRecord }) {
     try {
       const next = (await jsonFetch(`/api/videos/${video.id}/bookmark`, {
         method: "POST",
+        headers: {
+          "x-anavrin-actor-address": address,
+        },
         body: JSON.stringify({
           address,
           saved: !saved,

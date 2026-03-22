@@ -215,7 +215,14 @@ export function BlobPlayer({
 
       try {
         setStatus("Loading encrypted bytes from Walrus...");
-        const response = await fetch(blob.videoUrl, { cache: "no-store" });
+        const response = await fetch(blob.videoUrl, {
+          cache: "no-store",
+          headers: account?.address
+            ? {
+                "x-anavrin-actor-address": account.address.toLowerCase(),
+              }
+            : undefined,
+        });
         if (!response.ok) {
           throw new Error("Could not load the encrypted Blob bundle.");
         }

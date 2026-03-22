@@ -1,12 +1,16 @@
 import { NextRequest } from "next/server";
 
 import { streamVideo } from "@/lib/db";
+import { readActorAddress, readAdminAddress } from "@/lib/request-auth";
 
 export const runtime = "nodejs";
 
-export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const result = await streamVideo(id);
+  const result = await streamVideo(id, {
+    viewerAddress: readActorAddress(request),
+    adminAddress: readAdminAddress(request),
+  });
 
   if (!result) {
     return new Response("Video not available", { status: 404 });

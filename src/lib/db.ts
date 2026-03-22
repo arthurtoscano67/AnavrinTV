@@ -18,6 +18,7 @@ import {
   normalizePlatformSettings,
 } from "@/lib/platform-settings";
 import { openBuffer, sealBuffer } from "@/lib/seal";
+import { isAdminAddress } from "@/lib/anavrin-config";
 import type {
   Database,
   BlobCommentRecord,
@@ -25,6 +26,7 @@ import type {
   BlobLikeRecord,
   VideoBookmarkRecord,
   ReportRecord,
+  ReportContentType,
   PlatformSettings,
   SiteMetrics,
   VideoAsset,
@@ -117,6 +119,12 @@ function normalizeAccountRecord(
     followingCount: following,
     totalVideos: Number(account.totalVideos) || 0,
     totalBlobs: Number(account.totalBlobs) || 0,
+    isBanned: Boolean(account.isBanned),
+    bannedAt: account.bannedAt,
+    bannedUntil: account.bannedUntil,
+    bannedReason: account.bannedReason,
+    bannedBy: account.bannedBy,
+    moderationNotes: account.moderationNotes,
   };
 }
 
@@ -161,6 +169,52 @@ function isBlobVideoForCreator(video: Pick<VideoRecord, "category" | "duration" 
   if (video.category === "Shorts") return true;
   if (video.tags.some((tag) => tag.toLowerCase().includes("short"))) return true;
   return durationToSeconds(video.duration) > 0 && durationToSeconds(video.duration) <= 120;
+}
+
+function classifyReportContentType(video: Pick<VideoRecord, "category" | "duration" | "tags">): ReportContentType {
+  if (video.category === "Live Events" || video.tags.some((tag) => tag.toLowerCase().includes("live"))) {
+    return "live";
+  }
+  if (isBlobVideoForCreator(video)) {
+    return "blob";
+  }
+  return "video";
+}
+
+function normalizeReportContentType(value: unknown): ReportContentType | null {
+  if (value === "video" || value === "blob" || value === "live") return value;
+  return null;
+}
+
+function isAccountBanned(account: Pick<WalletSession, "isBanned" | "bannedUntil"> | null | undefined) {
+  if (!account?.isBanned) return false;
+  if (!account.bannedUntil) return true;
+  const bannedUntilMs = new Date(account.bannedUntil).getTime();
+  if (!Number.isFinite(bannedUntilMs)) return true;
+  return bannedUntilMs > Date.now();
+}
+
+function assertAccountCanAct(
+  db: Database,
+  address: string,
+  action: string,
+) {
+  const normalizedAddress = normalizeAddress(address);
+  if (!normalizedAddress) return null;
+
+  const account = db.accounts.find((item) => normalizeAddress(item.address) === normalizedAddress);
+  if (!account) return null;
+
+  if (isAccountBanned(account)) {
+    const reason = account.bannedReason?.trim();
+    throw new Error(
+      reason
+        ? `Account is banned and cannot ${action}: ${reason}`
+        : `Account is banned and cannot ${action}.`,
+    );
+  }
+
+  return account;
 }
 
 function normalizeVideoRecord(video: Partial<VideoRecord> & Pick<VideoRecord, "id" | "title" | "ownerAddress" | "ownerName">): VideoRecord {
@@ -286,6 +340,15 @@ function normalizeDb(db: Partial<Database> & { videos?: Partial<VideoRecord>[]; 
         id: report.id ?? crypto.randomUUID(),
         videoId: report.videoId ?? "",
         videoTitle: report.videoTitle ?? "Unknown video",
+        contentType:
+          normalizeReportContentType(report.contentType) ??
+          classifyReportContentType(
+            videos.find((video) => video.id === report.videoId) ?? {
+              category: "Launches",
+              duration: "0:00",
+              tags: [],
+            },
+          ),
         reason: report.reason ?? "Needs review",
         detail: report.detail ?? "",
         severity: (report.severity as ReportRecord["severity"]) ?? "low",
@@ -449,6 +512,12 @@ function createAccountRecord(input: {
     followingCount: 0,
     totalVideos: 0,
     totalBlobs: 0,
+    isBanned: false,
+    bannedAt: undefined,
+    bannedUntil: undefined,
+    bannedReason: undefined,
+    bannedBy: undefined,
+    moderationNotes: undefined,
   };
 }
 
@@ -642,6 +711,15 @@ export async function updateAccountProfile(
     db.accounts.push(account);
   }
 
+  if (isAccountBanned(account)) {
+    const reason = account.bannedReason?.trim();
+    throw new Error(
+      reason
+        ? `Account is banned and cannot update profile: ${reason}`
+        : "Account is banned and cannot update profile.",
+    );
+  }
+
   if (typeof input.displayName === "string" && input.displayName.trim()) {
     account.displayName = input.displayName.trim();
   }
@@ -743,6 +821,9 @@ export async function getVideos(options?: {
 }) {
   const db = await loadDb();
   const q = options?.query?.trim().toLowerCase();
+  const accountByAddress = new Map(
+    db.accounts.map((account) => [normalizeAddress(account.address), account] as const),
+  );
 
   return db.videos
     .filter((video) => {
@@ -750,6 +831,10 @@ export async function getVideos(options?: {
         return false;
       }
       if (options?.publicOnly && video.visibility !== "public") return false;
+      if (options?.publicOnly) {
+        const owner = accountByAddress.get(normalizeAddress(video.ownerAddress));
+        if (owner && isAccountBanned(owner)) return false;
+      }
       if (!options?.includeDrafts && video.status === "hidden") return false;
       if (options?.category && options.category !== "All" && video.category !== options.category) return false;
       if (q) {
@@ -804,6 +889,73 @@ export async function getAccountByUsername(username: string) {
   );
 }
 
+export async function getAccounts() {
+  const db = await loadDb();
+  return [...db.accounts].sort((a, b) => {
+    const aTime = new Date(a.lastActiveAt ?? a.createdAt ?? 0).getTime();
+    const bTime = new Date(b.lastActiveAt ?? b.createdAt ?? 0).getTime();
+    return bTime - aTime;
+  });
+}
+
+export async function updateAccountModeration(input: {
+  address: string;
+  banned?: boolean;
+  bannedReason?: string | null;
+  bannedUntil?: string | null;
+  bannedBy?: string | null;
+  treasuryFeeBps?: number;
+  moderationNotes?: string | null;
+}) {
+  const db = await loadDb();
+  const normalizedAddress = normalizeAddress(input.address);
+  const account = db.accounts.find((item) => normalizeAddress(item.address) === normalizedAddress);
+  if (!account) return null;
+
+  if (typeof input.banned === "boolean") {
+    account.isBanned = input.banned;
+    if (input.banned) {
+      account.bannedAt = timestamp();
+      account.bannedReason = input.bannedReason?.trim() || "Policy violation";
+      account.bannedBy = input.bannedBy?.trim() || undefined;
+      account.bannedUntil = input.bannedUntil?.trim() || undefined;
+
+      for (const video of db.videos) {
+        if (normalizeAddress(video.ownerAddress) !== normalizedAddress) continue;
+        video.visibility = "private";
+        video.status = "hidden";
+        video.updatedAt = timestamp();
+        resolveReportsForVideo(db, video.id);
+      }
+    } else {
+      account.bannedAt = undefined;
+      account.bannedReason = undefined;
+      account.bannedBy = undefined;
+      account.bannedUntil = undefined;
+    }
+  }
+
+  if (input.banned === true && input.bannedReason !== undefined) {
+    account.bannedReason = input.bannedReason?.trim() || "Policy violation";
+  }
+
+  if (input.banned === true && input.bannedUntil !== undefined) {
+    account.bannedUntil = input.bannedUntil?.trim() || undefined;
+  }
+
+  if (input.moderationNotes !== undefined) {
+    account.moderationNotes = input.moderationNotes?.trim() || undefined;
+  }
+
+  if (input.treasuryFeeBps !== undefined) {
+    account.treasuryFeeBps = Math.max(0, Math.min(10_000, Math.floor(Number(input.treasuryFeeBps) || 0)));
+  }
+
+  account.lastActiveAt = timestamp();
+  await saveDb(db);
+  return account;
+}
+
 function resolveWatchLaterVideos(db: Database, userAddress: string) {
   const normalizedAddress = normalizeAddress(userAddress);
   if (!normalizedAddress) return [];
@@ -847,6 +999,8 @@ export async function setVideoBookmark(input: { videoId: string; userAddress: st
   const userAddress = normalizeAddress(input.userAddress);
   if (!videoId || !userAddress) return null;
 
+  const actor = assertAccountCanAct(db, userAddress, "save videos");
+
   const video = db.videos.find((item) => item.id === videoId);
   if (!video) return null;
 
@@ -870,7 +1024,6 @@ export async function setVideoBookmark(input: { videoId: string; userAddress: st
 
   const changed = desiredSaved ? matches.length !== 1 : matches.length !== 0;
   if (changed) {
-    const actor = db.accounts.find((account) => normalizeAddress(account.address) === userAddress);
     if (actor) {
       actor.lastActiveAt = timestamp();
     }
@@ -900,9 +1053,9 @@ export async function setBlobLike(input: { blobId: string; userAddress: string; 
   const db = await loadDb();
   const blobId = input.blobId.trim();
   const userAddress = normalizeAddress(input.userAddress);
+  const actor = assertAccountCanAct(db, userAddress, "like blobs");
   const video = db.videos.find((item) => item.id === blobId);
   if (!video) return null;
-  const actor = db.accounts.find((account) => normalizeAddress(account.address) === userAddress);
 
   const matches = db.blobLikes.filter((record) => record.blobId === blobId && normalizeAddress(record.userAddress) === userAddress);
   const desiredLiked = typeof input.liked === "boolean" ? input.liked : !matches.length;
@@ -940,9 +1093,9 @@ export async function setBlobFollow(input: { blobId: string; userAddress: string
   const db = await loadDb();
   const blobId = input.blobId.trim();
   const userAddress = normalizeAddress(input.userAddress);
+  const actor = assertAccountCanAct(db, userAddress, "follow creators");
   const video = db.videos.find((item) => item.id === blobId);
   if (!video) return null;
-  const actor = db.accounts.find((account) => normalizeAddress(account.address) === userAddress);
 
   const creatorAddress = normalizeAddress(video.ownerAddress);
   const matches = db.blobFollows.filter(
@@ -998,10 +1151,9 @@ export async function addBlobComment(input: { blobId: string; authorAddress: str
   const db = await loadDb();
   const blobId = input.blobId.trim();
   const authorAddress = normalizeAddress(input.authorAddress);
+  const account = assertAccountCanAct(db, authorAddress, "comment on blobs");
   const video = db.videos.find((item) => item.id === blobId);
   if (!video) return null;
-
-  const account = db.accounts.find((item) => normalizeAddress(item.address) === authorAddress);
   const authorName = account?.displayName?.trim() || shortAddress(authorAddress, 4);
   const authorHandle =
     account?.handle?.trim()
@@ -1046,6 +1198,7 @@ export async function createUpload(input: {
   storageDays?: number;
 }) {
   const db = await loadDb();
+  assertAccountCanAct(db, input.ownerAddress, "upload videos");
   const createdAt = timestamp();
   const id = crypto.randomUUID();
   const slug = `${slugify(input.title)}-${id.slice(0, 6)}`;
@@ -1158,6 +1311,7 @@ export async function persistUploadRecord(input: {
   storageDays?: number;
 }) {
   const db = await loadDb();
+  assertAccountCanAct(db, input.ownerAddress, "publish uploads");
   const createdAt = timestamp();
   const id = crypto.randomUUID();
   const slug = `${slugifyText(input.title)}-${id.slice(0, 6)}`;
@@ -1312,9 +1466,12 @@ export async function recordReaction(
   amount = 1,
   input?: {
     platformFeeSui?: number;
+    actorAddress?: string;
   },
 ) {
   const db = await loadDb();
+  const actorAddress = normalizeAddress(input?.actorAddress);
+  const actor = actorAddress ? assertAccountCanAct(db, actorAddress, `${type} videos`) : null;
   const video = db.videos.find((item) => item.id === id);
   if (!video) return null;
 
@@ -1339,6 +1496,10 @@ export async function recordReaction(
     }
   }
 
+  if (actor) {
+    actor.lastActiveAt = timestamp();
+  }
+
   video.updatedAt = timestamp();
   await saveDb(db);
   return video;
@@ -1347,11 +1508,15 @@ export async function recordReaction(
 export async function createReport(input: {
   videoId: string;
   reporter: string;
+  reporterAddress?: string;
   reason: string;
   detail: string;
   severity: "low" | "medium" | "high";
 }) {
   const db = await loadDb();
+  if (input.reporterAddress) {
+    assertAccountCanAct(db, input.reporterAddress, "submit reports");
+  }
   const video = db.videos.find((item) => item.id === input.videoId);
   if (!video) return null;
 
@@ -1359,11 +1524,12 @@ export async function createReport(input: {
     id: crypto.randomUUID(),
     videoId: video.id,
     videoTitle: video.title,
+    contentType: classifyReportContentType(video),
     reason: input.reason,
     detail: input.detail,
     severity: input.severity,
     status: "open",
-    reporter: input.reporter,
+    reporter: input.reporterAddress ? normalizeAddress(input.reporterAddress) : input.reporter,
     createdAt: timestamp(),
   };
 
@@ -1402,6 +1568,7 @@ export async function renewAccount(address: string, additionalDays = 30) {
   const normalizedAddress = normalizeAddress(address);
   const account = db.accounts.find((item) => normalizeAddress(item.address) === normalizedAddress);
   if (!account) return null;
+  assertAccountCanAct(db, normalizedAddress, "renew storage");
 
   account.renewalAt = new Date(
     Math.max(Date.now(), new Date(account.renewalAt).getTime()) +
@@ -1421,6 +1588,7 @@ export async function renewVideoStorage(input: {
   const video = db.videos.find((item) => item.id === input.videoId);
   if (!video) return null;
   if (input.ownerAddress && normalizeAddress(video.ownerAddress) !== normalizeAddress(input.ownerAddress)) return null;
+  assertAccountCanAct(db, input.ownerAddress ?? video.ownerAddress, "renew video storage");
 
   const now = timestamp();
   const days = Math.max(1, Math.min(db.settings.fees.maxStorageExtensionDays, Math.floor(input.days)));
@@ -1486,9 +1654,24 @@ export async function getDashboardSnapshot(address?: string) {
   };
 }
 
-export async function streamVideo(id: string) {
+export async function streamVideo(
+  id: string,
+  options?: {
+    viewerAddress?: string;
+    adminAddress?: string;
+  },
+) {
   const video = await getVideo(id);
   if (!video?.asset) {
+    return null;
+  }
+
+  const normalizedViewerAddress = normalizeAddress(options?.viewerAddress);
+  const isOwner = Boolean(normalizedViewerAddress) && normalizeAddress(video.ownerAddress) === normalizedViewerAddress;
+  const isAdmin = Boolean(options?.adminAddress && isAdminAddress(options.adminAddress));
+  const isPublic = video.visibility === "public" && video.status !== "hidden";
+
+  if (!isPublic && !isOwner && !isAdmin) {
     return null;
   }
 

@@ -3,6 +3,7 @@
 import type { SyntheticEvent } from "react";
 import {
   Bookmark,
+  Flag,
   Gift,
   Heart,
   Loader2,
@@ -31,11 +32,13 @@ type BlobActionsProps = {
   pendingBookmark?: boolean;
   pendingTip?: boolean;
   pendingFollow?: boolean;
+  pendingReport?: boolean;
   onLike: () => void;
   onBookmark: () => void;
   onComment: () => void;
   onShare: () => void;
   onTip: () => void;
+  onReport: () => void;
   onToggleFollow: () => void;
   onOpenOwnProfile: () => void;
 };
@@ -114,11 +117,13 @@ export function BlobActions({
   pendingBookmark,
   pendingTip,
   pendingFollow,
+  pendingReport,
   onLike,
   onBookmark,
   onComment,
   onShare,
   onTip,
+  onReport,
   onToggleFollow,
   onOpenOwnProfile,
 }: BlobActionsProps) {
@@ -167,6 +172,13 @@ export function BlobActions({
         loading={pendingTip}
         onClick={onTip}
         tooltip={blob.tipEnabled ? "Tip creator" : "Tips unavailable"}
+      />
+      <ActionButton
+        icon={Flag}
+        label="Report"
+        loading={pendingReport}
+        onClick={onReport}
+        tooltip="Report this Blob"
       />
       {showFollowAction
         ? isCreatorOwner ? (
