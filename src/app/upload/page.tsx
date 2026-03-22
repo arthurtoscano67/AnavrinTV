@@ -18,9 +18,17 @@ import {
 import { ConnectButton } from "@mysten/dapp-kit-react/ui";
 import { useCurrentAccount, useCurrentClient, useCurrentWallet, useDAppKit } from "@mysten/dapp-kit-react";
 import { toHex } from "@mysten/sui/utils";
+import { walrus } from "@mysten/walrus";
 
 import { formatBytes, shortAddress, slugifyText } from "@/lib/format";
-import { getMvrName, getPolicyPackageId, getSealThreshold, getUploadTreasuryAddress } from "@/lib/anavrin-config";
+import {
+  getMvrName,
+  getNetwork,
+  getPolicyPackageId,
+  getSealThreshold,
+  getUploadTreasuryAddress,
+  resolveUploadRelayConfig,
+} from "@/lib/anavrin-config";
 import { buildApiUrl } from "@/lib/site-url";
 import { buildPolicyInitTransaction, buildVideoIdentityHex, generateVideoNonce } from "@/lib/video-policy";
 import type { AnavrinClient } from "@/lib/anavrin-client";
@@ -67,6 +75,10 @@ type PendingUpload = {
   storageDays: number;
   uploadTxDigest: string;
   publishAsBlob: boolean;
+};
+
+type WalrusReadyClient = AnavrinClient & {
+  walrus: NonNullable<AnavrinClient["walrus"]>;
 };
 
 function toArrayBuffer(bytes: Uint8Array<ArrayBufferLike>) {
@@ -136,6 +148,32 @@ async function extractVideoDurationSeconds(file: File) {
     };
     video.src = url;
   });
+}
+
+function requireWalrusClient(client: AnavrinClient): WalrusReadyClient {
+  if ((client as WalrusReadyClient).walrus) {
+    return client as WalrusReadyClient;
+  }
+
+  const extendableClient = client as AnavrinClient & {
+    $extend?: (extension: ReturnType<typeof walrus>) => unknown;
+  };
+
+  if (typeof extendableClient.$extend !== "function") {
+    throw new Error("Walrus client is unavailable. Refresh and retry.");
+  }
+
+  const extended = extendableClient.$extend(
+    walrus({
+      uploadRelay: resolveUploadRelayConfig(getNetwork()) ?? undefined,
+    }),
+  ) as AnavrinClient;
+
+  if (!(extended as WalrusReadyClient).walrus) {
+    throw new Error("Walrus client failed to initialize. Refresh and retry.");
+  }
+
+  return extended as WalrusReadyClient;
 }
 
 export default function UploadPage() {
@@ -703,8 +741,9 @@ export default function UploadPage() {
         id: identityHex,
         data: rawBytes,
       });
+      const walrusClient = requireWalrusClient(currentClient);
 
-      const blobMetadata = await currentClient.walrus.computeBlobMetadata({
+      const blobMetadata = await walrusClient.walrus.computeBlobMetadata({
         bytes: encryptedObject,
         nonce,
       });
@@ -714,14 +753,14 @@ export default function UploadPage() {
         1,
         Math.min(platform.fees.maxStorageExtensionDays, Math.floor(storageDays)),
       );
-      const stakingState = await currentClient.walrus.stakingState();
+      const stakingState = await walrusClient.walrus.stakingState();
       const epochDurationSeconds = Math.max(1, Number(stakingState.epoch_duration) || 86_400);
       const storageEpochs = Math.max(
         1,
         Math.ceil((storageDaysClamped * 24 * 60 * 60) / epochDurationSeconds),
       );
-      const storageCost = await currentClient.walrus.storageCost(encryptedObject.length, storageEpochs);
-      const relayTipMist = await currentClient.walrus.calculateUploadRelayTip({
+      const storageCost = await walrusClient.walrus.storageCost(encryptedObject.length, storageEpochs);
+      const relayTipMist = await walrusClient.walrus.calculateUploadRelayTip({
         size: encryptedObject.length,
       });
       const gasBudgetMist = BigInt(300_000_000);
@@ -732,7 +771,7 @@ export default function UploadPage() {
       const walletSnapshot =
         balances ??
         (await getWalletBalanceSnapshot(
-          currentClient as unknown as Parameters<typeof getWalletBalanceSnapshot>[0],
+          walrusClient as unknown as Parameters<typeof getWalletBalanceSnapshot>[0],
           account.address,
         ));
 
@@ -767,13 +806,13 @@ export default function UploadPage() {
         tx.transferObjects([feeCoin], tx.pure.address(platformTreasuryAddress));
       }
 
-      await currentClient.walrus.sendUploadRelayTip({
+      await walrusClient.walrus.sendUploadRelayTip({
         size: encryptedObject.length,
         blobDigest: blobMetadata.blobDigest,
         nonce: blobMetadata.nonce,
       })(tx);
 
-      await currentClient.walrus.registerBlob({
+      await walrusClient.walrus.registerBlob({
         size: encryptedObject.length,
         epochs: storageEpochs,
         blobId: blobMetadata.blobId,
