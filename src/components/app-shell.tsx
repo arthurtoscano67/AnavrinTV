@@ -20,8 +20,10 @@ const baseNavItems: TopNavItem[] = [
 
 function navClass(active: boolean) {
   return [
-    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition",
-    active ? "bg-white/8 text-white" : "text-slate-300 hover:bg-white/5 hover:text-white",
+    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
+    active
+      ? "bg-white/10 text-white"
+      : "text-[#aaa] hover:bg-white/6 hover:text-white",
   ].join(" ");
 }
 
@@ -47,7 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navItems = showAdmin ? baseNavItems : baseNavItems.filter((item) => item.href !== "/admin");
 
   if (isBlobsRoute) {
-    return <div className="min-h-screen bg-[#02040b] text-slate-50">{children}</div>;
+    return <div className="min-h-screen bg-[#0f0f0f] text-[#f1f1f1]">{children}</div>;
   }
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
@@ -58,9 +60,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen text-slate-50">
-      <div className="pointer-events-none fixed inset-0 -z-20 bg-[#040816]" />
-
+    <div className="min-h-screen bg-[#0f0f0f] text-[#f1f1f1]">
       <TopNav
         onSearchChange={setSearch}
         onSearchSubmit={submitSearch}
@@ -70,33 +70,54 @@ export function AppShell({ children }: { children: ReactNode }) {
         walletLabel={wallet?.name ?? "Connect"}
       />
 
-      <div className={`mx-auto flex gap-6 px-4 py-5 lg:px-6 ${isWatchRoute ? "max-w-[1800px]" : "max-w-[1600px]"}`}>
-        <aside className={`w-72 shrink-0 ${isWatchRoute ? "hidden" : "hidden lg:block"}`}>
-          <div className="sticky top-24 space-y-4">
-            <nav className="rounded-2xl border border-white/10 bg-[#0b1120] p-2">
+      <div className={`mx-auto flex gap-4 px-3 py-4 lg:px-6 lg:py-5 ${isWatchRoute ? "max-w-[1800px]" : "max-w-[1600px]"}`}>
+        {/* Sidebar */}
+        <aside className={`w-56 shrink-0 ${isWatchRoute ? "hidden" : "hidden lg:block"}`}>
+          <div className="sticky top-[4.5rem] space-y-1">
+            <nav className="space-y-0.5 py-2">
               {navItems.map((item) => {
                 const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
                 const Icon = item.icon;
 
                 return (
                   <Link key={item.href} href={item.href} className={navClass(active)}>
-                    <Icon className="size-4" />
+                    <Icon className="size-4 shrink-0" />
                     {item.label}
                   </Link>
                 );
               })}
             </nav>
+
+            {/* Divider */}
+            <div className="mx-3 border-t border-white/6" />
+
+            {/* Upload shortcut */}
+            <div className="pt-1">
+              <Link
+                href="/upload"
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[#aaa] transition hover:bg-white/6 hover:text-white"
+              >
+                <PlusSquare className="size-4 shrink-0" />
+                Upload
+              </Link>
+            </div>
           </div>
         </aside>
 
-        <main className={`min-w-0 flex-1 ${isWatchRoute ? "pb-12" : showMobileBottomNav ? "pb-28 md:pb-20" : "pb-20"}`}>
-          <div className={isWatchRoute ? "space-y-4" : "space-y-6"}>{children}</div>
+        {/* Main content */}
+        <main
+          className={`min-w-0 flex-1 ${
+            isWatchRoute ? "pb-12" : showMobileBottomNav ? "pb-28 md:pb-20" : "pb-20"
+          }`}
+        >
+          <div className={isWatchRoute ? "space-y-4" : "space-y-5"}>{children}</div>
         </main>
       </div>
 
+      {/* Mobile bottom nav */}
       {showMobileBottomNav ? (
-        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#050916]/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.45rem)] pt-2 backdrop-blur-xl md:hidden">
-          <div className="mx-auto grid max-w-xl grid-cols-5 gap-1 rounded-2xl border border-white/10 bg-white/5 p-1.5">
+        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/8 bg-[#0f0f0f]/97 px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 backdrop-blur-xl md:hidden">
+          <div className="mx-auto grid max-w-sm grid-cols-5 gap-1">
             {mobileTabs.map((tab) => {
               const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
               const Icon = tab.icon;
@@ -105,11 +126,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={tab.href}
                   href={tab.href}
                   className={[
-                    "inline-flex min-h-11 flex-col items-center justify-center rounded-xl text-[10px] font-semibold uppercase tracking-[0.18em] transition",
-                    active ? "bg-cyan-300/15 text-cyan-100" : "text-slate-300 hover:bg-white/10 hover:text-white",
+                    "inline-flex flex-col items-center justify-center gap-1 rounded-xl py-2 text-[10px] font-semibold uppercase tracking-[0.14em] transition",
+                    active ? "text-white" : "text-[#717171] hover:text-[#aaa]",
                   ].join(" ")}
                 >
-                  <Icon className="mb-1 size-4" />
+                  <Icon className={["size-4 transition", active ? "text-white" : ""].join(" ")} />
                   {tab.label}
                 </Link>
               );

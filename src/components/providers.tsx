@@ -33,7 +33,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
   if (bootError) {
     return (
-      <div className="grid min-h-screen place-items-center bg-[#040816] p-6 text-white">
+      <div className="grid min-h-screen place-items-center bg-[#0f0f0f] p-6 text-white">
         <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-[#0a1326] p-6">
           <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Startup error</p>
           <h2 className="mt-2 text-xl font-semibold">Anavrin TV could not initialize.</h2>
@@ -47,7 +47,7 @@ export function Providers({ children }: { children: ReactNode }) {
   }
 
   if (!dAppKit) {
-    return <div className="min-h-screen bg-[#040816]" />;
+    return <div className="min-h-screen bg-[#0f0f0f]" />;
   }
 
   return <DAppKitProvider dAppKit={dAppKit}>{children}</DAppKitProvider>;

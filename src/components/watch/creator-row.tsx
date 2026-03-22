@@ -17,7 +17,7 @@ export function CreatorRow({ video }: CreatorRowProps) {
   const creatorHandle = video.creatorUsername ? `@${video.creatorUsername}` : null;
 
   return (
-    <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#0b1120] p-3.5">
+    <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#1a1a1a] p-3.5">
       <div className="flex min-w-0 items-center gap-3">
         <CreatorLink
           username={video.creatorUsername}

@@ -29,7 +29,7 @@ export function VideoDescriptionPanel({
   }, [description, expanded, hasLongDescription]);
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-[#0b1120] p-4">
+    <section className="rounded-2xl border border-white/10 bg-[#1a1a1a] p-4">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-300">
         <span className="font-semibold text-white">{formatCompact(views)} views</span>
         <span>•</span>

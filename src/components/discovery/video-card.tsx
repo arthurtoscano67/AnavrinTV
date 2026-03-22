@@ -29,8 +29,8 @@ function posterFor(video: VideoRecord) {
     </linearGradient>
   </defs>
   <rect width='1280' height='720' fill='url(#g)' />
-  <rect width='1280' height='720' fill='rgba(7,11,20,0.42)' />
-  <text x='64' y='625' fill='rgba(255,255,255,0.92)' font-family='system-ui, sans-serif' font-weight='700' font-size='44'>${title.slice(0, 52)}</text>
+  <rect width='1280' height='720' fill='rgba(0,0,0,0.32)' />
+  <text x='64' y='625' fill='rgba(255,255,255,0.95)' font-family='system-ui, sans-serif' font-weight='700' font-size='44'>${title.slice(0, 52)}</text>
 </svg>`;
 
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
@@ -46,51 +46,75 @@ export function VideoCard({ video }: DiscoveryVideoCardProps) {
   const publishedAt = video.publishedAt ?? video.createdAt;
 
   return (
-    <article className="group overflow-hidden rounded-2xl border border-white/10 bg-[#090f20] shadow-[0_8px_24px_rgba(0,0,0,0.14)] transition md:hover:-translate-y-0.5 md:hover:border-white/20 md:hover:shadow-[0_16px_40px_rgba(2,12,35,0.4)] active:scale-[0.995] active:opacity-90">
+    <article className="group cursor-pointer">
+      {/* Thumbnail */}
       <Link className="block" href={watchHref}>
-        <div className="relative aspect-video overflow-hidden bg-black/30">
+        <div className="relative aspect-video overflow-hidden rounded-xl bg-[#212121]">
           <img
             alt={video.title}
-            className="size-full object-cover transition duration-300 group-hover:scale-[1.02]"
+            className="size-full object-cover transition duration-300 group-hover:scale-[1.03]"
             draggable={false}
             loading="lazy"
             src={posterFor(video)}
           />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,8,20,0.1),rgba(2,8,20,0.76))]" />
+
+          {/* subtle bottom fade */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+
+          {/* Trending badge */}
           {isTrending(video) ? (
-            <span className="absolute left-2.5 top-2.5 rounded-full border border-amber-200/40 bg-amber-300/18 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-100">
+            <span className="absolute left-2 top-2 rounded-md bg-black/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#ff0000] backdrop-blur-sm">
               Trending
             </span>
           ) : null}
-          <span className="absolute bottom-2.5 right-2.5 rounded-md border border-black/30 bg-black/75 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur">
+
+          {/* Duration badge */}
+          <span className="absolute bottom-2 right-2 rounded-md bg-black/80 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur-sm">
             {video.duration}
           </span>
         </div>
       </Link>
 
-      <div className="flex items-start gap-3 p-3.5">
+      {/* Metadata row */}
+      <div className="mt-3 flex items-start gap-3">
+        {/* Avatar */}
         <CreatorLink
-          className="mt-0.5 block size-9 shrink-0 overflow-hidden rounded-full border border-white/10 bg-white/6"
+          className="mt-0.5 block size-9 shrink-0 overflow-hidden rounded-full bg-[#272727]"
           title={creatorName}
           username={video.creatorUsername}
         >
           {video.creatorAvatarUrl ? (
-            <img alt={creatorName} className="size-full object-cover" draggable={false} loading="lazy" src={video.creatorAvatarUrl} />
+            <img
+              alt={creatorName}
+              className="size-full object-cover"
+              draggable={false}
+              loading="lazy"
+              src={video.creatorAvatarUrl}
+            />
           ) : (
-            <span className="grid size-full place-items-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/90">
+            <span className="grid size-full place-items-center text-[11px] font-bold uppercase tracking-wide text-white/80">
               {initials(creatorName)}
             </span>
           )}
         </CreatorLink>
 
+        {/* Text */}
         <div className="min-w-0 flex-1">
-          <Link className="line-clamp-2 text-[15px] font-semibold leading-5 text-white transition group-hover:text-cyan-100" href={watchHref}>
+          <Link
+            className="line-clamp-2 text-sm font-semibold leading-5 text-[#f1f1f1] transition group-hover:text-white"
+            href={watchHref}
+          >
             {video.title}
           </Link>
-          <CreatorLink className="mt-1 block truncate text-sm text-slate-300 transition hover:text-cyan-100" username={video.creatorUsername}>
+
+          <CreatorLink
+            className="mt-1 block truncate text-xs text-[#aaa] transition hover:text-white"
+            username={video.creatorUsername}
+          >
             {video.creatorUsername ? `${creatorName} · @${video.creatorUsername}` : creatorName}
           </CreatorLink>
-          <p className="mt-1 text-xs text-slate-400">
+
+          <p className="mt-0.5 text-xs text-[#717171]">
             {formatCompact(video.views)} views · {formatRelativeTime(publishedAt)}
           </p>
         </div>

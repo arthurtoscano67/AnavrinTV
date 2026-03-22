@@ -16,7 +16,7 @@ export function AboutPanel({
   socials,
 }: AboutPanelProps) {
   return (
-    <section className="space-y-3 rounded-xl border border-white/10 bg-[#0b1120] p-4">
+    <section className="space-y-3 rounded-xl border border-white/10 bg-[#1a1a1a] p-4">
       <div>
         <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Bio</p>
         <p className="mt-2 text-sm leading-6 text-slate-200">{bio}</p>

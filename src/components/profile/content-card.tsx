@@ -22,7 +22,7 @@ type ContentCardProps = {
 export function ContentCard({ item }: ContentCardProps) {
   return (
     <Link
-      className="group block overflow-hidden rounded-xl border border-white/10 bg-[#0b1120] transition hover:border-white/20 hover:bg-[#0d1528]"
+      className="group block overflow-hidden rounded-xl border border-white/10 bg-[#1a1a1a] transition hover:border-white/20 hover:bg-[#212121]"
       href={item.href}
     >
       <div

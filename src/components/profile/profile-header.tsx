@@ -34,7 +34,7 @@ export function ProfileHeader({
   onToggleFollow,
 }: ProfileHeaderProps) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b1120]">
+    <section className="overflow-hidden rounded-2xl border border-white/10 bg-[#1a1a1a]">
       <div
         className="h-40 w-full md:h-48"
         style={{
@@ -54,7 +54,7 @@ export function ProfileHeader({
       <div className="px-4 pb-4 md:px-6 md:pb-6">
         <div className="-mt-12 flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="size-24 shrink-0 overflow-hidden rounded-full border-4 border-[#0b1120] bg-[#101a31] md:size-28">
+            <div className="size-24 shrink-0 overflow-hidden rounded-full border-4 border-[#1a1a1a] bg-[#272727] md:size-28">
               {avatarUrl ? (
                 <img
                   alt={displayName}

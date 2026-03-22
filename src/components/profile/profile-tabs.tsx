@@ -11,7 +11,7 @@ type ProfileTabsProps = {
 export function ProfileTabs({ tabs, activeTab, onChange }: ProfileTabsProps) {
   return (
     <section className="overflow-x-auto">
-      <div className="inline-flex min-w-full gap-2 rounded-xl border border-white/10 bg-[#0b1120] p-2">
+      <div className="inline-flex min-w-full gap-2 rounded-xl border border-white/10 bg-[#1a1a1a] p-2">
         {tabs.map((tab) => {
           const active = tab === activeTab;
           return (

@@ -98,12 +98,12 @@ function DiscoveryCarousel({
   return (
     <section className="space-y-3" style={{ contentVisibility: "auto", containIntrinsicSize: "360px" }}>
       <div className="flex items-center justify-between gap-3">
-        <h2 className="inline-flex items-center gap-2 text-lg font-semibold text-white sm:text-xl">
-          <Icon className="size-4 text-cyan-200" />
+        <h2 className="inline-flex items-center gap-2 text-base font-bold text-white sm:text-lg">
+          <Icon className="size-4 text-[#aaa]" />
           {title}
         </h2>
-        <Link href={href} className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100/85 transition hover:text-cyan-100">
-          View all
+        <Link href={href} className="text-xs font-semibold text-[#3ea6ff] transition hover:text-[#3ea6ff]/80">
+          View all →
         </Link>
       </div>
 
@@ -115,7 +115,7 @@ function DiscoveryCarousel({
             <Link
               key={`${title}-${video.id}`}
               href={watchHref}
-              className="group min-w-[74vw] snap-start overflow-hidden rounded-2xl border border-white/10 bg-[#091127] shadow-[0_12px_34px_rgba(0,0,0,0.25)] transition duration-200 hover:scale-[1.01] hover:border-white/20 sm:min-w-[320px]"
+              className="group min-w-[74vw] snap-start overflow-hidden rounded-xl border border-white/6 bg-[#1a1a1a] transition duration-200 hover:border-white/14 hover:bg-[#212121] sm:min-w-[300px]"
             >
               <div
                 className="relative aspect-video overflow-hidden"
@@ -194,7 +194,7 @@ export function HomeDiscoveryClient({ videos, metrics }: HomeDiscoveryClientProp
 
   return (
     <div className="space-y-3">
-      <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#091228] shadow-[0_24px_60px_rgba(0,0,0,0.25)]">
+      <section className="relative overflow-hidden rounded-2xl border border-white/8 bg-[#1a1a1a] shadow-[0_8px_40px_rgba(0,0,0,0.5)]">
         <div
           className="relative min-h-[216px] overflow-hidden p-4"
           style={{
@@ -248,17 +248,17 @@ export function HomeDiscoveryClient({ videos, metrics }: HomeDiscoveryClientProp
           return (
             <div
               key={stat.label}
-              className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-[#0b142b]/95 px-3 text-[11px] text-slate-100"
+              className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-white/8 bg-[#1a1a1a] px-3 text-[11px]"
             >
-              <Icon className="size-3.5 text-cyan-200" />
+              <Icon className="size-3.5 text-[#aaa]" />
               <span className="font-semibold text-white">{stat.value}</span>
-              <span className="text-slate-400">{stat.label}</span>
+              <span className="text-[#717171]">{stat.label}</span>
             </div>
           );
         })}
       </section>
 
-      <section className="sticky top-[calc(var(--safe-top)+3.25rem)] z-20 -mx-1 border-y border-white/5 bg-[#040816]/92 px-1 py-1.5 backdrop-blur-xl">
+      <section className="sticky top-[calc(var(--safe-top)+3.25rem)] z-20 -mx-1 border-b border-white/6 bg-[#0f0f0f]/95 px-1 py-2 backdrop-blur-xl">
         <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {FILTERS.map((filter) => (
             <button
@@ -266,10 +266,8 @@ export function HomeDiscoveryClient({ videos, metrics }: HomeDiscoveryClientProp
               type="button"
               onClick={() => setActiveFilter(filter)}
               className={[
-                "inline-flex min-h-10 shrink-0 items-center rounded-full border px-4 text-xs font-semibold uppercase tracking-[0.16em] transition",
-                activeFilter === filter
-                  ? "border-cyan-200/35 bg-cyan-300/18 text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.18)]"
-                  : "border-white/10 bg-black/25 text-slate-300 hover:border-white/20 hover:text-white",
+                "filter-chip",
+                activeFilter === filter ? "filter-chip-active" : "",
               ].join(" ")}
             >
               {filter}

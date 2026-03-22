@@ -236,7 +236,7 @@ export function EditProfileModal({
 
   return (
     <div className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-[#030714]/85 px-3 py-3 backdrop-blur-sm md:px-4 md:py-5">
-      <div className="flex w-full max-w-[760px] max-h-[86vh] min-h-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0b1120] p-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:p-4">
+      <div className="flex w-full max-w-[760px] max-h-[86vh] min-h-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#1a1a1a] p-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:p-4">
         <div className="flex items-center justify-between gap-2.5">
           <div>
             <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Profile</p>
@@ -334,7 +334,7 @@ export function EditProfileModal({
                   )}
                 </div>
 
-                <div className="absolute bottom-1.5 left-1.5 size-10 overflow-hidden rounded-full border-[3px] border-[#0e152a] bg-[#101a31] md:size-11">
+                <div className="absolute bottom-1.5 left-1.5 size-10 overflow-hidden rounded-full border-[3px] border-[#0e152a] bg-[#272727] md:size-11">
                   {avatarUrl ? (
                     <img
                       alt="Avatar preview"

@@ -8,7 +8,7 @@ type ContentGridProps = {
 export function ContentGrid({ items, emptyLabel }: ContentGridProps) {
   if (!items.length) {
     return (
-      <section className="rounded-xl border border-dashed border-white/10 bg-[#0b1120] px-4 py-10 text-center">
+      <section className="rounded-xl border border-dashed border-white/10 bg-[#1a1a1a] px-4 py-10 text-center">
         <p className="text-sm text-slate-300">{emptyLabel}</p>
       </section>
     );

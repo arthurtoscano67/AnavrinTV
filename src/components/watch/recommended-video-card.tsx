@@ -21,7 +21,7 @@ export function RecommendedVideoCard({ video, active = false }: RecommendedVideo
         "group rounded-xl border p-2 transition",
         active
           ? "border-cyan-300/35 bg-cyan-300/8"
-          : "border-white/10 bg-[#0b1120] hover:border-white/20 hover:bg-white/5",
+          : "border-white/10 bg-[#1a1a1a] hover:border-white/20 hover:bg-white/5",
       ].join(" ")}
     >
       <div className="flex gap-3">

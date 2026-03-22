@@ -1,23 +1,42 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
 @import "tailwindcss";
 
+/* ─── DESIGN TOKENS ─── */
 :root {
   color-scheme: dark;
-  --background: #040816;
-  --foreground: #eff6ff;
-  --surface: rgba(10, 16, 34, 0.82);
-  --surface-strong: rgba(8, 12, 26, 0.94);
-  --surface-soft: rgba(255, 255, 255, 0.05);
-  --border: rgba(255, 255, 255, 0.1);
-  --muted: #9cb0cf;
-  --accent: #57ddff;
-  --accent-strong: #3b82f6;
-  --accent-soft: rgba(87, 221, 255, 0.16);
-  --success: #5cf1c2;
-  --warning: #f8c55c;
-  --danger: #ff7f8f;
-  --glass-bg: rgba(6, 10, 24, 0.72);
-  --glass-strong: rgba(6, 10, 24, 0.82);
+
+  /* backgrounds */
+  --background: #0f0f0f;
+  --surface: #1a1a1a;
+  --surface-strong: #212121;
+  --surface-soft: rgba(255, 255, 255, 0.04);
+  --nav-bg: rgba(15, 15, 15, 0.97);
+  --card-bg: #1a1a1a;
+
+  /* text */
+  --foreground: #f1f1f1;
+  --muted: #aaaaaa;
+  --muted-faint: #717171;
+
+  /* borders */
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  /* accent — modern blue (YouTube dark-mode feel) */
+  --accent: #3ea6ff;
+  --accent-strong: #0d85ff;
+  --accent-soft: rgba(62, 166, 255, 0.13);
+
+  /* semantic */
+  --success: #4cd964;
+  --warning: #ff9f0a;
+  --danger: #ff453a;
+
+  /* glass */
+  --glass-bg: rgba(15, 15, 15, 0.90);
+  --glass-strong: rgba(10, 10, 10, 0.95);
+
+  /* safe areas */
   --safe-top: env(safe-area-inset-top);
   --safe-right: env(safe-area-inset-right);
   --safe-bottom: env(safe-area-inset-bottom);
@@ -36,6 +55,7 @@
   --font-display: var(--font-heading);
 }
 
+/* ─── BASE ─── */
 @layer base {
   * {
     box-sizing: border-box;
@@ -43,30 +63,17 @@
 
   html {
     min-height: 100%;
-    background: #040816;
+    background: var(--background);
     overflow-x: hidden;
   }
 
   body {
     min-height: 100vh;
-    background: linear-gradient(180deg, #040816 0%, #040815 100%);
+    background: var(--background);
     color: var(--foreground);
-    font-family: var(--font-body), system-ui, sans-serif;
+    font-family: "Inter", var(--font-body), system-ui, sans-serif;
     overflow-x: hidden;
     -webkit-text-size-adjust: 100%;
-  }
-
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    opacity: 0.08;
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-    background-size: 56px 56px;
-    mask-image: radial-gradient(circle at center, black 45%, transparent 100%);
   }
 
   h1,
@@ -75,8 +82,8 @@
   h4,
   h5,
   h6 {
-    font-family: var(--font-display), system-ui, sans-serif;
-    letter-spacing: -0.03em;
+    font-family: "Inter", var(--font-display), system-ui, sans-serif;
+    letter-spacing: -0.02em;
   }
 
   a {
@@ -85,51 +92,60 @@
   }
 
   ::selection {
-    background: rgba(87, 221, 255, 0.26);
-    color: white;
+    background: rgba(62, 166, 255, 0.28);
+    color: #fff;
   }
 
   ::-webkit-scrollbar {
-    width: 12px;
-    height: 12px;
+    width: 8px;
+    height: 8px;
   }
 
   ::-webkit-scrollbar-track {
-    background: rgba(4, 8, 22, 0.85);
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    border: 3px solid rgba(4, 8, 22, 0.85);
+    border: 2px solid transparent;
     border-radius: 999px;
-    background: rgba(148, 163, 184, 0.36);
+    background: rgba(255, 255, 255, 0.18);
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.30);
+    background-clip: padding-box;
   }
 }
 
+/* ─── COMPONENTS ─── */
 @layer components {
   .panel {
-    @apply rounded-[24px] border border-white/10 bg-[#0b1120] shadow-[0_24px_60px_rgba(0,0,0,0.22)] backdrop-blur-xl;
+    @apply rounded-xl border border-white/8 bg-[#1a1a1a] shadow-[0_4px_24px_rgba(0,0,0,0.4)];
   }
 
   .metric-card {
-    @apply rounded-[20px] border border-white/10 bg-[#0b1120] p-5 shadow-[0_16px_40px_rgba(0,0,0,0.16)] backdrop-blur-xl;
+    @apply rounded-xl border border-white/8 bg-[#1a1a1a] p-5;
   }
 
   .section-label {
-    @apply text-xs uppercase tracking-[0.38em] text-cyan-100/60;
+    @apply text-xs uppercase tracking-[0.34em] text-white/45;
   }
 
   .section-title {
-    @apply text-2xl font-semibold text-white md:text-3xl;
+    @apply text-2xl font-bold text-white md:text-3xl;
   }
 
   .section-subtitle {
-    @apply mt-2 max-w-2xl text-sm leading-7 text-slate-300 md:text-base;
+    @apply mt-2 max-w-2xl text-sm leading-relaxed text-[#aaa] md:text-base;
   }
 
   .input,
   .textarea,
   .select {
-    @apply w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/35 focus:bg-black/30 focus:ring-2 focus:ring-cyan-300/10;
+    @apply w-full rounded-lg border border-white/8 bg-[#212121] px-4 py-3 text-sm text-white outline-none transition
+      placeholder:text-[#717171]
+      focus:border-white/20 focus:bg-[#252525] focus:ring-0;
   }
 
   .textarea {
@@ -139,499 +155,77 @@
   .btn-primary,
   .btn-secondary,
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition
+      disabled:cursor-not-allowed disabled:opacity-50;
   }
 
+  /* white solid — like YouTube's Subscribe fill */
   .btn-primary {
-    @apply border border-cyan-300/25 bg-[linear-gradient(135deg,rgba(34,211,238,0.22),rgba(59,130,246,0.22))] text-cyan-50 hover:border-cyan-200/40 hover:brightness-110;
+    @apply bg-white text-black hover:bg-white/90 active:bg-white/80;
   }
 
   .btn-secondary {
-    @apply border border-white/10 bg-white/5 text-white hover:border-cyan-300/25 hover:bg-white/10;
+    @apply border border-white/12 bg-white/6 text-white hover:border-white/22 hover:bg-white/10;
   }
 
   .btn-danger {
-    @apply border border-rose-300/25 bg-[linear-gradient(135deg,rgba(251,113,133,0.18),rgba(244,63,94,0.16))] text-rose-50 hover:border-rose-200/40 hover:brightness-110;
+    @apply border border-red-400/25 bg-red-500/14 text-red-100 hover:bg-red-500/22;
   }
 
   .btn-ghost {
-    @apply border border-transparent bg-transparent text-slate-300 hover:border-white/10 hover:bg-white/5 hover:text-white;
+    @apply border border-transparent bg-transparent text-[#aaa] hover:bg-white/6 hover:text-white;
   }
 
   .surface {
-    @apply rounded-[24px] border border-white/10 bg-[#0b1120] shadow-[0_24px_60px_rgba(0,0,0,0.18)] backdrop-blur-xl;
+    @apply rounded-xl border border-white/8 bg-[#1a1a1a] shadow-[0_4px_20px_rgba(0,0,0,0.35)];
   }
 
   .kpi {
-    @apply rounded-[18px] border border-white/10 bg-[#0d1426] p-4;
+    @apply rounded-xl border border-white/8 bg-[#1a1a1a] p-4 transition
+      hover:-translate-y-0.5 hover:border-white/15 hover:shadow-[0_8px_28px_rgba(0,0,0,0.4)];
   }
 
   .table-shell {
-    @apply overflow-hidden rounded-[28px] border border-white/10 bg-white/5 backdrop-blur-xl;
+    @apply overflow-hidden rounded-xl border border-white/8 bg-[#1a1a1a];
   }
 
   .table-row {
-    @apply grid items-center gap-4 border-b border-white/8 px-4 py-4 text-sm text-slate-300 last:border-b-0;
+    @apply grid items-center gap-4 border-b border-white/6 px-4 py-4 text-sm text-[#aaa] last:border-b-0;
   }
 
   .badge {
-    @apply inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300;
+    @apply inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5
+      px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#aaa];
   }
 
   .chip {
-    @apply inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-xs font-medium text-slate-300;
+    @apply inline-flex items-center gap-1.5 rounded-full border border-white/8 bg-[#212121]
+      px-3 py-1.5 text-xs font-medium text-[#aaa];
   }
 
   .glass-surface {
-    @apply border border-white/15 bg-[var(--glass-bg)] backdrop-blur-xl;
+    @apply border border-white/10 bg-[var(--glass-bg)] backdrop-blur-xl;
   }
 
   .glass-strong {
-    @apply border border-white/20 bg-[var(--glass-strong)] backdrop-blur-xl;
-  }
-}
-
-/* ============================================================
-   ANAVRIN TV — YouTube-but-better theme
-   Imported after Tailwind base styles.
-   ============================================================ */
-
-/* ─── TOKENS ─── */
-:root {
-  --bg: #0f0f0f;
-  --surface: #1a1a1a;
-  --surface2: #232323;
-  --border: #2e2e2e;
-  --accent: #ff4444;
-  --accent2: #ff8c00;
-  --text1: #f1f1f1;
-  --text2: #aaaaaa;
-  --text3: #666666;
-  --radius: 12px;
-  --font: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
-}
-
-/* ─── GLOBAL ─── */
-* {
-  font-family: var(--font) !important;
-}
-
-body {
-  background: var(--bg) !important;
-  color: var(--text1) !important;
-}
-
-/* ─── SCROLLBAR ─── */
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--bg);
-}
-
-::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #555;
-}
-
-/* ============================================================
-   HEADER / NAVBAR
-   ============================================================ */
-header {
-  background: rgba(15, 15, 15, 0.97) !important;
-  backdrop-filter: blur(14px) !important;
-  border-bottom: 1px solid var(--border) !important;
-  box-shadow: 0 2px 24px rgba(0, 0, 0, 0.6) !important;
-}
-
-/* ATV logo pill */
-header [href="/"] > span:first-child,
-header [href="/"] > div:first-child {
-  background: linear-gradient(135deg, #ff4444 0%, #ff8c00 100%) !important;
-  box-shadow: 0 0 18px rgba(255, 68, 68, 0.5) !important;
-  border-radius: 10px !important;
-  font-weight: 900 !important;
-  color: white !important;
-}
-
-/* Site name */
-header .font-semibold,
-header .font-bold,
-header .font-extrabold {
-  font-weight: 800 !important;
-  color: var(--text1) !important;
-  letter-spacing: -0.3px !important;
-}
-
-/* Tagline (SUI CREATOR DESK) */
-header .text-\[10px\],
-header .text-xs:not(input) {
-  color: var(--accent) !important;
-  letter-spacing: 2px !important;
-  font-weight: 700 !important;
-}
-
-/* Search bar */
-header input[type="text"],
-header input[type="search"],
-header input[placeholder] {
-  background: var(--surface2) !important;
-  border: 1.5px solid var(--border) !important;
-  border-radius: 100px !important;
-  color: var(--text1) !important;
-  font-size: 14px !important;
-  transition: border-color 0.2s, box-shadow 0.2s !important;
-}
-
-header input:focus {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(255, 68, 68, 0.18) !important;
-  outline: none !important;
-}
-
-header input::placeholder {
-  color: var(--text3) !important;
-}
-
-header form {
-  border-radius: 100px !important;
-  overflow: hidden !important;
-}
-
-/* Create / Upload button */
-header a[href*="upload"] {
-  background: linear-gradient(135deg, var(--accent), var(--accent2)) !important;
-  color: white !important;
-  font-weight: 700 !important;
-  border-radius: 100px !important;
-  border: none !important;
-  box-shadow: 0 0 16px rgba(255, 68, 68, 0.35) !important;
-  transition: transform 0.15s, box-shadow 0.15s !important;
-}
-
-header a[href*="upload"]:hover {
-  transform: scale(1.05) !important;
-  box-shadow: 0 0 24px rgba(255, 68, 68, 0.55) !important;
-}
-
-/* ============================================================
-   SIDEBAR
-   ============================================================ */
-aside,
-nav[aria-label] {
-  background: var(--bg) !important;
-  border-right: 1px solid var(--border) !important;
-}
-
-aside a {
-  color: var(--text2) !important;
-  border-radius: 10px !important;
-  font-weight: 600 !important;
-  font-size: 14px !important;
-  transition: background 0.18s, color 0.18s !important;
-}
-
-aside a:hover {
-  background: var(--surface2) !important;
-  color: var(--text1) !important;
-}
-
-aside a[href="/"]:first-child,
-aside a[aria-current] {
-  background: linear-gradient(135deg, rgba(255, 68, 68, 0.15), rgba(255, 140, 0, 0.08)) !important;
-  color: var(--accent) !important;
-  border-left: 3px solid var(--accent) !important;
-}
-
-/* ============================================================
-   MAIN / PAGE BODY
-   ============================================================ */
-main {
-  background: var(--bg) !important;
-}
-
-/* Section label (HOME / RECOMMENDED / TRENDING) */
-.section-label {
-  color: var(--accent) !important;
-  font-weight: 800 !important;
-  letter-spacing: 3px !important;
-  font-size: 10px !important;
-  text-transform: uppercase !important;
-}
-
-/* Page headings */
-main h1 {
-  font-size: 30px !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.6px !important;
-  color: var(--text1) !important;
-  line-height: 1.15 !important;
-}
-
-main h2 {
-  font-size: 26px !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.5px !important;
-  color: var(--text1) !important;
-}
-
-main p {
-  color: var(--text2) !important;
-}
-
-/* Section spacing */
-main section {
-  margin-bottom: 40px !important;
-}
-
-.space-y-6 > * + * {
-  margin-top: 40px !important;
-}
-
-.space-y-4 > * + * {
-  margin-top: 16px !important;
-}
-
-/* Top hero flex — stack vertically so KPI grid goes full-width */
-.flex.flex-wrap.items-end.justify-between {
-  flex-direction: column !important;
-  gap: 20px !important;
-}
-
-.flex.flex-wrap.items-end.justify-between .max-w-3xl {
-  max-width: 100% !important;
-}
-
-/* ─── KPI STAT CARDS ─── */
-/* Force all 4 into one row */
-.grid.gap-2.sm\:grid-cols-2.xl\:grid-cols-4 {
-  grid-template-columns: repeat(4, 1fr) !important;
-  width: 100% !important;
-  gap: 12px !important;
-}
-
-.kpi {
-  background: var(--surface) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius) !important;
-  padding: 18px 20px !important;
-  position: relative !important;
-  overflow: hidden !important;
-  transition: border-color 0.22s, transform 0.18s, box-shadow 0.2s !important;
-}
-
-.kpi::before {
-  content: "" !important;
-  position: absolute !important;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px !important;
-  background: linear-gradient(90deg, var(--accent), var(--accent2)) !important;
-  opacity: 0 !important;
-  transition: opacity 0.2s !important;
-}
-
-.kpi:hover::before {
-  opacity: 1 !important;
-}
-
-.kpi:hover {
-  border-color: var(--accent) !important;
-  transform: translateY(-3px) !important;
-  box-shadow: 0 8px 30px rgba(255, 68, 68, 0.12) !important;
-}
-
-.kpi p:first-child {
-  color: var(--text3) !important;
-  font-size: 10px !important;
-  font-weight: 700 !important;
-  letter-spacing: 2.5px !important;
-  text-transform: uppercase !important;
-}
-
-.kpi p:last-child {
-  color: var(--text1) !important;
-  font-size: 24px !important;
-  font-weight: 900 !important;
-  margin-top: 8px !important;
-  letter-spacing: -1px !important;
-}
-
-/* ─── CATEGORY CHIPS ─── */
-a[href*="category="] {
-  display: inline-flex !important;
-  align-items: center !important;
-  background: #222 !important;
-  border: 1px solid var(--border) !important;
-  color: var(--text2) !important;
-  border-radius: 100px !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  padding: 7px 16px !important;
-  text-decoration: none !important;
-  transition: all 0.18s !important;
-  white-space: nowrap !important;
-}
-
-a[href*="category="]:hover {
-  background: #2e2e2e !important;
-  border-color: var(--accent) !important;
-  color: var(--text1) !important;
-  transform: translateY(-1px) !important;
-}
-
-/* "All videos" chip (has SVG icon, links to /browse or /browse/) */
-a[href="/browse"]:has(svg),
-a[href="/browse/"]:has(svg) {
-  display: inline-flex !important;
-  align-items: center !important;
-  background: var(--accent) !important;
-  border: 1px solid var(--accent) !important;
-  color: white !important;
-  border-radius: 100px !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  padding: 7px 16px !important;
-  text-decoration: none !important;
-  box-shadow: 0 0 14px rgba(255, 68, 68, 0.35) !important;
-}
-
-/* "Browse all" / "View feed" buttons */
-a[href="/browse"]:not(:has(svg)),
-a[href="/browse/"]:not(:has(svg)) {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-  background: var(--surface2) !important;
-  border: 1.5px solid var(--border) !important;
-  color: var(--text2) !important;
-  border-radius: 100px !important;
-  padding: 8px 20px !important;
-  font-size: 13px !important;
-  font-weight: 700 !important;
-  text-decoration: none !important;
-  transition: all 0.18s !important;
-}
-
-a[href="/browse"]:not(:has(svg)):hover,
-a[href="/browse/"]:not(:has(svg)):hover {
-  background: var(--accent) !important;
-  border-color: var(--accent) !important;
-  color: white !important;
-}
-
-/* ============================================================
-   VIDEO CARDS
-   ============================================================ */
-
-/* Card grid — 2 columns, scales up on wider screens */
-.grid.gap-4.sm\:grid-cols-2.xl\:grid-cols-3.\32xl\:grid-cols-4 {
-  grid-template-columns: repeat(2, 1fr) !important;
-  gap: 18px !important;
-}
-
-article {
-  border-radius: var(--radius) !important;
-  background: transparent !important;
-  transition: transform 0.22s !important;
-}
-
-article:hover {
-  transform: translateY(-5px) !important;
-}
-
-/* Thumbnail container */
-article .aspect-video {
-  border-radius: var(--radius) !important;
-  overflow: hidden !important;
-}
-
-article .aspect-video img {
-  transition: transform 0.4s !important;
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-}
-
-article:hover .aspect-video img {
-  transform: scale(1.04) !important;
-}
-
-/* Gradient overlay on thumbnail */
-article .aspect-video .absolute:first-child {
-  background: linear-gradient(180deg, rgba(5, 9, 18, 0.05) 0%, rgba(5, 9, 18, 0.6) 100%) !important;
-}
-
-/* Duration badge */
-article .aspect-video .absolute.bottom-3 {
-  background: rgba(0, 0, 0, 0.85) !important;
-  backdrop-filter: blur(6px) !important;
-  border-radius: 6px !important;
-  color: white !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.3px !important;
-}
-
-/* Avatar circle */
-article .size-9 {
-  border-radius: 50% !important;
-  background: linear-gradient(135deg, var(--accent), var(--accent2)) !important;
-  border: none !important;
-  box-shadow: 0 0 10px rgba(255, 68, 68, 0.3) !important;
-}
-
-/* Video title */
-article .line-clamp-2 {
-  color: var(--text1) !important;
-  font-weight: 700 !important;
-  font-size: 14px !important;
-  line-height: 1.35 !important;
-  transition: color 0.18s !important;
-}
-
-article:hover .line-clamp-2 {
-  color: var(--accent) !important;
-}
-
-/* Channel / meta text */
-article .text-slate-300 {
-  color: var(--text3) !important;
-  font-size: 12px !important;
-}
-
-article .text-slate-400 {
-  color: var(--text3) !important;
-  font-size: 12px !important;
-}
-
-/* ─── ENTRANCE ANIMATIONS ─── */
-main > div > section {
-  animation: fadeUp 0.4s ease both;
-}
-
-main > div > section:nth-child(2) {
-  animation-delay: 0.1s;
-}
-
-main > div > section:nth-child(3) {
-  animation-delay: 0.2s;
-}
-
-@keyframes fadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
+    @apply border border-white/12 bg-[var(--glass-strong)] backdrop-blur-xl;
   }
 
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  /* video card */
+  .video-card {
+    @apply overflow-hidden rounded-xl border border-white/6 bg-[#1a1a1a] transition duration-200
+      hover:border-white/12 hover:bg-[#212121] hover:shadow-[0_8px_32px_rgba(0,0,0,0.45)]
+      active:scale-[0.99];
+  }
+
+  /* filter chip — inactive / active */
+  .filter-chip {
+    @apply inline-flex min-h-9 shrink-0 cursor-pointer select-none items-center rounded-lg border
+      border-white/8 bg-[#212121] px-4 text-xs font-semibold text-[#aaa] transition
+      hover:border-white/16 hover:bg-[#2a2a2a] hover:text-white;
+  }
+
+  .filter-chip-active {
+    @apply border-white/20 bg-white text-black hover:bg-white/92;
   }
 }

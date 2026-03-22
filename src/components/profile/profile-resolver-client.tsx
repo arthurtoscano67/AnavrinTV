@@ -120,7 +120,7 @@ export function ProfileResolverClient({
 
   if (!account?.address) {
     return (
-      <section className="mx-auto flex w-full max-w-[720px] flex-col items-center rounded-2xl border border-white/10 bg-[#0b1120] px-6 py-14 text-center">
+      <section className="mx-auto flex w-full max-w-[720px] flex-col items-center rounded-2xl border border-white/10 bg-[#1a1a1a] px-6 py-14 text-center">
         <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Profile</p>
         <h1 className="mt-3 text-2xl font-semibold text-white">Connect wallet to open your profile</h1>
         <p className="mt-2 max-w-[520px] text-sm text-slate-300">
@@ -137,7 +137,7 @@ export function ProfileResolverClient({
   }
 
   return (
-    <section className="mx-auto flex w-full max-w-[720px] flex-col items-center rounded-2xl border border-white/10 bg-[#0b1120] px-6 py-14 text-center">
+    <section className="mx-auto flex w-full max-w-[720px] flex-col items-center rounded-2xl border border-white/10 bg-[#1a1a1a] px-6 py-14 text-center">
       <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Profile</p>
       <h1 className="mt-3 text-2xl font-semibold text-white">Opening your creator profile</h1>
       <p className="mt-2 max-w-[520px] text-sm text-slate-300">

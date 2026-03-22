@@ -320,7 +320,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
             <MoreHorizontal className="size-4" />
           </button>
           {showMorePanel ? (
-            <div className="absolute right-0 top-full z-30 mt-2 w-40 rounded-xl border border-white/10 bg-[#0b1120] p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.45)]">
+            <div className="absolute right-0 top-full z-30 mt-2 w-40 rounded-xl border border-white/10 bg-[#1a1a1a] p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.45)]">
               <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-200 transition hover:bg-white/10 hover:text-white" onClick={handleReport} type="button">
                 <Flag className="size-4" />
                 Report
@@ -331,7 +331,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
       </div>
 
       {showTipPanel ? (
-        <div className="rounded-2xl border border-white/10 bg-[#0b1120] p-3.5">
+        <div className="rounded-2xl border border-white/10 bg-[#1a1a1a] p-3.5">
           <div className="flex flex-wrap items-center gap-2">
             {[1, 2, 5, 10].map((amount) => (
               <button

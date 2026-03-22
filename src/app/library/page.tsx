@@ -682,7 +682,7 @@ export default function LibraryPage() {
               </button>
 
               {filterOpen ? (
-                <div className="absolute left-0 top-full z-30 mt-2 w-56 rounded-2xl border border-white/10 bg-[#0b1120] p-2 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+                <div className="absolute left-0 top-full z-30 mt-2 w-56 rounded-2xl border border-white/10 bg-[#1a1a1a] p-2 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
                   {visibilityFilters.map((item) => {
                     const active = item.value === visibilityFilter;
                     return (
@@ -733,7 +733,7 @@ export default function LibraryPage() {
 
         <div className="max-h-[60vh] overflow-auto">
           <table className="min-w-[1320px] w-full border-collapse text-left">
-            <thead className="sticky top-0 z-20 bg-[#0b1120] text-[11px] uppercase tracking-[0.28em] text-slate-400">
+            <thead className="sticky top-0 z-20 bg-[#1a1a1a] text-[11px] uppercase tracking-[0.28em] text-slate-400">
               <tr className="border-b border-white/10">
                 <th className="w-12 px-4 py-3">
                   <input

@@ -15,7 +15,7 @@ type StatTileProps = {
 
 function StatTile({ label, value }: StatTileProps) {
   return (
-    <div className="rounded-xl border border-white/10 bg-[#0b1120] px-4 py-3">
+    <div className="rounded-xl border border-white/10 bg-[#1a1a1a] px-4 py-3">
       <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">{label}</p>
       <p className="mt-1 text-base font-semibold text-white">{formatCompact(value)}</p>
     </div>

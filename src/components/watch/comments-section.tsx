@@ -56,7 +56,7 @@ export function CommentsSection({ totalCount, initialComments }: CommentsSection
   }
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-[#0b1120] p-4">
+    <section className="rounded-2xl border border-white/10 bg-[#1a1a1a] p-4">
       <h2 className="text-base font-semibold text-white">
         Comments {formatCompact(Math.max(totalCount, comments.length))}
       </h2>
