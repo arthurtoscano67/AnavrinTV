@@ -11,6 +11,10 @@ const DEFAULT_ALLOWED_HEADERS = [
   "Authorization",
   "x-anavrin-actor-address",
   "x-anavrin-admin-address",
+  "Client-Sdk-Type",
+  "Client-Sdk-Version",
+  "Request-Id",
+  "X-Request-Id",
 ];
 
 const DEFAULT_ALLOWED_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
