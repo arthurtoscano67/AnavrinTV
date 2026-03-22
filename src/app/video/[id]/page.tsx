@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { WatchPage } from "@/components/watch/watch-page";
 import { getVideo, getVideos } from "@/lib/db";
 import type { VideoRecord } from "@/lib/types";
+import { isPublishedWatchRelease } from "@/lib/video-monetization";
 
 export const dynamicParams = true;
 
@@ -56,7 +57,7 @@ export async function generateMetadata({
   const { id } = await params;
   const video = await getVideo(id);
 
-  if (!video || video.visibility !== "public" || video.status !== "published") {
+  if (!video || !isPublishedWatchRelease(video)) {
     return {
       title: "Video not found | Anavrin TV",
     };
@@ -76,7 +77,7 @@ export default async function VideoPage({
   const { id } = await params;
   const [video, allVideos] = await Promise.all([getVideo(id), getVideos({ publicOnly: true, includeDrafts: false })]);
   if (!video) notFound();
-  if (video.visibility !== "public" || video.status !== "published") notFound();
+  if (!isPublishedWatchRelease(video)) notFound();
 
   const recommendations = getRecommendations(video, allVideos);
 

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getVideo, removeVideo, updateVideoStatus } from "@/lib/db";
 import { readActorAddress, requireAdmin } from "@/lib/request-auth";
 import type { VideoStatus, VideoVisibility } from "@/lib/types";
+import { isPublishedWatchRelease } from "@/lib/video-monetization";
 
 export const runtime = "nodejs";
 
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const isOwner = Boolean(viewerAddress) && viewerAddress === video.ownerAddress.toLowerCase();
   const adminCheck = requireAdmin(request);
   const isAdmin = adminCheck.ok;
-  const isVisible = video.visibility === "public" && video.status !== "hidden";
+  const isVisible = isPublishedWatchRelease(video);
 
   if (!isVisible && !isOwner && !isAdmin) {
     return NextResponse.json({ error: "Video not found" }, { status: 404 });

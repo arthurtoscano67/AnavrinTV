@@ -26,10 +26,11 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["@mysten/walrus", "@mysten/walrus-wasm"],
   experimental: {
-    // Upload finalization posts sealed multipart payloads through proxy/middleware.
-    // Next.js buffers these bodies with a 10 MB default limit, which truncates
-    // real video uploads before the route handler can parse them.
-    proxyClientMaxBodySize: "64mb",
+    // The current frontend finalizes uploads with Walrus metadata only, but
+    // deployed browsers can lag behind during a rollout and still POST the
+    // sealed video bundle through /api/videos. Keep the proxy ceiling above
+    // Railway's observed 64 MB truncation until the older clients age out.
+    proxyClientMaxBodySize: "512mb",
   },
   turbopack: {
     root: process.cwd(),

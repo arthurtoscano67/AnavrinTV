@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 
 import { getVideo } from "@/lib/db";
 import { readActorAddress, requireAdmin } from "@/lib/request-auth";
+import { isPublishedWatchRelease } from "@/lib/video-monetization";
 
 export const runtime = "nodejs";
 
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const isOwner = Boolean(viewerAddress) && viewerAddress === video.ownerAddress.toLowerCase();
   const adminCheck = requireAdmin(request);
   const isAdmin = adminCheck.ok;
-  const isVisible = video.visibility === "public" && video.status !== "hidden";
+  const isVisible = isPublishedWatchRelease(video);
 
   if (!isVisible && !isOwner && !isAdmin) {
     return new Response("Thumbnail not found", { status: 404 });

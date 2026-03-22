@@ -6,6 +6,7 @@ import type { ProfileContentItem } from "@/components/profile/content-card";
 import { formatHandle, normalizeUsernameInput, usernameFromDisplayName } from "@/lib/creator-identity";
 import { formatDate, shortAddress } from "@/lib/format";
 import { loadDb } from "@/lib/db";
+import { isPublishedWatchRelease } from "@/lib/video-monetization";
 import type { VideoRecord, WalletSession } from "@/lib/types";
 
 type CreatorSource = {
@@ -115,9 +116,7 @@ function resolveCreatorByUsername(
       username: account.username,
       displayName: account.displayName,
       address: account.address,
-      videos: videos.filter(
-        (video) => video.ownerAddress === account.address && video.visibility === "public",
-      ),
+      videos: videos.filter((video) => video.ownerAddress === account.address && isPublishedWatchRelease(video)),
     };
   }
 
@@ -133,11 +132,7 @@ function resolveCreatorByUsername(
     username: usernameFromVideo,
     displayName: matchedVideo.creatorDisplayName || matchedVideo.ownerName,
     address: matchedVideo.ownerAddress,
-    videos: videos.filter(
-      (video) =>
-        video.ownerAddress === matchedVideo.ownerAddress &&
-        video.visibility === "public",
-    ),
+    videos: videos.filter((video) => video.ownerAddress === matchedVideo.ownerAddress && isPublishedWatchRelease(video)),
   };
 }
 

@@ -6,19 +6,23 @@ import type { VideoRecord } from "@/lib/types";
 
 type MainVideoPlayerProps = {
   video: VideoRecord;
+  refreshToken?: number;
 };
 
-export function MainVideoPlayer({ video }: MainVideoPlayerProps) {
+export function MainVideoPlayer({ video, refreshToken = 0 }: MainVideoPlayerProps) {
   const posterUrl = video.thumbnailUrl?.trim() ? buildApiUrl(video.thumbnailUrl) : undefined;
 
   if (video.asset) {
     return (
       <VideoPlayer
         contentType={video.asset.contentType}
+        monetization={video.monetization}
         ownerAddress={video.ownerAddress}
+        policyPackageId={video.policyPackageId}
         policyNonce={video.asset.nonce ?? video.policyNonce}
         policyObjectId={video.policyObjectId}
         posterUrl={posterUrl}
+        refreshToken={refreshToken}
         storageMode={video.asset.storageMode}
         videoId={video.id}
       />

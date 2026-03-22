@@ -9,6 +9,9 @@ import { getPolicyPackageId } from "@/lib/anavrin-config";
 import { getSessionKeyForAccount } from "@/lib/seal-session";
 import type { AnavrinClient } from "@/lib/anavrin-client";
 import { buildApiUrl } from "@/lib/site-url";
+import { findOwnedVideoEntitlement } from "@/lib/video-entitlements";
+import { isPaidVideoMonetization } from "@/lib/video-monetization";
+import type { VideoMonetization } from "@/lib/types";
 import { buildSealApprovalTransaction } from "@/lib/video-policy";
 
 type VideoPlayerProps = {
@@ -16,9 +19,12 @@ type VideoPlayerProps = {
   storageMode: "local" | "walrus";
   contentType: string;
   ownerAddress: string;
+  policyPackageId?: string;
   policyObjectId?: string;
   policyNonce?: string;
   posterUrl?: string;
+  monetization: VideoMonetization;
+  refreshToken?: number;
 };
 
 function toArrayBuffer(bytes: Uint8Array<ArrayBufferLike>) {
@@ -39,9 +45,12 @@ export function VideoPlayer({
   storageMode,
   contentType,
   ownerAddress,
+  policyPackageId,
   policyObjectId,
   policyNonce,
   posterUrl,
+  monetization,
+  refreshToken = 0,
 }: VideoPlayerProps) {
   const dAppKit = useDAppKit();
   const account = useCurrentAccount();
@@ -80,27 +89,38 @@ export function VideoPlayer({
         return;
       }
 
-      const packageId = getPolicyPackageId();
+      const packageId = policyPackageId || getPolicyPackageId();
       if (!packageId) {
         setError("Set NEXT_PUBLIC_SEAL_POLICY_PACKAGE_ID to enable decryption.");
         return;
       }
 
       try {
-        setStatus("Loading encrypted bytes from Walrus...");
-        const response = await fetch(buildApiUrl(`/api/videos/${videoId}/stream`), {
-          cache: "no-store",
-          headers: account?.address
-            ? {
-                "x-anavrin-actor-address": account.address.toLowerCase(),
-              }
-            : undefined,
-        });
-        if (!response.ok) {
-          throw new Error("Could not load the encrypted video bundle.");
+        const normalizedOwner = ownerAddress.trim().toLowerCase();
+        const normalizedViewer = account.address.trim().toLowerCase();
+        const isOwner = normalizedOwner === normalizedViewer;
+        const isPaidRelease = isPaidVideoMonetization(monetization);
+        let proof: Parameters<typeof buildSealApprovalTransaction>[0]["proof"] = {
+          kind: "owner_or_public",
+        };
+
+        if (isPaidRelease && !isOwner) {
+          setStatus("Checking your playback entitlement...");
+          const entitlement = await findOwnedVideoEntitlement({
+            client: currentClient,
+            ownerAddress: account.address,
+            packageId,
+            policyObjectId,
+          });
+          if (!entitlement) {
+            setError("Purchase or rent this release to decrypt playback.");
+            setStatus(null);
+            return;
+          }
+
+          proof = entitlement.proof;
         }
 
-        const encryptedBytes = new Uint8Array(await response.arrayBuffer());
         setStatus("Creating a Seal session...");
         const sessionKey = await getSessionKeyForAccount({
           dAppKit,
@@ -115,12 +135,27 @@ export function VideoPlayer({
           policyObjectId,
           ownerAddress,
           nonce: fromHex(policyNonce),
+          proof,
         });
         const txBytes = await approvalTx.build({
           client: currentClient,
           onlyTransactionKind: true,
         });
 
+        setStatus("Loading encrypted bytes from Walrus...");
+        const response = await fetch(buildApiUrl(`/api/videos/${videoId}/stream`), {
+          cache: "no-store",
+          headers: account?.address
+            ? {
+                "x-anavrin-actor-address": account.address.toLowerCase(),
+              }
+            : undefined,
+        });
+        if (!response.ok) {
+          throw new Error("Could not load the encrypted video bundle.");
+        }
+
+        const encryptedBytes = new Uint8Array(await response.arrayBuffer());
         setStatus("Decrypting playback...");
         const decryptedBytes = await currentClient.seal.decrypt({
           data: encryptedBytes,
@@ -158,8 +193,11 @@ export function VideoPlayer({
     dAppKit,
     network,
     ownerAddress,
+    policyPackageId,
     policyNonce,
     policyObjectId,
+    monetization,
+    refreshToken,
     storageMode,
     videoId,
   ]);

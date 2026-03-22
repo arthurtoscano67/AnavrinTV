@@ -43,6 +43,7 @@ export interface BlobItem {
   replayCount?: number;
   skipSpeed?: number;
   storageMode?: "local" | "walrus";
+  policyPackageId?: string;
   policyObjectId?: string;
   policyNonce?: string;
   contentType?: string;
@@ -208,6 +209,7 @@ export function mapVideoToBlobItem(
     replayCount: Math.max(0, Math.round((Number(video.views) || 0) / 250000)),
     skipSpeed: durationSeconds <= 15 ? 0.96 : 1.04,
     storageMode: video.asset?.storageMode ?? "local",
+    policyPackageId: video.policyPackageId,
     policyObjectId: video.policyObjectId,
     policyNonce: video.asset?.nonce ?? video.policyNonce,
     contentType: video.asset?.contentType || "video/mp4",

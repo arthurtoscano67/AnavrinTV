@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CreatorLink } from "@/components/creator-link";
 import { formatCompact, formatRelativeTime } from "@/lib/format";
 import { buildApiUrl } from "@/lib/site-url";
+import { formatMistAsSui, isPaidVideoMonetization } from "@/lib/video-monetization";
 import type { VideoRecord } from "@/lib/types";
 
 type DiscoveryVideoCardProps = {
@@ -49,6 +50,7 @@ export function VideoCard({ video }: DiscoveryVideoCardProps) {
   const watchHref = `/video/${video.id}`;
   const creatorName = video.creatorDisplayName || video.ownerName;
   const publishedAt = video.publishedAt ?? video.createdAt;
+  const isPaidRelease = isPaidVideoMonetization(video.monetization);
 
   return (
     <article className="group video-card cursor-pointer">
@@ -68,6 +70,21 @@ export function VideoCard({ video }: DiscoveryVideoCardProps) {
             <span className="absolute left-2 top-2 rounded-full border border-amber-300/30 bg-amber-300/18 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-amber-100 backdrop-blur-sm">
               Trending
             </span>
+          ) : null}
+
+          {isPaidRelease ? (
+            <div className="absolute left-2 top-11 flex flex-wrap gap-1.5">
+              {video.monetization.purchasePriceMist > 0 ? (
+                <span className="rounded-full border border-cyan-300/25 bg-cyan-300/16 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.15em] text-cyan-100 backdrop-blur-sm">
+                  Buy {formatMistAsSui(video.monetization.purchasePriceMist)} SUI
+                </span>
+              ) : null}
+              {video.monetization.rentalPriceMist > 0 ? (
+                <span className="rounded-full border border-white/12 bg-black/45 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.15em] text-white backdrop-blur-sm">
+                  Rent {formatMistAsSui(video.monetization.rentalPriceMist)} SUI
+                </span>
+              ) : null}
+            </div>
           ) : null}
 
           <span className="absolute bottom-2 right-2 rounded-md border border-black/20 bg-black/70 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur-sm">

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CreatorLink } from "@/components/creator-link";
 import { formatCompact, formatRelativeTime } from "@/lib/format";
 import { buildApiUrl } from "@/lib/site-url";
+import { formatMistAsSui, isPaidVideoMonetization } from "@/lib/video-monetization";
 import type { VideoRecord } from "@/lib/types";
 
 type RecommendedVideoCardProps = {
@@ -16,6 +17,7 @@ export function RecommendedVideoCard({ video, active = false }: RecommendedVideo
   const creatorUsername = video.creatorUsername;
   const creatorLabel = creatorUsername ? `${creatorName} · @${creatorUsername}` : creatorName;
   const posterUrl = video.thumbnailUrl?.trim() ? buildApiUrl(video.thumbnailUrl) : undefined;
+  const isPaidRelease = isPaidVideoMonetization(video.monetization);
 
   return (
     <article
@@ -42,6 +44,20 @@ export function RecommendedVideoCard({ video, active = false }: RecommendedVideo
                 loading="lazy"
                 src={posterUrl}
               />
+            ) : null}
+            {isPaidRelease ? (
+              <div className="absolute left-1.5 top-1.5 flex flex-wrap gap-1">
+                {video.monetization.purchasePriceMist > 0 ? (
+                  <span className="rounded bg-cyan-300/85 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-slate-950">
+                    Buy {formatMistAsSui(video.monetization.purchasePriceMist)} SUI
+                  </span>
+                ) : null}
+                {video.monetization.rentalPriceMist > 0 ? (
+                  <span className="rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white">
+                    Rent {formatMistAsSui(video.monetization.rentalPriceMist)} SUI
+                  </span>
+                ) : null}
+              </div>
             ) : null}
             <span className="absolute bottom-1.5 right-1.5 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-semibold text-white">
               {video.duration}

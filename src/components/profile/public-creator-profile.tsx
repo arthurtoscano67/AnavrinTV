@@ -12,6 +12,7 @@ type PublicCreatorProfileProps = {
   isOwner: boolean;
   isFollowing: boolean;
   onEditProfile: () => void;
+  onMessage: () => void;
   onToggleFollow: () => void;
 };
 
@@ -22,6 +23,7 @@ export function PublicCreatorProfile({
   isOwner,
   isFollowing,
   onEditProfile,
+  onMessage,
   onToggleFollow,
 }: PublicCreatorProfileProps) {
   const tabItems =
@@ -48,6 +50,7 @@ export function PublicCreatorProfile({
         isFollowing={isFollowing}
         isOwner={isOwner}
         onEditProfile={onEditProfile}
+        onMessage={onMessage}
         onToggleFollow={onToggleFollow}
         verified={data.verified}
         walletBadge={data.walletBadge}

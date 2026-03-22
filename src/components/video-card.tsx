@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CreatorLink } from "@/components/creator-link";
 import { formatCompact, formatRelativeTime } from "@/lib/format";
 import { buildApiUrl } from "@/lib/site-url";
+import { formatMistAsSui, isPaidVideoMonetization } from "@/lib/video-monetization";
 import type { VideoRecord } from "@/lib/types";
 
 function getInitials(name: string) {
@@ -31,6 +32,7 @@ export function VideoCard({
   const creatorUsername = video.creatorUsername;
   const watchHref = `/video/${video.id}`;
   const posterUrl = video.thumbnailUrl?.trim() ? buildApiUrl(video.thumbnailUrl) : undefined;
+  const isPaidRelease = isPaidVideoMonetization(video.monetization);
 
   return (
     <article className="group overflow-hidden rounded-2xl border border-white/12 bg-[#0c162c]/88 shadow-[0_10px_26px_rgba(2,6,23,0.3)] transition duration-200 hover:-translate-y-0.5 hover:border-cyan-200/35 hover:shadow-[0_14px_32px_rgba(14,116,144,0.24)]">
@@ -51,6 +53,20 @@ export function VideoCard({
             />
           ) : null}
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,9,18,0.08),rgba(5,9,18,0.76))]" />
+          {isPaidRelease ? (
+            <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+              {video.monetization.purchasePriceMist > 0 ? (
+                <span className="rounded-full border border-cyan-300/25 bg-cyan-300/16 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-cyan-100 backdrop-blur-sm">
+                  Buy {formatMistAsSui(video.monetization.purchasePriceMist)} SUI
+                </span>
+              ) : null}
+              {video.monetization.rentalPriceMist > 0 ? (
+                <span className="rounded-full border border-white/12 bg-black/45 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-white backdrop-blur-sm">
+                  Rent {formatMistAsSui(video.monetization.rentalPriceMist)} SUI
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           <div className="absolute bottom-3 right-3 rounded-md bg-black/80 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur">
             {video.duration}
           </div>

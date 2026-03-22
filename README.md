@@ -62,7 +62,7 @@ Enoki is optional. Leave the Enoki values empty if you only want Sui Wallet and 
 ## Production behavior
 
 - Uploads sign one Sui transaction for policy creation and treasury fee routing.
-- The encrypted bundle is uploaded server-side to Walrus with the configured upload key.
+- The browser uploads the encrypted bundle to Walrus, and the API finalizes certification and the playback record.
 - Playback uses Seal session keys and the Seal approval transaction bytes to decrypt client-side.
 - Tips, publish, unpublish, and renew actions are Sui transactions.
 
@@ -90,9 +90,14 @@ GitHub Pages serves static files only and does not run Next.js API routes. Uploa
 
 If you host the frontend on Pages:
 
-1. Deploy this app backend (`next start`) on a Node host (for example: Vercel, Fly.io, Render, Railway).
+1. Deploy this app backend on a Node host (for example: Vercel, Fly.io, Render, Railway).
 2. Set `NEXT_PUBLIC_API_ORIGIN` in the frontend build to that backend origin (for example `https://api.onreel.xyz`).
 3. Keep `NEXT_PUBLIC_ENABLE_SEAL_PROXY=false` unless your Seal key servers require proxying.
+
+Railway note:
+
+- This repo builds with `output: "standalone"`, so the production server must run `.next/standalone/server.js`.
+- `npm start` in this repo now does that automatically after a build, and falls back to `next start` when the standalone bundle is absent.
 
 Railway production example:
 

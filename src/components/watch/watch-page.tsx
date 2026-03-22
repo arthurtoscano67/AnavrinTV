@@ -1,7 +1,12 @@
+"use client";
+
+import { useState } from "react";
+
 import { CommentsSection, type WatchComment } from "@/components/watch/comments-section";
 import { CreatorRow } from "@/components/watch/creator-row";
 import { MainVideoPlayer } from "@/components/watch/main-video-player";
 import { RecommendedVideoList } from "@/components/watch/recommended-video-list";
+import { VideoAccessPanel } from "@/components/watch/video-access-panel";
 import { VideoDescriptionPanel } from "@/components/watch/video-description-panel";
 import { VideoTitleSection } from "@/components/watch/video-title-section";
 import { VideoActions } from "@/components/video-actions";
@@ -55,13 +60,15 @@ function buildSampleComments(video: VideoRecord): WatchComment[] {
 
 export function WatchPage({ video, recommendations }: WatchPageProps) {
   const comments = buildSampleComments(video);
+  const [entitlementRefreshKey, setEntitlementRefreshKey] = useState(0);
 
   return (
     <div className="mx-auto w-full max-w-[1720px]">
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px] 2xl:grid-cols-[minmax(0,1fr)_430px]">
         <section className="min-w-0 space-y-3">
-          <MainVideoPlayer video={video} />
+          <MainVideoPlayer refreshToken={entitlementRefreshKey} video={video} />
           <VideoTitleSection video={video} />
+          <VideoAccessPanel onUnlocked={() => setEntitlementRefreshKey((value) => value + 1)} video={video} />
           <CreatorRow video={video} />
           <VideoActions video={video} />
           <VideoDescriptionPanel

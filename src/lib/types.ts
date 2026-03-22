@@ -4,6 +4,8 @@ export type VideoVisibility = "public" | "private" | "draft";
 
 export type VideoStatus = "published" | "processing" | "draft" | "hidden";
 
+export type VideoAccessModel = "open" | "purchase" | "rental" | "purchase_or_rental";
+
 export type ReportSeverity = "low" | "medium" | "high";
 
 export type ReportStatus = "open" | "resolved";
@@ -96,6 +98,13 @@ export interface VideoAsset {
   blobAttributes?: Record<string, string | null>;
 }
 
+export interface VideoMonetization {
+  accessModel: VideoAccessModel;
+  purchasePriceMist: number;
+  rentalPriceMist: number;
+  rentalDurationDays: number;
+}
+
 export interface VideoRecord {
   id: string;
   slug: string;
@@ -119,6 +128,7 @@ export interface VideoRecord {
   createdAt: string;
   updatedAt: string;
   publishedAt?: string;
+  policyPackageId?: string;
   policyObjectId?: string;
   capObjectId?: string;
   policyStatus?: "draft" | "published" | "hidden";
@@ -126,6 +136,7 @@ export interface VideoRecord {
   policyNonce?: string;
   uploadTxDigest?: string;
   storageExpiresAt?: string;
+  monetization: VideoMonetization;
   views: number;
   comments: number;
   likes: number;

@@ -19,6 +19,7 @@ import {
 } from "@/lib/platform-settings";
 import { openBuffer, sealBuffer } from "@/lib/seal";
 import { isAdminAddress } from "@/lib/anavrin-config";
+import { isPaidVideoMonetization, isPublishedWatchRelease, normalizeVideoMonetization } from "@/lib/video-monetization";
 import type {
   Database,
   BlobCommentRecord,
@@ -256,6 +257,7 @@ function normalizeVideoRecord(video: Partial<VideoRecord> & Pick<VideoRecord, "i
     createdAt,
     updatedAt: video.updatedAt || createdAt,
     publishedAt: video.publishedAt,
+    policyPackageId: video.policyPackageId,
     policyObjectId: video.policyObjectId,
     capObjectId: video.capObjectId,
     policyStatus: video.policyStatus,
@@ -263,6 +265,7 @@ function normalizeVideoRecord(video: Partial<VideoRecord> & Pick<VideoRecord, "i
     policyNonce: video.policyNonce,
     uploadTxDigest: video.uploadTxDigest,
     storageExpiresAt: video.storageExpiresAt || asset?.storageExpiresAt,
+    monetization: normalizeVideoMonetization(video.monetization),
     views: Number(video.views) || 0,
     comments: Number(video.comments) || 0,
     likes: Number(video.likes) || 0,
@@ -863,7 +866,7 @@ export async function getVideos(options?: {
       if (options?.ownerAddress && normalizeAddress(video.ownerAddress) !== normalizeAddress(options.ownerAddress)) {
         return false;
       }
-      if (options?.publicOnly && video.visibility !== "public") return false;
+      if (options?.publicOnly && !isPublishedWatchRelease(video)) return false;
       if (options?.publicOnly) {
         const owner = accountByAddress.get(normalizeAddress(video.ownerAddress));
         if (owner && isAccountBanned(owner)) return false;
@@ -1005,7 +1008,7 @@ function resolveWatchLaterVideos(db: Database, userAddress: string) {
     if (!video) continue;
 
     const ownsVideo = normalizeAddress(video.ownerAddress) === normalizedAddress;
-    const visibleToViewer = video.visibility === "public" && video.status !== "hidden";
+    const visibleToViewer = isPublishedWatchRelease(video);
     if (!ownsVideo && !visibleToViewer) continue;
 
     watchLater.push(video);
@@ -1230,6 +1233,7 @@ export async function createUpload(input: {
   treasuryFeeSui: number;
   storageOwnerAddress?: string;
   storageDays?: number;
+  monetization?: VideoRecord["monetization"];
 }) {
   const db = await loadDb();
   assertAccountCanAct(db, input.ownerAddress, "upload videos");
@@ -1280,6 +1284,7 @@ export async function createUpload(input: {
     updatedAt: createdAt,
     publishedAt: input.publishNow ? createdAt : undefined,
     storageExpiresAt: calculateVideoStorageExpiry(createdAt, storageDays),
+    monetization: normalizeVideoMonetization(input.monetization),
     views: 0,
     comments: 0,
     likes: 0,
@@ -1340,6 +1345,7 @@ export async function persistUploadRecord(input: {
   ownerName: string;
   walletMode: WalletMode;
   treasuryFeeSui: number;
+  policyPackageId?: string;
   policyObjectId: string;
   capObjectId: string;
   policyNonce: string;
@@ -1348,6 +1354,7 @@ export async function persistUploadRecord(input: {
   thumbnail?: ThumbnailUploadInput;
   storageOwnerAddress?: string;
   storageDays?: number;
+  monetization?: VideoRecord["monetization"];
 }) {
   const db = await loadDb();
   assertAccountCanAct(db, input.ownerAddress, "publish uploads");
@@ -1414,6 +1421,8 @@ export async function persistUploadRecord(input: {
     updatedAt: createdAt,
     publishedAt: input.publishNow ? createdAt : undefined,
     storageExpiresAt: asset?.storageExpiresAt,
+    policyPackageId: input.policyPackageId,
+    monetization: normalizeVideoMonetization(input.monetization),
     views: 0,
     comments: 0,
     likes: 0,
@@ -1721,8 +1730,12 @@ export async function streamVideo(
   const isOwner = Boolean(normalizedViewerAddress) && normalizeAddress(video.ownerAddress) === normalizedViewerAddress;
   const isAdmin = Boolean(options?.adminAddress && isAdminAddress(options.adminAddress));
   const isPublic = video.visibility === "public" && video.status !== "hidden";
+  const isPaidWalrusRelease =
+    video.status === "published" &&
+    isPaidVideoMonetization(video.monetization) &&
+    video.asset?.storageMode === "walrus";
 
-  if (!isPublic && !isOwner && !isAdmin) {
+  if (!isPublic && !isPaidWalrusRelease && !isOwner && !isAdmin) {
     return null;
   }
 

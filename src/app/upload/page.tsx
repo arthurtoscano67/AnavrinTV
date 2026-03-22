@@ -29,12 +29,13 @@ import {
   getUploadTreasuryAddress,
   resolveUploadRelayConfig,
 } from "@/lib/anavrin-config";
-import { buildApiUrl } from "@/lib/site-url";
+import { buildApiUrl, getApiOrigin } from "@/lib/site-url";
 import { buildPolicyInitTransaction, buildVideoIdentityHex, generateVideoNonce } from "@/lib/video-policy";
 import type { AnavrinClient } from "@/lib/anavrin-client";
 import { defaultPlatformSettings } from "@/lib/platform-settings";
+import { formatMistAsSui, parseSuiAmountToMist } from "@/lib/video-monetization";
 import { clearWalletBalanceSnapshot, getWalletBalanceSnapshot, type WalletBalanceSnapshot } from "@/lib/wallet-funds";
-import type { PlatformSettings, VideoRecord, WalletMode } from "@/lib/types";
+import type { PlatformSettings, VideoAccessModel, VideoRecord, WalletMode } from "@/lib/types";
 
 const categories = ["Launches", "Music", "Gaming", "DeFi", "Culture", "AI Labs", "Shorts", "Live Events"];
 const visibilities = [
@@ -42,6 +43,16 @@ const visibilities = [
   { value: "private", label: "Private" },
   { value: "draft", label: "Draft" },
 ] as const;
+const accessModels: Array<{ value: VideoAccessModel; label: string; detail: string }> = [
+  { value: "open", label: "Open", detail: "Anyone with the published page can decrypt playback." },
+  { value: "purchase", label: "Purchase only", detail: "Viewers buy a permanent license object." },
+  { value: "rental", label: "Rental only", detail: "Viewers rent a time-limited playback pass." },
+  {
+    value: "purchase_or_rental",
+    label: "Purchase or rental",
+    detail: "Offer both a permanent license and a timed rental pass.",
+  },
+];
 
 const storageDurationOptions = [30, 90, 180, 365, 730] as const;
 const BLOB_MAX_DURATION_SECONDS = 30;
@@ -55,7 +66,7 @@ function inferWalletMode(name?: string | null): WalletMode {
 }
 
 type PendingUpload = {
-  sealedBytes: Uint8Array;
+  encryptedSizeBytes: number;
   originalName: string;
   contentType: string;
   sizeBytes: number;
@@ -73,17 +84,22 @@ type PendingUpload = {
   walletMode: WalletMode;
   treasuryFeeSui: number;
   storageDays: number;
+  policyPackageId: string;
+  purchasePriceMist: string;
+  rentalPriceMist: string;
+  rentalDurationDays: number;
   uploadTxDigest: string;
   publishAsBlob: boolean;
+  walrus: {
+    blobId: string;
+    blobObjectId: string;
+    certificate: string;
+  };
 };
 
 type WalrusReadyClient = AnavrinClient & {
   walrus: NonNullable<AnavrinClient["walrus"]>;
 };
-
-function toArrayBuffer(bytes: Uint8Array<ArrayBufferLike>) {
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-}
 
 function formatSuiAmount(mist: bigint | number, digits = 3) {
   return (Number(mist) / 1_000_000_000).toFixed(digits);
@@ -119,6 +135,24 @@ async function readApiError(response: Response, fallback: string) {
   }
 
   return fallback;
+}
+
+function describeUploadFailure(error: unknown, fallback: string) {
+  if (!(error instanceof Error)) return fallback;
+
+  const message = error.message?.trim();
+  if (!message) return fallback;
+
+  if (message === "Failed to fetch") {
+    const apiOrigin = getApiOrigin();
+    if (apiOrigin) {
+      return `Could not reach the upload API at ${apiOrigin}. The static frontend and Railway backend are likely out of sync or the backend deployment is unavailable.`;
+    }
+
+    return "Could not reach the upload API. This static frontend needs NEXT_PUBLIC_API_ORIGIN set to a live backend.";
+  }
+
+  return message;
 }
 
 async function extractVideoDurationSeconds(file: File) {
@@ -191,6 +225,10 @@ export default function UploadPage() {
   const [visibility, setVisibility] = useState<(typeof visibilities)[number]["value"]>("draft");
   const [publishNow, setPublishNow] = useState(false);
   const [publishAsBlob, setPublishAsBlob] = useState(false);
+  const [accessModel, setAccessModel] = useState<VideoAccessModel>("open");
+  const [purchasePrice, setPurchasePrice] = useState("");
+  const [rentalPrice, setRentalPrice] = useState("");
+  const [rentalDurationDays, setRentalDurationDays] = useState(3);
   const [storageDays, setStorageDays] = useState(30);
   const [file, setFile] = useState<File | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
@@ -303,6 +341,9 @@ export default function UploadPage() {
       setCategory("Shorts");
       setVisibility("public");
       setPublishNow(true);
+      setAccessModel("open");
+      setPurchasePrice("");
+      setRentalPrice("");
     }
     blobModeSeededRef.current = true;
   }, [isBlobComposerRoute]);
@@ -312,7 +353,25 @@ export default function UploadPage() {
     setCategory("Shorts");
     setVisibility("public");
     setPublishNow(true);
+    setAccessModel("open");
   }, [publishAsBlob]);
+
+  useEffect(() => {
+    if (accessModel === "open") {
+      setPurchasePrice("");
+      setRentalPrice("");
+      return;
+    }
+
+    if (accessModel === "purchase") {
+      setRentalPrice("");
+      return;
+    }
+
+    if (accessModel === "rental") {
+      setPurchasePrice("");
+    }
+  }, [accessModel]);
 
   useEffect(() => {
     const preview = recorderVideoRef.current;
@@ -590,12 +649,6 @@ export default function UploadPage() {
 
   async function submitPendingUpload(pending: PendingUpload) {
     const formData = new FormData();
-    formData.append(
-      "sealedVideo",
-      new File([toArrayBuffer(pending.sealedBytes)], `${pending.originalName}.sealed`, {
-        type: "application/octet-stream",
-      }),
-    );
     formData.append("title", pending.title);
     formData.append("description", pending.description);
     formData.append("tags", pending.tags);
@@ -607,14 +660,21 @@ export default function UploadPage() {
     formData.append("ownerName", pending.ownerName);
     formData.append("walletMode", pending.walletMode);
     formData.append("treasuryFeeSui", String(pending.treasuryFeeSui));
+    formData.append("policyPackageId", pending.policyPackageId);
     formData.append("policyNonce", pending.policyNonce);
+    formData.append("purchasePriceMist", pending.purchasePriceMist);
+    formData.append("rentalPriceMist", pending.rentalPriceMist);
+    formData.append("rentalDurationDays", String(pending.rentalDurationDays));
     formData.append("uploadTxDigest", pending.uploadTxDigest);
     formData.append("storageDays", String(pending.storageDays));
     formData.append("originalName", pending.originalName);
     formData.append("contentType", pending.contentType);
     formData.append("sizeBytes", String(pending.sizeBytes));
     formData.append("durationSeconds", String(pending.durationSeconds));
-    formData.append("encryptedSizeBytes", String(pending.sealedBytes.length));
+    formData.append("encryptedSizeBytes", String(pending.encryptedSizeBytes));
+    formData.append("walrusBlobId", pending.walrus.blobId);
+    formData.append("walrusBlobObjectId", pending.walrus.blobObjectId);
+    formData.append("walrusCertificate", pending.walrus.certificate);
     if (pending.thumbnailFile) {
       formData.append("thumbnail", pending.thumbnailFile, pending.thumbnailFile.name || "thumbnail");
     }
@@ -658,6 +718,10 @@ export default function UploadPage() {
     setVisibility("draft");
     setPublishNow(false);
     setPublishAsBlob(false);
+    setAccessModel("open");
+    setPurchasePrice("");
+    setRentalPrice("");
+    setRentalDurationDays(3);
     setStorageDays(30);
     setFile(null);
     setThumbnailFile(null);
@@ -731,6 +795,46 @@ export default function UploadPage() {
     const resolvedVisibility = publishAsBlob ? "public" : visibility;
     const resolvedPublishNow = publishAsBlob ? true : publishNow;
     const resolvedCategory = publishAsBlob ? "Shorts" : category;
+    const resolvedAccessModel = publishAsBlob ? "open" : accessModel;
+    const purchasePriceMist =
+      resolvedAccessModel === "purchase" || resolvedAccessModel === "purchase_or_rental"
+        ? parseSuiAmountToMist(purchasePrice)
+        : BigInt(0);
+    const rentalPriceMist =
+      resolvedAccessModel === "rental" || resolvedAccessModel === "purchase_or_rental"
+        ? parseSuiAmountToMist(rentalPrice)
+        : BigInt(0);
+    const rentalDurationDaysClamped =
+      resolvedAccessModel === "rental" || resolvedAccessModel === "purchase_or_rental"
+        ? Math.max(1, Math.min(30, Math.floor(rentalDurationDays)))
+        : 0;
+
+    if (purchasePriceMist == null) {
+      setStatus("Enter a valid SUI amount for the purchase price.");
+      return;
+    }
+
+    if (rentalPriceMist == null) {
+      setStatus("Enter a valid SUI amount for the rental price.");
+      return;
+    }
+
+    if (
+      (resolvedAccessModel === "purchase" || resolvedAccessModel === "purchase_or_rental") &&
+      purchasePriceMist <= BigInt(0)
+    ) {
+      setStatus("Purchase-enabled releases need a purchase price above 0 SUI.");
+      return;
+    }
+
+    if (
+      (resolvedAccessModel === "rental" || resolvedAccessModel === "purchase_or_rental") &&
+      rentalPriceMist <= BigInt(0)
+    ) {
+      setStatus("Rental-enabled releases need a rental price above 0 SUI.");
+      return;
+    }
+
     setSubmitting(true);
     setStatus("Encrypting the video with Seal...");
 
@@ -800,6 +904,9 @@ export default function UploadPage() {
         title: title.trim(),
         slug: slugifyText(title),
         ttlDays: storageDaysClamped,
+        purchasePriceMist,
+        rentalPriceMist,
+        rentalDurationDays: rentalDurationDaysClamped,
       });
       tx.setSender(account.address);
       tx.setGasBudget(gasBudgetMist);
@@ -825,6 +932,10 @@ export default function UploadPage() {
           title: title.trim(),
           category: resolvedCategory,
           visibility: resolvedVisibility,
+          accessModel: resolvedAccessModel,
+          purchasePriceMist: purchasePriceMist > BigInt(0) ? purchasePriceMist.toString() : "",
+          rentalPriceMist: rentalPriceMist > BigInt(0) ? rentalPriceMist.toString() : "",
+          rentalDurationDays: rentalDurationDaysClamped ? String(rentalDurationDaysClamped) : "",
           creatorAddress: account.address,
           storageOwnerAddress: account.address,
           policyNonce: toHex(nonce),
@@ -838,8 +949,36 @@ export default function UploadPage() {
         throw new Error(signedTx.FailedTransaction.status.error?.message ?? "Upload transaction failed.");
       }
 
+      setStatus("Waiting for the Walrus registration objects...");
+      const finalizedTx = await walrusClient.core.waitForTransaction({
+        digest: signedTx.Transaction.digest,
+        include: { objectTypes: true },
+      });
+      if (finalizedTx.$kind === "FailedTransaction") {
+        throw new Error(finalizedTx.FailedTransaction.status.error?.message ?? "Upload transaction failed.");
+      }
+
+      const blobType = await walrusClient.walrus.getBlobType();
+      const blobObjectId = Object.entries(finalizedTx.Transaction.objectTypes ?? {}).find(
+        ([, type]) => type === blobType,
+      )?.[0];
+      if (!blobObjectId) {
+        throw new Error("Could not resolve the Walrus blob object from the upload transaction.");
+      }
+
+      setStatus("Uploading the encrypted bundle to the Walrus relay...");
+      const relayResult = await walrusClient.walrus.writeBlobToUploadRelay({
+        blobId: blobMetadata.blobId,
+        blob: encryptedObject,
+        nonce,
+        txDigest: signedTx.Transaction.digest,
+        blobObjectId,
+        deletable: false,
+        encodingType: blobMetadata.metadata.encodingType,
+      });
+
       const pendingUpload: PendingUpload = {
-        sealedBytes: encryptedObject,
+        encryptedSizeBytes: encryptedObject.length,
         originalName: file.name,
         contentType: file.type || "application/octet-stream",
         sizeBytes: file.size,
@@ -856,16 +995,25 @@ export default function UploadPage() {
         walletMode: inferWalletMode(wallet?.name),
         treasuryFeeSui: platform.fees.uploadFeeMist / 1_000_000_000,
         storageDays: storageDaysClamped,
+        policyPackageId: packageId,
+        purchasePriceMist: purchasePriceMist.toString(),
+        rentalPriceMist: rentalPriceMist.toString(),
+        rentalDurationDays: rentalDurationDaysClamped,
         durationSeconds: resolvedDurationSeconds,
         uploadTxDigest: signedTx.Transaction.digest,
         publishAsBlob,
+        walrus: {
+          blobId: blobMetadata.blobId,
+          blobObjectId,
+          certificate: JSON.stringify(relayResult.certificate),
+        },
       };
 
       pendingUploadRef.current = pendingUpload;
-      setStatus("Uploading the encrypted bundle to Walrus...");
+      setStatus("Finalizing the Walrus upload...");
       await submitPendingUpload(pendingUpload);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Upload failed";
+      const message = describeUploadFailure(error, "Upload failed");
       setStatus(message);
     } finally {
       setSubmitting(false);
@@ -884,7 +1032,7 @@ export default function UploadPage() {
     try {
       await submitPendingUpload(pendingUploadRef.current);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Retry failed";
+      const message = describeUploadFailure(error, "Retry failed");
       setStatus(message);
     } finally {
       setSubmitting(false);
@@ -899,6 +1047,8 @@ export default function UploadPage() {
         { label: "Duration", value: durationSeconds ? formatDuration(durationSeconds) : "Unknown" },
       ]
     : [];
+  const supportsPurchase = accessModel === "purchase" || accessModel === "purchase_or_rental";
+  const supportsRental = accessModel === "rental" || accessModel === "purchase_or_rental";
 
   return (
     <div className="space-y-6">
@@ -1045,6 +1195,9 @@ export default function UploadPage() {
                       setPublishAsBlob(checked);
                       if (checked) {
                         setCategory("Shorts");
+                        setAccessModel("open");
+                        setPurchasePrice("");
+                        setRentalPrice("");
                       }
                     }}
                     type="checkbox"
@@ -1064,6 +1217,109 @@ export default function UploadPage() {
                   <p className="mt-2 text-xs leading-6 text-cyan-100">
                     Blob V1 limit: videos must be 30 seconds or shorter.
                   </p>
+                ) : null}
+              </div>
+            </label>
+
+            <label className="block md:col-span-2">
+              <span className="text-sm font-medium text-slate-200">Release access</span>
+              <div className="mt-2 rounded-[24px] border border-white/10 bg-black/20 p-4">
+                <select
+                  className="select"
+                  disabled={publishAsBlob}
+                  onChange={(event) => setAccessModel(event.target.value as VideoAccessModel)}
+                  value={accessModel}
+                >
+                  {accessModels.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-3 text-xs leading-6 text-slate-400">
+                  {publishAsBlob
+                    ? "Blob videos stay open so the swipe feed can play instantly."
+                    : accessModels.find((item) => item.value === accessModel)?.detail}
+                </p>
+                <p className="mt-2 text-xs leading-6 text-slate-500">
+                  Paid releases mint a Sui entitlement object that viewers can keep in wallet now and move into a kiosk
+                  later without re-uploading the encrypted video.
+                </p>
+
+                {!publishAsBlob && accessModel !== "open" ? (
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    {supportsPurchase ? (
+                      <label className="block">
+                        <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                          Purchase price
+                        </span>
+                        <input
+                          className="input mt-2"
+                          inputMode="decimal"
+                          onChange={(event) => setPurchasePrice(event.target.value)}
+                          placeholder="12.5"
+                          value={purchasePrice}
+                        />
+                        <p className="mt-2 text-xs leading-6 text-slate-500">
+                          Permanent license minted to the buyer.
+                        </p>
+                      </label>
+                    ) : (
+                      <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-xs leading-6 text-slate-500">
+                        Purchase is disabled for this release.
+                      </div>
+                    )}
+
+                    {supportsRental ? (
+                      <>
+                        <label className="block">
+                          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                            Rental price
+                          </span>
+                          <input
+                            className="input mt-2"
+                            inputMode="decimal"
+                            onChange={(event) => setRentalPrice(event.target.value)}
+                            placeholder="3.99"
+                            value={rentalPrice}
+                          />
+                          <p className="mt-2 text-xs leading-6 text-slate-500">
+                            Time-limited pass minted to the buyer.
+                          </p>
+                        </label>
+
+                        <label className="block">
+                          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                            Rental term
+                          </span>
+                          <input
+                            className="input mt-2"
+                            inputMode="numeric"
+                            min={1}
+                            max={30}
+                            onChange={(event) => setRentalDurationDays(Number(event.target.value) || 1)}
+                            type="number"
+                            value={rentalDurationDays}
+                          />
+                          <p className="mt-2 text-xs leading-6 text-slate-500">Measured in days on-chain.</p>
+                        </label>
+                      </>
+                    ) : (
+                      <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-xs leading-6 text-slate-500 md:col-span-2">
+                        Rentals are disabled for this release.
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
+                {!publishAsBlob && accessModel !== "open" ? (
+                  <div className="mt-4 rounded-2xl border border-cyan-300/12 bg-cyan-300/10 px-4 py-3 text-sm text-cyan-50">
+                    {supportsPurchase ? `Buy: ${formatMistAsSui(parseSuiAmountToMist(purchasePrice) ?? BigInt(0))} SUI` : "Buy: off"}
+                    {" • "}
+                    {supportsRental
+                      ? `Rent: ${formatMistAsSui(parseSuiAmountToMist(rentalPrice) ?? BigInt(0))} SUI / ${Math.max(1, rentalDurationDays)} day${Math.max(1, rentalDurationDays) === 1 ? "" : "s"}`
+                      : "Rent: off"}
+                  </div>
                 ) : null}
               </div>
             </label>

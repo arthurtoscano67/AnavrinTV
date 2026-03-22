@@ -17,6 +17,7 @@ import {
   UserCog,
 } from "lucide-react";
 
+import { ModalShell } from "@/components/ui/modal-shell";
 import { isAdminAddress } from "@/lib/anavrin-config";
 import { formatBytes, formatCompact, formatDate, shortAddress } from "@/lib/format";
 import { buildApiUrl } from "@/lib/site-url";
@@ -33,6 +34,13 @@ function SeverityBadge({ severity }: { severity: ReportRecord["severity"] }) {
 }
 
 type ModerationTarget = Pick<VideoRecord, "id" | "title">;
+type ConfirmDialogState = {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  tone?: "danger" | "default";
+  onConfirm: () => Promise<boolean | void>;
+};
 
 function adminHeaders(adminAddress: string) {
   return {
@@ -69,6 +77,10 @@ export default function AdminPage() {
   const [pendingAccountAction, setPendingAccountAction] = useState<string | null>(null);
   const [feeDrafts, setFeeDrafts] = useState<Record<string, string>>({});
   const [banDrafts, setBanDrafts] = useState<Record<string, string>>({});
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [managedAccountAddress, setManagedAccountAddress] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
+  const [confirmingDialog, setConfirmingDialog] = useState(false);
   const isAdminWallet = Boolean(account?.address && isAdminAddress(account.address));
 
   useEffect(() => {
@@ -163,19 +175,16 @@ export default function AdminPage() {
 
     if (!response.ok) {
       setMessage("Could not remove visibility from the video.");
-      return;
+      return false;
     }
 
     setMessage(`${video.title} removed from public visibility.`);
     void tryRefreshAdminSnapshot(account.address, setSnapshot);
+    return true;
   }
 
   async function deleteVideoFromPlatform(video: ModerationTarget) {
     if (!account?.address) return;
-
-    if (!window.confirm(`Delete "${video.title}" from the platform? This cannot be undone.`)) {
-      return;
-    }
 
     const response = await fetch(buildApiUrl(`/api/videos/${video.id}`), {
       method: "DELETE",
@@ -184,11 +193,12 @@ export default function AdminPage() {
 
     if (!response.ok) {
       setMessage("Could not delete the video.");
-      return;
+      return false;
     }
 
     setMessage(`${video.title} deleted from the platform.`);
     void tryRefreshAdminSnapshot(account.address, setSnapshot);
+    return true;
   }
 
   async function savePlatformSettings(settings: PlatformSettings) {
@@ -211,8 +221,10 @@ export default function AdminPage() {
 
       setMessage("Platform fees updated.");
       void tryRefreshAdminSnapshot(account.address, setSnapshot);
+      return true;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save settings.");
+      return false;
     } finally {
       setSavingSettings(false);
     }
@@ -255,10 +267,26 @@ export default function AdminPage() {
         throw new Error(payload.error ?? "Could not update account.");
       }
       void tryRefreshAdminSnapshot(account.address, setSnapshot);
+      return true;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not update account.");
+      return false;
     } finally {
       setPendingAccountAction(null);
+    }
+  }
+
+  async function runConfirmDialog() {
+    if (!confirmDialog || confirmingDialog) return;
+
+    setConfirmingDialog(true);
+    try {
+      const succeeded = await confirmDialog.onConfirm();
+      if (succeeded !== false) {
+        setConfirmDialog(null);
+      }
+    } finally {
+      setConfirmingDialog(false);
     }
   }
 
@@ -274,6 +302,11 @@ export default function AdminPage() {
       };
     });
   }
+
+  const managedAccount =
+    managedAccountAddress
+      ? snapshot?.accounts.find((accountRecord) => accountRecord.address === managedAccountAddress) ?? null
+      : null;
 
   if (!account) {
     return (
@@ -452,12 +485,18 @@ export default function AdminPage() {
                     <button
                       className="btn-secondary"
                       onClick={() =>
-                        hideVideoFromPlatform(
-                          snapshot?.videos.find((video) => video.id === report.videoId) ?? {
-                            id: report.videoId,
-                            title: report.videoTitle,
-                          },
-                        )
+                        setConfirmDialog({
+                          title: "Remove visibility",
+                          description: `Hide "${report.videoTitle}" from public surfaces while keeping the record available for admin review.`,
+                          confirmLabel: "Remove visibility",
+                          onConfirm: () =>
+                            hideVideoFromPlatform(
+                              snapshot?.videos.find((video) => video.id === report.videoId) ?? {
+                                id: report.videoId,
+                                title: report.videoTitle,
+                              },
+                            ),
+                        })
                       }
                       type="button"
                     >
@@ -466,12 +505,19 @@ export default function AdminPage() {
                     <button
                       className="btn-danger"
                       onClick={() =>
-                        deleteVideoFromPlatform(
-                          snapshot?.videos.find((video) => video.id === report.videoId) ?? {
-                            id: report.videoId,
-                            title: report.videoTitle,
-                          },
-                        )
+                        setConfirmDialog({
+                          title: "Delete video",
+                          description: `Delete "${report.videoTitle}" from the platform. This cannot be undone.`,
+                          confirmLabel: "Delete video",
+                          tone: "danger",
+                          onConfirm: () =>
+                            deleteVideoFromPlatform(
+                              snapshot?.videos.find((video) => video.id === report.videoId) ?? {
+                                id: report.videoId,
+                                title: report.videoTitle,
+                              },
+                            ),
+                        })
                       }
                       type="button"
                     >
@@ -518,10 +564,33 @@ export default function AdminPage() {
                     <Link href={`/video/${video.id}`} className="btn-secondary">
                       Open
                     </Link>
-                    <button className="btn-secondary" onClick={() => hideVideoFromPlatform(video)} type="button">
+                    <button
+                      className="btn-secondary"
+                      onClick={() =>
+                        setConfirmDialog({
+                          title: "Remove visibility",
+                          description: `Hide "${video.title}" from public surfaces while keeping the record available for admin review.`,
+                          confirmLabel: "Remove visibility",
+                          onConfirm: () => hideVideoFromPlatform(video),
+                        })
+                      }
+                      type="button"
+                    >
                       Remove visibility
                     </button>
-                    <button className="btn-danger" onClick={() => deleteVideoFromPlatform(video)} type="button">
+                    <button
+                      className="btn-danger"
+                      onClick={() =>
+                        setConfirmDialog({
+                          title: "Delete video",
+                          description: `Delete "${video.title}" from the platform. This cannot be undone.`,
+                          confirmLabel: "Delete video",
+                          tone: "danger",
+                          onConfirm: () => deleteVideoFromPlatform(video),
+                        })
+                      }
+                      type="button"
+                    >
                       Delete video
                     </button>
                   </div>
@@ -547,83 +616,29 @@ export default function AdminPage() {
           </div>
 
           {settingsDraft ? (
-            <form
-              className="mt-6 space-y-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void savePlatformSettings(settingsDraft);
-              }}
-            >
+            <div className="mt-6 space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="grid gap-1.5 text-sm text-slate-300">
-                  Upload fee (mist)
-                  <input
-                    className="input"
-                    min={0}
-                    onChange={(event) => updateFeeDraft("uploadFeeMist", Number(event.target.value))}
-                    type="number"
-                    value={settingsDraft.fees.uploadFeeMist}
-                  />
-                </label>
-                <label className="grid gap-1.5 text-sm text-slate-300">
-                  Min tip (mist)
-                  <input
-                    className="input"
-                    min={0}
-                    onChange={(event) => updateFeeDraft("minimumTipMist", Number(event.target.value))}
-                    type="number"
-                    value={settingsDraft.fees.minimumTipMist}
-                  />
-                </label>
-                <label className="grid gap-1.5 text-sm text-slate-300">
-                  Tip platform fee (bps)
-                  <input
-                    className="input"
-                    max={10000}
-                    min={0}
-                    onChange={(event) => updateFeeDraft("tipPlatformBps", Number(event.target.value))}
-                    type="number"
-                    value={settingsDraft.fees.tipPlatformBps}
-                  />
-                </label>
-                <label className="grid gap-1.5 text-sm text-slate-300">
-                  Video publish fee (mist)
-                  <input
-                    className="input"
-                    min={0}
-                    onChange={(event) => updateFeeDraft("videoPublishFeeMist", Number(event.target.value))}
-                    type="number"
-                    value={settingsDraft.fees.videoPublishFeeMist}
-                  />
-                </label>
-                <label className="grid gap-1.5 text-sm text-slate-300">
-                  Video unpublish fee (mist)
-                  <input
-                    className="input"
-                    min={0}
-                    onChange={(event) => updateFeeDraft("videoUnpublishFeeMist", Number(event.target.value))}
-                    type="number"
-                    value={settingsDraft.fees.videoUnpublishFeeMist}
-                  />
-                </label>
-                <label className="grid gap-1.5 text-sm text-slate-300">
-                  Storage extension fee/day (mist)
-                  <input
-                    className="input"
-                    min={0}
-                    onChange={(event) => updateFeeDraft("storageExtensionFeeMistPerDay", Number(event.target.value))}
-                    type="number"
-                    value={settingsDraft.fees.storageExtensionFeeMistPerDay}
-                  />
-                </label>
+                {[
+                  { label: "Upload fee", value: `${settingsDraft.fees.uploadFeeMist} mist` },
+                  { label: "Min tip", value: `${settingsDraft.fees.minimumTipMist} mist` },
+                  { label: "Tip fee", value: `${settingsDraft.fees.tipPlatformBps} bps` },
+                  { label: "Publish fee", value: `${settingsDraft.fees.videoPublishFeeMist} mist` },
+                  { label: "Unpublish fee", value: `${settingsDraft.fees.videoUnpublishFeeMist} mist` },
+                  { label: "Storage / day", value: `${settingsDraft.fees.storageExtensionFeeMistPerDay} mist` },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-[22px] border border-white/10 bg-black/20 px-4 py-4">
+                    <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">{item.label}</p>
+                    <p className="mt-2 text-sm font-semibold text-white">{item.value}</p>
+                  </div>
+                ))}
               </div>
 
               <div className="flex justify-end">
-                <button className="btn-primary" disabled={savingSettings} type="submit">
-                  {savingSettings ? "Saving..." : "Save fee settings"}
+                <button className="btn-primary" onClick={() => setSettingsModalOpen(true)} type="button">
+                  Edit fee schedule
                 </button>
               </div>
-            </form>
+            </div>
           ) : (
             <div className="mt-6 rounded-[28px] border border-dashed border-white/10 bg-black/20 p-8 text-center text-sm text-slate-300">
               Settings unavailable.
@@ -643,12 +658,6 @@ export default function AdminPage() {
           <div className="mt-6 space-y-3">
             {snapshot?.accounts?.length ? (
               snapshot.accounts.map((accountRecord) => {
-                const actionKeyBan = `${accountRecord.address}:true`;
-                const actionKeyUnban = `${accountRecord.address}:false`;
-                const actionKeyFee = `${accountRecord.address}:fee`;
-                const feeDraft = getFeeDraft(accountRecord);
-                const banReasonDraft = getBanReasonDraft(accountRecord);
-
                 return (
                   <article key={accountRecord.address} className="rounded-[24px] border border-white/10 bg-black/20 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -668,80 +677,27 @@ export default function AdminPage() {
                       </span>
                     </div>
 
-                    <div className="mt-4 grid gap-2">
-                      <label className="text-xs text-slate-400">
-                        Ban reason
-                        <input
-                          className="input mt-1"
-                          onChange={(event) =>
-                            setBanDrafts((current) => ({
-                              ...current,
-                              [accountRecord.address]: event.target.value,
-                            }))
-                          }
-                          placeholder="Policy violation reason"
-                          value={banReasonDraft}
-                        />
-                      </label>
-
-                      <label className="text-xs text-slate-400">
-                        Creator treasury fee (bps)
-                        <div className="mt-1 flex items-center gap-2">
-                          <input
-                            className="input"
-                            max={10000}
-                            min={0}
-                            onChange={(event) =>
-                              setFeeDrafts((current) => ({
-                                ...current,
-                                [accountRecord.address]: event.target.value,
-                              }))
-                            }
-                            type="number"
-                            value={feeDraft}
-                          />
-                          <button
-                            className="btn-secondary"
-                            disabled={pendingAccountAction === actionKeyFee}
-                            onClick={() =>
-                              void updateAccount(accountRecord, {
-                                treasuryFeeBps: Number(feeDraft),
-                              })
-                            }
-                            type="button"
-                          >
-                            {pendingAccountAction === actionKeyFee ? "Saving..." : "Save fee"}
-                          </button>
-                        </div>
-                      </label>
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-[18px] border border-white/10 bg-white/5 px-3 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Creator fee</p>
+                        <p className="mt-2 text-sm font-semibold text-white">{accountRecord.treasuryFeeBps ?? 0} bps</p>
+                      </div>
+                      <div className="rounded-[18px] border border-white/10 bg-white/5 px-3 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Ban reason</p>
+                        <p className="mt-2 line-clamp-2 text-sm text-slate-300">
+                          {accountRecord.bannedReason?.trim() || "No active restriction."}
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {accountRecord.isBanned ? (
-                        <button
-                          className="btn-secondary"
-                          disabled={pendingAccountAction === actionKeyUnban}
-                          onClick={() => void updateAccount(accountRecord, { banned: false, bannedReason: null })}
-                          type="button"
-                        >
-                          {pendingAccountAction === actionKeyUnban ? "Updating..." : "Unban"}
-                        </button>
-                      ) : (
-                        <button
-                          className="btn-danger"
-                          disabled={pendingAccountAction === actionKeyBan}
-                          onClick={() =>
-                            void updateAccount(accountRecord, {
-                              banned: true,
-                              bannedReason: banReasonDraft || "Policy violation",
-                            })
-                          }
-                          type="button"
-                        >
-                          <Ban className="size-4" />
-                          {pendingAccountAction === actionKeyBan ? "Banning..." : "Ban user"}
-                        </button>
-                      )}
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        className="btn-secondary"
+                        onClick={() => setManagedAccountAddress(accountRecord.address)}
+                        type="button"
+                      >
+                        Manage creator
+                      </button>
                     </div>
                   </article>
                 );
@@ -754,6 +710,245 @@ export default function AdminPage() {
           </div>
         </div>
       </section>
+
+      <ModalShell
+        bodyClassName="space-y-4 px-4 py-4 md:px-5"
+        description="Keep the dashboard readable and open the full fee schedule only when you are actively editing it."
+        eyebrow="Fee controls"
+        footer={
+          settingsDraft ? (
+            <div className="flex justify-end">
+              <button
+                className="btn-primary"
+                disabled={savingSettings}
+                onClick={() => {
+                  void (async () => {
+                    const saved = await savePlatformSettings(settingsDraft);
+                    if (saved) {
+                      setSettingsModalOpen(false);
+                    }
+                  })();
+                }}
+                type="button"
+              >
+                {savingSettings ? "Saving..." : "Save fee settings"}
+              </button>
+            </div>
+          ) : null
+        }
+        maxWidthClassName="max-w-2xl"
+        onClose={() => setSettingsModalOpen(false)}
+        open={settingsModalOpen && Boolean(settingsDraft)}
+        title="Edit platform fee schedule"
+      >
+        {settingsDraft ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1.5 text-sm text-slate-300">
+              Upload fee (mist)
+              <input
+                className="input"
+                min={0}
+                onChange={(event) => updateFeeDraft("uploadFeeMist", Number(event.target.value))}
+                type="number"
+                value={settingsDraft.fees.uploadFeeMist}
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm text-slate-300">
+              Min tip (mist)
+              <input
+                className="input"
+                min={0}
+                onChange={(event) => updateFeeDraft("minimumTipMist", Number(event.target.value))}
+                type="number"
+                value={settingsDraft.fees.minimumTipMist}
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm text-slate-300">
+              Tip platform fee (bps)
+              <input
+                className="input"
+                max={10000}
+                min={0}
+                onChange={(event) => updateFeeDraft("tipPlatformBps", Number(event.target.value))}
+                type="number"
+                value={settingsDraft.fees.tipPlatformBps}
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm text-slate-300">
+              Video publish fee (mist)
+              <input
+                className="input"
+                min={0}
+                onChange={(event) => updateFeeDraft("videoPublishFeeMist", Number(event.target.value))}
+                type="number"
+                value={settingsDraft.fees.videoPublishFeeMist}
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm text-slate-300">
+              Video unpublish fee (mist)
+              <input
+                className="input"
+                min={0}
+                onChange={(event) => updateFeeDraft("videoUnpublishFeeMist", Number(event.target.value))}
+                type="number"
+                value={settingsDraft.fees.videoUnpublishFeeMist}
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm text-slate-300">
+              Storage extension fee/day (mist)
+              <input
+                className="input"
+                min={0}
+                onChange={(event) => updateFeeDraft("storageExtensionFeeMistPerDay", Number(event.target.value))}
+                type="number"
+                value={settingsDraft.fees.storageExtensionFeeMistPerDay}
+              />
+            </label>
+          </div>
+        ) : null}
+      </ModalShell>
+
+      <ModalShell
+        bodyClassName="space-y-4 px-4 py-4 md:px-5"
+        description="Creator moderation now lives in one focused popup instead of an always-open grid of inputs."
+        maxWidthClassName="max-w-xl"
+        onClose={() => setManagedAccountAddress(null)}
+        open={Boolean(managedAccount)}
+        title={managedAccount?.displayName ?? "Manage creator"}
+      >
+        {managedAccount ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[22px] border border-white/10 bg-black/20 px-4 py-4">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Wallet</p>
+                <p className="mt-2 text-sm font-semibold text-white">{shortAddress(managedAccount.address, 6)}</p>
+              </div>
+              <div className="rounded-[22px] border border-white/10 bg-black/20 px-4 py-4">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Status</p>
+                <p className="mt-2 text-sm font-semibold text-white">{managedAccount.isBanned ? "Banned" : "Active"}</p>
+              </div>
+            </div>
+
+            <label className="grid gap-1.5 text-sm text-slate-300">
+              Ban reason
+              <input
+                className="input"
+                onChange={(event) =>
+                  setBanDrafts((current) => ({
+                    ...current,
+                    [managedAccount.address]: event.target.value,
+                  }))
+                }
+                placeholder="Policy violation reason"
+                value={getBanReasonDraft(managedAccount)}
+              />
+            </label>
+
+            <label className="grid gap-1.5 text-sm text-slate-300">
+              Creator treasury fee (bps)
+              <input
+                className="input"
+                max={10000}
+                min={0}
+                onChange={(event) =>
+                  setFeeDrafts((current) => ({
+                    ...current,
+                    [managedAccount.address]: event.target.value,
+                  }))
+                }
+                type="number"
+                value={getFeeDraft(managedAccount)}
+              />
+            </label>
+
+            <div className="flex flex-wrap justify-between gap-3">
+              {managedAccount.isBanned ? (
+                <button
+                  className="btn-secondary"
+                  disabled={pendingAccountAction === `${managedAccount.address}:false`}
+                  onClick={() => {
+                    void (async () => {
+                      const updated = await updateAccount(managedAccount, { banned: false, bannedReason: null });
+                      if (updated) {
+                        setManagedAccountAddress(null);
+                      }
+                    })();
+                  }}
+                  type="button"
+                >
+                  {pendingAccountAction === `${managedAccount.address}:false` ? "Updating..." : "Unban"}
+                </button>
+              ) : (
+                <button
+                  className="btn-danger"
+                  disabled={pendingAccountAction === `${managedAccount.address}:true`}
+                  onClick={() => {
+                    void (async () => {
+                      const updated = await updateAccount(managedAccount, {
+                        banned: true,
+                        bannedReason: getBanReasonDraft(managedAccount) || "Policy violation",
+                      });
+                      if (updated) {
+                        setManagedAccountAddress(null);
+                      }
+                    })();
+                  }}
+                  type="button"
+                >
+                  <Ban className="size-4" />
+                  {pendingAccountAction === `${managedAccount.address}:true` ? "Banning..." : "Ban user"}
+                </button>
+              )}
+
+              <button
+                className="btn-primary"
+                disabled={pendingAccountAction === `${managedAccount.address}:fee`}
+                onClick={() => {
+                  void (async () => {
+                    const updated = await updateAccount(managedAccount, {
+                      treasuryFeeBps: Number(getFeeDraft(managedAccount)),
+                    });
+                    if (updated) {
+                      setManagedAccountAddress(null);
+                    }
+                  })();
+                }}
+                type="button"
+              >
+                {pendingAccountAction === `${managedAccount.address}:fee` ? "Saving..." : "Save changes"}
+              </button>
+            </div>
+          </>
+        ) : null}
+      </ModalShell>
+
+      <ModalShell
+        bodyClassName="space-y-4 px-4 py-4 md:px-5"
+        description={confirmDialog?.description}
+        footer={
+          <div className="flex justify-end gap-3">
+            <button className="btn-secondary" onClick={() => setConfirmDialog(null)} type="button">
+              Cancel
+            </button>
+            <button
+              className={confirmDialog?.tone === "danger" ? "btn-danger" : "btn-primary"}
+              disabled={confirmingDialog}
+              onClick={() => void runConfirmDialog()}
+              type="button"
+            >
+              {confirmingDialog ? "Working..." : confirmDialog?.confirmLabel ?? "Confirm"}
+            </button>
+          </div>
+        }
+        maxWidthClassName="max-w-lg"
+        onClose={() => setConfirmDialog(null)}
+        open={Boolean(confirmDialog)}
+        title={confirmDialog?.title ?? "Confirm action"}
+      >
+        <div className="rounded-[22px] border border-white/10 bg-black/20 px-4 py-4 text-sm leading-7 text-slate-300">
+          This action updates platform state immediately.
+        </div>
+      </ModalShell>
 
       {message ? (
         <div className="rounded-[24px] border border-cyan-300/20 bg-cyan-300/10 p-4 text-sm leading-7 text-cyan-50">

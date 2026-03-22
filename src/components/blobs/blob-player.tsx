@@ -209,7 +209,7 @@ export function BlobPlayer({
         return;
       }
 
-      const packageId = getPolicyPackageId();
+      const packageId = blob.policyPackageId || getPolicyPackageId();
       if (!packageId) {
         setError("Set NEXT_PUBLIC_SEAL_POLICY_PACKAGE_ID to enable decryption.");
         return;
@@ -290,6 +290,7 @@ export function BlobPlayer({
     blob.id,
     blob.policyNonce,
     blob.policyObjectId,
+    blob.policyPackageId,
     blob.storageMode,
     blob.videoUrl,
     currentClient,

@@ -13,6 +13,7 @@ type ProfileHeaderProps = {
   isOwner?: boolean;
   isFollowing?: boolean;
   onEditProfile?: () => void;
+  onMessage?: () => void;
   onToggleFollow?: () => void;
 };
 
@@ -31,6 +32,7 @@ export function ProfileHeader({
   isOwner = false,
   isFollowing = false,
   onEditProfile,
+  onMessage,
   onToggleFollow,
 }: ProfileHeaderProps) {
   return (
@@ -99,7 +101,11 @@ export function ProfileHeader({
               </button>
             ) : (
               <>
-                <button className="btn-secondary px-4 py-2.5 text-xs uppercase tracking-[0.2em]" type="button">
+                <button
+                  className="btn-secondary px-4 py-2.5 text-xs uppercase tracking-[0.2em]"
+                  onClick={onMessage}
+                  type="button"
+                >
                   Message
                 </button>
                 <button

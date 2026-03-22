@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/start-production.mjs",
     "lint": "eslint",
     "check:env": "node scripts/check-env.mjs",
     "check:env:strict": "node scripts/check-env.mjs --strict"

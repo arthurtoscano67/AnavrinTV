@@ -1,6 +1,7 @@
 import type { Database, ReportRecord, SiteMetrics, VideoRecord, WalletMode, WalletSession } from "@/lib/types";
 import { defaultPlatformSettings } from "@/lib/platform-settings";
 import { usernameFromDisplayName } from "@/lib/creator-identity";
+import { normalizeVideoMonetization } from "@/lib/video-monetization";
 
 function slugify(value: string) {
   return value
@@ -282,6 +283,7 @@ function makeSeedVideo(
     createdAt,
     updatedAt: publishedAt,
     publishedAt,
+    monetization: normalizeVideoMonetization(),
     views: seed.views,
     comments: seed.comments,
     likes: seed.likes,

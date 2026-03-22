@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fromHex } from "@mysten/sui/utils";
+import type { ProtocolMessageCertificate } from "@mysten/walrus";
 
 import { getPolicyPackageId } from "@/lib/anavrin-config";
 import { calculateVideoStorageExpiry } from "@/lib/platform-settings";
@@ -13,6 +14,7 @@ import {
 import { ensureSameActorAddress, normalizeAddress, readActorAddress, requireAdmin } from "@/lib/request-auth";
 import type { VideoVisibility, WalletMode } from "@/lib/types";
 import { videoPolicyCapType, videoPolicyType } from "@/lib/video-policy";
+import { normalizeVideoMonetization } from "@/lib/video-monetization";
 import {
   certifyWalrusBlob,
   getServerWalrusClient,
@@ -37,6 +39,23 @@ function parseVisibility(value: string | null): VideoVisibility {
 function parseWalletMode(value: string | null): WalletMode {
   if (value === "wallet" || value === "slush" || value === "zklogin" || value === "guest") return value;
   return "guest";
+}
+
+function parseWalrusCertificate(value: string): ProtocolMessageCertificate | string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new Error("Walrus certificate is required.");
+  }
+
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+    return trimmed;
+  }
+
+  try {
+    return JSON.parse(trimmed) as ProtocolMessageCertificate;
+  } catch {
+    throw new Error("Walrus certificate is invalid.");
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -122,11 +141,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  const sealedVideo = formData.get("sealedVideo");
+  const sealedVideoEntry = formData.get("sealedVideo");
+  const sealedVideo = sealedVideoEntry instanceof File ? sealedVideoEntry : null;
   const thumbnail = formData.get("thumbnail");
+  const walrusBlobId = String(formData.get("walrusBlobId") ?? "").trim();
+  const walrusBlobObjectId = String(formData.get("walrusBlobObjectId") ?? "").trim();
+  const walrusCertificateRaw = String(formData.get("walrusCertificate") ?? "").trim();
+  const finalizeFieldCount = [walrusBlobId, walrusBlobObjectId, walrusCertificateRaw].filter(Boolean).length;
 
-  if (!(sealedVideo instanceof File)) {
-    return NextResponse.json({ error: "Upload requires an encrypted video bundle." }, { status: 400 });
+  if (finalizeFieldCount > 0 && finalizeFieldCount < 3) {
+    return NextResponse.json(
+      { error: "Walrus finalize uploads require blob ID, blob object ID, and certificate." },
+      { status: 400 },
+    );
+  }
+
+  if (!sealedVideo && finalizeFieldCount === 0) {
+    return NextResponse.json(
+      { error: "Upload requires either an encrypted video bundle or finalized Walrus metadata." },
+      { status: 400 },
+    );
   }
 
   let thumbnailInput:
@@ -168,7 +202,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "A title is required." }, { status: 400 });
   }
 
-  const ownerAddress = String(formData.get("ownerAddress") ?? "0xguest").trim();
+  const ownerAddress = String(formData.get("ownerAddress") ?? formData.get("creatorAddress") ?? "0xguest").trim();
   if (!ownerAddress) {
     return NextResponse.json({ error: "Wallet address is required." }, { status: 400 });
   }
@@ -176,7 +210,7 @@ export async function POST(request: NextRequest) {
   const actorCheck = ensureSameActorAddress(request, ownerAddress);
   if (!actorCheck.ok) return actorCheck.response;
 
-  const ownerName = String(formData.get("ownerName") ?? "Creator").trim() || "Creator";
+  const ownerName = String(formData.get("ownerName") ?? formData.get("creatorName") ?? "Creator").trim() || "Creator";
   const walletMode = parseWalletMode(String(formData.get("walletMode") ?? null));
   const description = String(formData.get("description") ?? "").trim();
   const tags = String(formData.get("tags") ?? "")
@@ -187,15 +221,22 @@ export async function POST(request: NextRequest) {
   const publishAsBlob = String(formData.get("publishAsBlob") ?? "false") === "true";
   const requestedVisibility = parseVisibility(String(formData.get("visibility") ?? null));
   const requestedPublishNow = String(formData.get("publishNow") ?? "true") !== "false";
-  const uploadTxDigest = String(formData.get("uploadTxDigest") ?? formData.get("registerTxDigest") ?? "").trim();
+  const uploadTxDigest = String(
+    formData.get("uploadTxDigest") ?? formData.get("registerTxDigest") ?? formData.get("signedUploadDigest") ?? "",
+  ).trim();
   const policyNonce = String(formData.get("policyNonce") ?? "").trim();
-  const originalName = String(formData.get("originalName") ?? sealedVideo.name ?? "video.bin");
-  const contentType = String(formData.get("contentType") ?? sealedVideo.type ?? "application/octet-stream");
-  const sizeBytes = Number(formData.get("sizeBytes") ?? sealedVideo.size ?? 0);
+  const originalName = String(formData.get("originalName") ?? sealedVideo?.name ?? "video.bin");
+  const contentType = String(formData.get("contentType") ?? sealedVideo?.type ?? "application/octet-stream");
+  const sizeBytes = Number(formData.get("sizeBytes") ?? sealedVideo?.size ?? 0);
   const durationSecondsRaw = Number(formData.get("durationSeconds") ?? 0);
   const durationSeconds = Number.isFinite(durationSecondsRaw) && durationSecondsRaw > 0 ? durationSecondsRaw : 0;
-  const encryptedSizeBytes = Number(formData.get("encryptedSizeBytes") ?? sealedVideo.size ?? 0);
+  const encryptedSizeBytes = Number(formData.get("encryptedSizeBytes") ?? sealedVideo?.size ?? 0);
   const treasuryFeeSui = Number(formData.get("treasuryFeeSui") ?? 0.25);
+  const monetization = normalizeVideoMonetization({
+    purchasePriceMist: Number(formData.get("purchasePriceMist") ?? 0),
+    rentalPriceMist: Number(formData.get("rentalPriceMist") ?? 0),
+    rentalDurationDays: Number(formData.get("rentalDurationDays") ?? 0),
+  });
   const visibility = publishAsBlob ? "public" : requestedVisibility;
   const publishNow = publishAsBlob ? true : requestedPublishNow;
 
@@ -225,13 +266,7 @@ export async function POST(request: NextRequest) {
       Math.min(platform.fees.maxStorageExtensionDays, Math.floor(Number(formData.get("storageDays") ?? 30))),
     );
     const resolvedCategory = publishAsBlob ? "Shorts" : category;
-    const encryptedBytes = new Uint8Array(await sealedVideo.arrayBuffer());
-    const nonce = fromHex(policyNonce);
     const client = await getServerWalrusClient();
-    const metadata = await client.walrus.computeBlobMetadata({
-      bytes: encryptedBytes,
-      nonce,
-    });
 
     const transactionResult = await client.core.waitForTransaction({
       digest: uploadTxDigest,
@@ -249,14 +284,11 @@ export async function POST(request: NextRequest) {
     }
 
     const blobType = await client.walrus.getBlobType();
-    const blobObjectId = Object.entries(transactionResult.Transaction.objectTypes ?? {}).find(
+    const blobObjectIdFromTransaction = Object.entries(transactionResult.Transaction.objectTypes ?? {}).find(
       ([, type]) => type === blobType,
     )?.[0];
-    if (!blobObjectId) {
-      return NextResponse.json({ error: "Could not resolve the Walrus blob object from the upload transaction." }, { status: 500 });
-    }
 
-    const policyPackageId = getPolicyPackageId();
+    const policyPackageId = String(formData.get("policyPackageId") ?? getPolicyPackageId() ?? "").trim();
     if (!policyPackageId) {
       return NextResponse.json({ error: "Set NEXT_PUBLIC_SEAL_POLICY_PACKAGE_ID before uploading." }, { status: 400 });
     }
@@ -279,21 +311,62 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const relayResult = await uploadEncryptedBlobToWalrusRelay({
-      bytes: encryptedBytes,
-      blobId: metadata.blobId,
-      blobObjectId,
-      nonce,
-      txDigest: uploadTxDigest,
-      storageOwnerAddress: ownerAddress,
-      deletable: false,
-      encodingType: metadata.metadata.encodingType,
-    });
+    let resolvedBlobId = walrusBlobId;
+    let resolvedBlobObjectId = walrusBlobObjectId || blobObjectIdFromTransaction;
+    let certificate: ProtocolMessageCertificate | string;
+
+    if (finalizeFieldCount === 3) {
+      certificate = parseWalrusCertificate(walrusCertificateRaw);
+      if (!resolvedBlobObjectId) {
+        return NextResponse.json(
+          { error: "Could not resolve the Walrus blob object from the upload transaction." },
+          { status: 500 },
+        );
+      }
+    } else {
+      if (!sealedVideo) {
+        return NextResponse.json({ error: "Upload requires an encrypted video bundle." }, { status: 400 });
+      }
+
+      if (!blobObjectIdFromTransaction) {
+        return NextResponse.json(
+          { error: "Could not resolve the Walrus blob object from the upload transaction." },
+          { status: 500 },
+        );
+      }
+
+      const encryptedBytes = new Uint8Array(await sealedVideo.arrayBuffer());
+      const nonce = fromHex(policyNonce);
+      const metadata = await client.walrus.computeBlobMetadata({
+        bytes: encryptedBytes,
+        nonce,
+      });
+
+      resolvedBlobId = metadata.blobId;
+      resolvedBlobObjectId = blobObjectIdFromTransaction;
+
+      const relayResult = await uploadEncryptedBlobToWalrusRelay({
+        bytes: encryptedBytes,
+        blobId: metadata.blobId,
+        blobObjectId: blobObjectIdFromTransaction,
+        nonce,
+        txDigest: uploadTxDigest,
+        storageOwnerAddress: ownerAddress,
+        deletable: false,
+        encodingType: metadata.metadata.encodingType,
+      });
+
+      certificate = relayResult.certificate;
+    }
+
+    if (!resolvedBlobId || !resolvedBlobObjectId) {
+      return NextResponse.json({ error: "Walrus finalize metadata is incomplete." }, { status: 400 });
+    }
 
     const certifyResult = await certifyWalrusBlob({
-      blobId: metadata.blobId,
-      blobObjectId,
-      certificate: relayResult.certificate,
+      blobId: resolvedBlobId,
+      blobObjectId: resolvedBlobObjectId,
+      certificate,
       deletable: false,
     });
 
@@ -310,6 +383,7 @@ export async function POST(request: NextRequest) {
       walletMode,
       treasuryFeeSui: Number.isFinite(treasuryFeeSui) ? treasuryFeeSui : 0.25,
       durationSeconds,
+      policyPackageId,
       policyObjectId,
       capObjectId,
       policyNonce,
@@ -317,6 +391,7 @@ export async function POST(request: NextRequest) {
       thumbnail: thumbnailInput,
       storageOwnerAddress: ownerAddress,
       storageDays,
+      monetization,
       asset: {
         storageMode: "walrus",
         storageOwnerAddress: ownerAddress,
@@ -326,9 +401,9 @@ export async function POST(request: NextRequest) {
         storageRenewalDays: storageDays,
         storageRenewalFeeSui: 0,
         storageMaxExtensionDays: platform.fees.maxStorageExtensionDays,
-        walrusUri: `walrus://${metadata.blobId}`,
-        walrusBlobId: metadata.blobId,
-        walrusBlobObjectId: blobObjectId,
+        walrusUri: `walrus://${resolvedBlobId}`,
+        walrusBlobId: resolvedBlobId,
+        walrusBlobObjectId: resolvedBlobObjectId,
         originalName,
         contentType,
         sizeBytes,
@@ -344,6 +419,10 @@ export async function POST(request: NextRequest) {
           policyObjectId,
           capObjectId,
           policyNonce,
+          accessModel: monetization.accessModel,
+          purchasePriceMist: monetization.purchasePriceMist ? String(monetization.purchasePriceMist) : null,
+          rentalPriceMist: monetization.rentalPriceMist ? String(monetization.rentalPriceMist) : null,
+          rentalDurationDays: monetization.rentalDurationDays ? String(monetization.rentalDurationDays) : null,
           creatorAddress: ownerAddress,
           storageOwnerAddress: ownerAddress,
           surface: publishAsBlob || resolvedCategory === "Shorts" ? "blob" : null,
@@ -357,8 +436,8 @@ export async function POST(request: NextRequest) {
         video: result.video,
         account: result.account,
         walrus: {
-          blobId: metadata.blobId,
-          blobObjectId,
+          blobId: resolvedBlobId,
+          blobObjectId: resolvedBlobObjectId,
           registerTxDigest: uploadTxDigest,
           certifyTxDigest: certifyResult.digest,
         },
