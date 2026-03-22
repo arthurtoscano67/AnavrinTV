@@ -152,6 +152,14 @@ function describeUploadFailure(error: unknown, fallback: string) {
     return "Could not reach the upload API. This static frontend needs NEXT_PUBLIC_API_ORIGIN set to a live backend.";
   }
 
+  if (
+    message === "signal timed out" ||
+    message.includes("timed out") ||
+    error.name === "TimeoutError"
+  ) {
+    return "Walrus relay upload timed out before the encrypted blob finished uploading. The relay timeout has been increased in this rollout; hard refresh and retry.";
+  }
+
   return message;
 }
 
@@ -1515,8 +1523,9 @@ export default function UploadPage() {
                   <p className="section-label">File preview</p>
                   <h3 className="mt-2 text-2xl font-semibold text-white">{file.name}</h3>
                 <p className="mt-2 text-sm leading-7 text-slate-300">
-                    The browser seals this file and the backend finalizes the encrypted Walrus bundle after your
-                    wallet has already registered the storage object.
+                    The browser seals this file and uploads the encrypted bytes to Walrus after your wallet has
+                    already registered the storage object. The backend only certifies the blob and stores the
+                    finalized video record.
                   </p>
                 </div>
                 <LockKeyhole className="size-10 text-cyan-200" />
@@ -1651,7 +1660,8 @@ export default function UploadPage() {
                 },
                 {
                   title: "4. Store on Walrus",
-                  description: "The server sends the encrypted bundle to the relay and certifies the blob after the chain confirms.",
+                  description:
+                    "The browser sends the encrypted bundle to the Walrus relay, and the backend certifies the blob after the chain confirms.",
                 },
               ].map((step) => (
                 <div key={step.title} className="rounded-3xl border border-white/8 bg-black/20 p-4">

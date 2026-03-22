@@ -99,6 +99,12 @@ function readNumber(value: string | undefined | null, fallback: number) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function readTimeoutMs(value: string | undefined | null, fallback: number) {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 1_000 ? Math.floor(parsed) : fallback;
+}
+
 function readJsonConfig(value: string | undefined | null): KeyServerConfig[] | null {
   if (!value) return null;
 
@@ -285,12 +291,17 @@ export function getSealVerifyKeyServers() {
   return value !== "false";
 }
 
+export function getUploadRelayTimeoutMs() {
+  return readTimeoutMs(process.env.NEXT_PUBLIC_WALRUS_UPLOAD_RELAY_TIMEOUT_MS, 600_000);
+}
+
 export function resolveUploadRelayConfig(network = getNetwork()) {
   const host = getUploadRelayHost(network);
   if (!host) return null;
 
   return {
     host,
+    timeout: getUploadRelayTimeoutMs(),
     sendTip: {
       max: 10_000_000_000,
     },
