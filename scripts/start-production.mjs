@@ -8,9 +8,15 @@ const standaloneServer = path.join(process.cwd(), ".next", "standalone", "server
 const nextBin = path.join(process.cwd(), "node_modules", "next", "dist", "bin", "next");
 
 const args = existsSync(standaloneServer) ? [standaloneServer] : [nextBin, "start"];
+const env = {
+  ...process.env,
+  PORT: process.env.PORT || "8080",
+  HOSTNAME: "0.0.0.0",
+};
+
 const child = spawn(process.execPath, args, {
   stdio: "inherit",
-  env: process.env,
+  env,
 });
 
 child.on("exit", (code, signal) => {
