@@ -84,6 +84,18 @@ Before deploying:
 3. Run `npm run check:env:strict`.
 4. Run `npm run build`.
 
+### Static frontend note (GitHub Pages / custom domain on Pages)
+
+GitHub Pages serves static files only and does not run Next.js API routes. Uploads, moderation, and Walrus finalization require the API server.
+
+If you host the frontend on Pages:
+
+1. Deploy this app backend (`next start`) on a Node host (for example: Vercel, Fly.io, Render, Railway).
+2. Set `NEXT_PUBLIC_API_ORIGIN` in the frontend build to that backend origin (for example `https://api.onreel.xyz`).
+3. Keep `NEXT_PUBLIC_ENABLE_SEAL_PROXY=false` unless your Seal key servers require proxying.
+
+Without a live API origin, `/api/videos`, `/api/platform`, and `/api/seal/proxy` will return `404` on Pages and uploads will fail.
+
 If you are moving from testnet to mainnet, update:
 
 - `NEXT_PUBLIC_SUI_NETWORK=mainnet`

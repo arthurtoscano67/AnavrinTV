@@ -4,6 +4,7 @@ import { DAppKitProvider } from "@mysten/dapp-kit-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import type { AnavrinDAppKit } from "@/lib/anavrin-client";
+import { installApiFetchProxy } from "@/lib/api-fetch-proxy";
 import { installSealFetchProxy } from "@/lib/seal-fetch-proxy";
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -13,6 +14,7 @@ export function Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
 
+    installApiFetchProxy();
     installSealFetchProxy();
 
     void import("@/lib/anavrin-client")

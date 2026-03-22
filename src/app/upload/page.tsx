@@ -89,6 +89,24 @@ function normalizeVideoExtension(mimeType: string) {
   return "webm";
 }
 
+async function readApiError(response: Response, fallback: string) {
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  const looksLikeHtml = contentType.includes("text/html");
+
+  if (response.status === 404 && looksLikeHtml) {
+    return "Upload API is unavailable on this host. Deploy the Next.js API server and set NEXT_PUBLIC_API_ORIGIN for static frontend deployments.";
+  }
+
+  if (contentType.includes("application/json")) {
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    if (typeof data.error === "string" && data.error.trim()) {
+      return data.error;
+    }
+  }
+
+  return fallback;
+}
+
 async function extractVideoDurationSeconds(file: File) {
   return await new Promise<number>((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -537,8 +555,7 @@ export default function UploadPage() {
     });
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error ?? "Upload failed");
+      throw new Error(await readApiError(response, "Upload failed"));
     }
 
     const data = (await response.json()) as {
