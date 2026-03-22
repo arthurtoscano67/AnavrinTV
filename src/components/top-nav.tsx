@@ -29,91 +29,89 @@ export function TopNav({
   walletLabel,
 }: TopNavProps) {
   return (
-    <header className="sticky top-0 z-50 border-b border-white/8 bg-[#0f0f0f]/97 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-[1800px] items-center gap-2 px-3 py-2.5 lg:gap-4 lg:px-6 lg:py-3">
-        {/* Hamburger */}
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-[linear-gradient(180deg,rgba(6,12,24,0.92)_0%,rgba(6,12,24,0.72)_100%)] backdrop-blur-2xl">
+      <div className="mx-auto flex max-w-[1720px] items-center gap-2 px-3 py-2.5 sm:gap-3 lg:px-6 lg:py-3">
         <button
           aria-label="Navigation menu"
-          className="grid size-9 place-items-center rounded-full text-[#aaa] transition hover:bg-white/6 hover:text-white sm:size-10"
+          className="grid size-10 place-items-center rounded-full border border-white/14 bg-white/6 text-slate-300 transition hover:border-white/25 hover:bg-white/10 hover:text-white"
           type="button"
         >
           <Menu className="size-5" />
         </button>
 
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 pr-1">
-          <div className="grid size-8 place-items-center rounded-lg bg-[#ff0000] text-[9px] font-black tracking-[0.18em] text-white shadow-[0_0_16px_rgba(255,0,0,0.4)] sm:size-9">
+        <Link href="/" className="group flex items-center gap-2.5 pr-0.5">
+          <div className="grid size-9 place-items-center rounded-xl border border-cyan-200/35 bg-[linear-gradient(135deg,#22d3ee_0%,#6366f1_52%,#f97316_100%)] text-[9px] font-black tracking-[0.2em] text-white shadow-[0_10px_24px_rgba(34,211,238,0.28)] transition group-hover:brightness-110">
             ATV
           </div>
-          <div className="hidden min-[440px]:block">
-            <p className="text-sm font-bold leading-none text-white">Anavrin TV</p>
-            <p className="mt-0.5 text-[9px] uppercase tracking-[0.32em] text-[#717171]">Sui Creator</p>
+          <div className="hidden min-[460px]:block">
+            <p className="text-sm font-extrabold leading-none text-white">Anavrin TV</p>
+            <p className="mt-0.5 text-[9px] uppercase tracking-[0.3em] text-cyan-100/70">Creator Network</p>
           </div>
         </Link>
 
-        {/* Search */}
         <form
-          className="ml-1 hidden flex-1 items-center gap-2.5 rounded-full border border-white/8 bg-[#121212] px-4 py-2.5 transition focus-within:border-white/20 focus-within:bg-[#1a1a1a] md:flex"
+          className="ml-1 hidden flex-1 items-center gap-2 rounded-full border border-white/12 bg-[#0f1b31]/85 px-4 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition focus-within:border-cyan-200/45 focus-within:bg-[#132440] md:flex"
           onSubmit={onSearchSubmit}
         >
-          <Search className="size-4 shrink-0 text-[#717171]" />
+          <Search className="size-4 shrink-0 text-slate-400" />
           <input
-            className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-[#717171] focus:outline-none"
+            className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search videos, creators, tags…"
+            placeholder="Search videos, creators, tags"
             value={searchValue}
           />
           <button
-            className="grid size-7 shrink-0 place-items-center rounded-full border border-white/8 text-[#717171] transition hover:border-white/16 hover:text-white"
+            className="grid size-7 shrink-0 place-items-center rounded-full border border-white/12 text-slate-400 transition hover:border-white/24 hover:text-white"
             type="button"
           >
             <Mic className="size-3.5" />
           </button>
         </form>
 
-        {/* Right actions */}
-        <div className="ml-auto flex items-center gap-1">
-          {/* Create */}
+        <div className="ml-auto flex items-center gap-1.5">
+          <button
+            aria-label="Search"
+            className="grid size-10 place-items-center rounded-full border border-white/12 bg-white/6 text-slate-300 transition hover:border-white/25 hover:text-white md:hidden"
+            type="button"
+          >
+            <Search className="size-4" />
+          </button>
+
           <Link
-            className="hidden items-center gap-1.5 rounded-full border border-white/10 bg-white/6 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-white/10 md:inline-flex"
+            className="hidden min-h-10 items-center gap-1.5 rounded-full border border-cyan-200/30 bg-[linear-gradient(135deg,rgba(34,211,238,0.2)_0%,rgba(99,102,241,0.24)_100%)] px-3.5 text-sm font-semibold text-cyan-50 transition hover:brightness-110 md:inline-flex"
             href="/upload"
           >
             <Plus className="size-4" />
             Create
           </Link>
 
-          {/* Bell */}
           <button
             aria-label="Notifications"
-            className="grid size-9 place-items-center rounded-full text-[#aaa] transition hover:bg-white/6 hover:text-white sm:size-10"
+            className="grid size-10 place-items-center rounded-full border border-white/12 bg-white/6 text-slate-300 transition hover:border-white/25 hover:bg-white/10 hover:text-white"
             type="button"
           >
-            <Bell className="size-4.5" />
+            <Bell className="size-4" />
           </button>
 
-          {/* Network pill */}
-          <span className="hidden rounded-full border border-white/8 bg-[#212121] px-3 py-1.5 text-[10px] uppercase tracking-[0.26em] text-[#717171] lg:inline-flex">
+          <span className="hidden rounded-full border border-white/12 bg-[#111e36]/85 px-3 py-1.5 text-[10px] uppercase tracking-[0.26em] text-slate-300 lg:inline-flex">
             {networkLabel}
           </span>
 
-          {/* Address pill */}
           {addressLabel ? (
-            <span className="hidden rounded-full border border-white/8 bg-[#212121] px-3 py-1.5 text-xs text-[#aaa] xl:inline-flex">
+            <span className="hidden rounded-full border border-white/12 bg-[#111e36]/85 px-3 py-1.5 text-xs text-slate-300 xl:inline-flex">
               {addressLabel}
             </span>
           ) : null}
 
-          {/* Wallet connect */}
-          <ConnectButton className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-white/10 bg-white/6 px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:border-white/18 hover:bg-white/10 sm:min-h-10 sm:px-3 sm:py-2 sm:text-sm">
+          <ConnectButton className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-cyan-200/28 bg-[linear-gradient(135deg,rgba(34,211,238,0.18)_0%,rgba(99,102,241,0.2)_100%)] px-2.5 py-1.5 text-[11px] font-semibold text-cyan-50 transition hover:brightness-110 sm:px-3 sm:text-sm">
             <WalletCards className="size-4" />
-            <span className="hidden min-[440px]:inline">{walletLabel ?? "Connect"}</span>
-            <span className="min-[440px]:hidden">Wallet</span>
+            <span className="hidden min-[460px]:inline">{walletLabel ?? "Connect"}</span>
+            <span className="min-[460px]:hidden">Wallet</span>
           </ConnectButton>
 
-          {/* Profile */}
           <Link
             aria-label="Profile"
-            className="grid size-9 place-items-center rounded-full text-[#aaa] transition hover:bg-white/6 hover:text-white sm:size-10"
+            className="grid size-10 place-items-center rounded-full border border-white/12 bg-white/6 text-slate-300 transition hover:border-white/25 hover:bg-white/10 hover:text-white"
             href="/profile"
           >
             <UserCircle2 className="size-5" />

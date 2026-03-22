@@ -17,7 +17,7 @@ function getBadgeIcon(category: string) {
 
 export function CategoryBar({ categories, activeCategory, onCategorySelect }: CategoryBarProps) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#081025]/88 px-2 py-2 shadow-[0_14px_40px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+    <div className="rounded-2xl border border-white/12 bg-[#081227]/84 px-2 py-2 shadow-[0_14px_40px_rgba(0,0,0,0.3)] backdrop-blur-2xl">
       <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {categories.map((category) => {
           const isActive = category === activeCategory;
@@ -29,8 +29,8 @@ export function CategoryBar({ categories, activeCategory, onCategorySelect }: Ca
                 "inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full border px-4 text-xs font-semibold uppercase tracking-[0.2em] transition",
                 "active:scale-[0.98] active:opacity-85",
                 isActive
-                  ? "border-cyan-200/40 bg-cyan-300/15 text-cyan-100"
-                  : "border-white/10 bg-black/20 text-slate-300 hover:border-white/20 hover:text-white",
+                  ? "border-cyan-200/40 bg-[linear-gradient(135deg,rgba(34,211,238,0.24)_0%,rgba(99,102,241,0.28)_100%)] text-cyan-100"
+                  : "border-white/12 bg-[#111e37]/66 text-slate-300 hover:border-white/24 hover:text-white",
               ].join(" ")}
               key={category}
               onClick={() => onCategorySelect(category)}

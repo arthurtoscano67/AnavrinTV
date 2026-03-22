@@ -29,7 +29,7 @@ function posterFor(video: VideoRecord) {
     </linearGradient>
   </defs>
   <rect width='1280' height='720' fill='url(#g)' />
-  <rect width='1280' height='720' fill='rgba(0,0,0,0.32)' />
+  <rect width='1280' height='720' fill='rgba(2,8,22,0.38)' />
   <text x='64' y='625' fill='rgba(255,255,255,0.95)' font-family='system-ui, sans-serif' font-weight='700' font-size='44'>${title.slice(0, 52)}</text>
 </svg>`;
 
@@ -46,40 +46,34 @@ export function VideoCard({ video }: DiscoveryVideoCardProps) {
   const publishedAt = video.publishedAt ?? video.createdAt;
 
   return (
-    <article className="group cursor-pointer">
-      {/* Thumbnail */}
+    <article className="group video-card cursor-pointer">
       <Link className="block" href={watchHref}>
-        <div className="relative aspect-video overflow-hidden rounded-xl bg-[#212121]">
+        <div className="relative aspect-video overflow-hidden rounded-t-2xl bg-[#15233d]">
           <img
             alt={video.title}
-            className="size-full object-cover transition duration-300 group-hover:scale-[1.03]"
+            className="size-full object-cover transition duration-300 group-hover:scale-[1.04]"
             draggable={false}
             loading="lazy"
             src={posterFor(video)}
           />
 
-          {/* subtle bottom fade */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/62 via-black/16 to-transparent" />
 
-          {/* Trending badge */}
           {isTrending(video) ? (
-            <span className="absolute left-2 top-2 rounded-md bg-black/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#ff0000] backdrop-blur-sm">
+            <span className="absolute left-2 top-2 rounded-full border border-amber-300/30 bg-amber-300/18 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-amber-100 backdrop-blur-sm">
               Trending
             </span>
           ) : null}
 
-          {/* Duration badge */}
-          <span className="absolute bottom-2 right-2 rounded-md bg-black/80 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur-sm">
+          <span className="absolute bottom-2 right-2 rounded-md border border-black/20 bg-black/70 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur-sm">
             {video.duration}
           </span>
         </div>
       </Link>
 
-      {/* Metadata row */}
-      <div className="mt-3 flex items-start gap-3">
-        {/* Avatar */}
+      <div className="mt-3 flex items-start gap-3 p-3 pt-0">
         <CreatorLink
-          className="mt-0.5 block size-9 shrink-0 overflow-hidden rounded-full bg-[#272727]"
+          className="mt-0.5 block size-9 shrink-0 overflow-hidden rounded-full border border-white/14 bg-white/7"
           title={creatorName}
           username={video.creatorUsername}
         >
@@ -92,29 +86,28 @@ export function VideoCard({ video }: DiscoveryVideoCardProps) {
               src={video.creatorAvatarUrl}
             />
           ) : (
-            <span className="grid size-full place-items-center text-[11px] font-bold uppercase tracking-wide text-white/80">
+            <span className="grid size-full place-items-center text-[11px] font-bold uppercase tracking-wide text-white/85">
               {initials(creatorName)}
             </span>
           )}
         </CreatorLink>
 
-        {/* Text */}
         <div className="min-w-0 flex-1">
           <Link
-            className="line-clamp-2 text-sm font-semibold leading-5 text-[#f1f1f1] transition group-hover:text-white"
+            className="line-clamp-2 text-sm font-semibold leading-5 text-[#f8fbff] transition group-hover:text-cyan-100"
             href={watchHref}
           >
             {video.title}
           </Link>
 
           <CreatorLink
-            className="mt-1 block truncate text-xs text-[#aaa] transition hover:text-white"
+            className="mt-1 block truncate text-xs text-slate-300 transition hover:text-cyan-100"
             username={video.creatorUsername}
           >
             {video.creatorUsername ? `${creatorName} · @${video.creatorUsername}` : creatorName}
           </CreatorLink>
 
-          <p className="mt-0.5 text-xs text-[#717171]">
+          <p className="mt-0.5 text-xs text-slate-400">
             {formatCompact(video.views)} views · {formatRelativeTime(publishedAt)}
           </p>
         </div>

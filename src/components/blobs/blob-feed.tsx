@@ -1208,7 +1208,7 @@ export function BlobFeed() {
   return (
     <section
       aria-label="Blobs"
-      className="relative h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[#02040b] text-white"
+      className="relative h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[#030712] text-white"
       onPointerMove={() => pingControls()}
       onPointerDown={() => pingControls()}
       onTouchStart={() => pingControls()}
@@ -1233,7 +1233,7 @@ export function BlobFeed() {
       }}
       tabIndex={0}
     >
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_50%_18%,rgba(56,189,248,0.08),transparent_34%),linear-gradient(180deg,rgba(2,6,18,0.06),rgba(2,6,18,0.88))]" />
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_52%_12%,rgba(34,211,238,0.12),transparent_34%),radial-gradient(circle_at_88%_3%,rgba(99,102,241,0.2),transparent_38%),linear-gradient(180deg,rgba(2,6,18,0.08),rgba(2,6,18,0.9))]" />
 
       <header
         className={`pointer-events-none fixed inset-x-0 top-0 z-50 px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.45rem)] transition-opacity duration-300 md:px-5 ${
@@ -1244,7 +1244,7 @@ export function BlobFeed() {
           <div className="flex items-center gap-2">
             <button
               aria-label="Back"
-              className="grid min-h-11 min-w-11 place-items-center rounded-full border border-white/15 bg-black/45 backdrop-blur-xl transition hover:border-white/30"
+              className="grid min-h-11 min-w-11 place-items-center rounded-full border border-white/18 bg-[#081425]/78 backdrop-blur-xl transition hover:border-cyan-200/40"
               data-blob-interactive="true"
               onClick={handleBackNavigation}
               type="button"
@@ -1253,7 +1253,7 @@ export function BlobFeed() {
             </button>
 
             <button
-              className="inline-flex min-h-11 items-center rounded-full border border-white/15 bg-black/45 px-4 text-sm font-semibold text-white backdrop-blur-xl transition hover:border-white/25"
+              className="inline-flex min-h-11 items-center rounded-full border border-white/18 bg-[#081425]/78 px-4 text-sm font-semibold text-white backdrop-blur-xl transition hover:border-cyan-200/40"
               data-blob-interactive="true"
               onClick={() => moveToIndex(0)}
               type="button"
@@ -1266,7 +1266,7 @@ export function BlobFeed() {
             <button
               aria-expanded={topMenuOpen}
               aria-haspopup="menu"
-              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/15 bg-black/45 px-4 text-sm font-semibold text-white backdrop-blur-xl transition hover:border-white/25"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/18 bg-[#081425]/78 px-4 text-sm font-semibold text-white backdrop-blur-xl transition hover:border-cyan-200/40"
               data-blob-interactive="true"
               onClick={() => {
                 pingControls();
@@ -1284,7 +1284,7 @@ export function BlobFeed() {
 
             {topMenuOpen && account?.address ? (
               <div
-                className="absolute right-0 top-14 z-50 min-w-[220px] rounded-2xl border border-white/10 bg-[#060b17]/95 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+                className="absolute right-0 top-14 z-50 min-w-[220px] rounded-2xl border border-white/14 bg-[#071224]/94 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
                 data-blob-interactive="true"
                 role="menu"
               >
@@ -1407,7 +1407,7 @@ export function BlobFeed() {
               >
                 <div className="pointer-events-auto mb-3 flex flex-col items-center gap-1.5">
                   <button
-                    className="grid min-h-12 min-w-12 place-items-center rounded-full border border-white/15 bg-black/40 text-sm font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-xl transition hover:border-white/30"
+                    className="grid min-h-12 min-w-12 place-items-center rounded-full border border-white/16 bg-[#081425]/76 text-sm font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-xl transition hover:border-cyan-200/45"
                     data-blob-interactive="true"
                     onClick={() => {
                       pingControls();
@@ -1481,7 +1481,7 @@ export function BlobFeed() {
 
       {loadingMore && hasMore ? (
         <div
-          className="pointer-events-none fixed left-1/2 z-40 -translate-x-1/2 rounded-full border border-white/10 bg-black/45 px-4 py-2 text-xs uppercase tracking-[0.2em] text-slate-200 backdrop-blur-xl"
+          className="pointer-events-none fixed left-1/2 z-40 -translate-x-1/2 rounded-full border border-white/14 bg-[#081425]/86 px-4 py-2 text-xs uppercase tracking-[0.2em] text-slate-200 backdrop-blur-xl"
           style={{ bottom: "max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem))" }}
         >
           <span className="inline-flex items-center gap-2">
@@ -1521,7 +1521,7 @@ export function BlobFeed() {
 
       {toast ? (
         <div
-          className="pointer-events-none fixed left-1/2 z-40 -translate-x-1/2 rounded-full border border-white/10 bg-black/45 px-4 py-3 text-sm text-slate-100 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl"
+          className="pointer-events-none fixed left-1/2 z-40 -translate-x-1/2 rounded-full border border-white/14 bg-[#081425]/88 px-4 py-3 text-sm text-slate-100 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl"
           style={{ bottom: "max(1rem, calc(env(safe-area-inset-bottom) + 4.8rem))" }}
         >
           {toast}

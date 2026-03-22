@@ -71,7 +71,7 @@ function ActionButton({
   return (
     <button
       className={[
-        "group flex w-16 flex-col items-center gap-1.5 text-white transition",
+        "group flex w-[4.1rem] flex-col items-center gap-1.5 text-white transition",
         interactiveDisabled
           ? "cursor-not-allowed opacity-45"
           : "hover:scale-[1.02] active:scale-[0.98]",
@@ -90,13 +90,15 @@ function ActionButton({
     >
       <span
         className={[
-          "grid size-12 place-items-center rounded-full border border-white/8 bg-black/35 text-white backdrop-blur-md transition",
-          active ? "border-rose-300/25 bg-rose-500/20 text-rose-100" : "hover:bg-black/45",
+          "grid size-12 place-items-center rounded-full border border-white/14 bg-[#081425]/76 text-white backdrop-blur-md transition",
+          active
+            ? "border-rose-300/34 bg-[linear-gradient(135deg,rgba(251,113,133,0.34)_0%,rgba(236,72,153,0.38)_100%)] text-rose-50"
+            : "hover:border-cyan-200/40 hover:bg-[#0b1a31]/88",
         ].join(" ")}
       >
         {loading ? <Loader2 className="size-5 animate-spin" /> : <Icon className={`size-5 ${active ? "fill-current" : ""}`} />}
       </span>
-      <span className="text-center text-[11px] font-medium leading-tight text-white/90">
+      <span className="text-center text-[11px] font-semibold leading-tight text-slate-100/95">
         {value ?? label}
       </span>
     </button>

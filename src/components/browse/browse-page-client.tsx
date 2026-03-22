@@ -43,7 +43,7 @@ export function BrowsePageClient({ initialVideos, initialMetrics }: BrowsePageCl
 
   return (
     <div className="space-y-6">
-      <section className="space-y-4">
+      <section className="space-y-4 rounded-2xl border border-white/12 bg-[#0b172d]/72 p-4 shadow-[0_14px_40px_rgba(2,6,23,0.35)] backdrop-blur-xl">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="max-w-3xl">
             <p className="section-label">Browse</p>
@@ -71,7 +71,7 @@ export function BrowsePageClient({ initialVideos, initialMetrics }: BrowsePageCl
           <Link
             href="/browse"
             className={`chip transition hover:border-white/15 hover:bg-white/8 hover:text-white ${
-              category === "All" ? "border-white/20 bg-white/10 text-white" : ""
+              category === "All" ? "border-cyan-200/35 bg-cyan-300/15 text-cyan-100" : ""
             }`}
           >
             <Filter className="size-4" />
@@ -82,7 +82,7 @@ export function BrowsePageClient({ initialVideos, initialMetrics }: BrowsePageCl
               key={topic}
               href={`/browse?category=${encodeURIComponent(topic)}`}
               className={`chip transition hover:border-white/15 hover:bg-white/8 hover:text-white ${
-                category === topic ? "border-white/20 bg-white/10 text-white" : ""
+                category === topic ? "border-cyan-200/35 bg-cyan-300/15 text-cyan-100" : ""
               }`}
             >
               {topic}

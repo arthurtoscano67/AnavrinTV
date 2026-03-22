@@ -28,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${bodyFont.variable} ${displayFont.variable} h-full antialiased`}>
-      <body className="min-h-full bg-[#0f0f0f] text-white">
+      <body className="min-h-full bg-background text-white">
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>

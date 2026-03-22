@@ -491,8 +491,9 @@ export function VideoFeed({
   const totalCount = Math.max(showingCount, page.total);
 
   return (
-    <div className="space-y-4 pb-24">
-      <section className="space-y-3">
+    <div className="space-y-5 pb-24">
+      <section className="rounded-2xl border border-white/12 bg-[#0b172d]/72 p-4 shadow-[0_16px_44px_rgba(2,6,23,0.38)] backdrop-blur-xl">
+        <div className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="max-w-3xl">
             <p className="section-label">{label}</p>
@@ -500,7 +501,7 @@ export function VideoFeed({
             <p className="mt-1.5 text-sm text-slate-300 md:text-base">{description}</p>
           </div>
 
-          <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm">
+          <div className="inline-flex items-center gap-3 rounded-full border border-white/12 bg-[#111f39]/82 px-4 py-2 text-sm">
             <span className="text-slate-400">Showing</span>
             <span className="font-semibold text-white">{formatCompact(showingCount)}</span>
             <span className="text-slate-500">/</span>
@@ -515,14 +516,15 @@ export function VideoFeed({
             opacity: pullDistance > 0 || refreshing ? 1 : 0,
           }}
         >
-          <div className="flex items-center justify-center pt-2 text-xs uppercase tracking-[0.25em] text-slate-400">
+          <div className="flex items-center justify-center pt-2 text-xs uppercase tracking-[0.25em] text-cyan-100/85">
             <LoaderCircle className={`mr-2 size-4 ${refreshing ? "animate-spin" : ""}`} />
             {refreshing ? "Refreshing" : pullDistance >= 70 ? "Release to refresh" : "Pull to refresh"}
           </div>
         </div>
+        </div>
       </section>
 
-      <div className="sticky top-[calc(var(--safe-top)+6.4rem)] z-30 md:top-[calc(var(--safe-top)+4.5rem)]">
+      <div className="sticky top-[calc(var(--safe-top)+5.9rem)] z-30 md:top-[calc(var(--safe-top)+4.5rem)]">
         <CategoryBar activeCategory={activeCategory} categories={topics} onCategorySelect={handleCategorySelect} />
       </div>
 

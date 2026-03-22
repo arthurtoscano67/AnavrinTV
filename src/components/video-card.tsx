@@ -31,7 +31,7 @@ export function VideoCard({
   const watchHref = `/video/${video.id}`;
 
   return (
-    <article className="group overflow-hidden rounded-2xl border border-white/10 bg-[#0a1020] transition duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-[#0c1326]">
+    <article className="group overflow-hidden rounded-2xl border border-white/12 bg-[#0c162c]/88 shadow-[0_10px_26px_rgba(2,6,23,0.3)] transition duration-200 hover:-translate-y-0.5 hover:border-cyan-200/35 hover:shadow-[0_14px_32px_rgba(14,116,144,0.24)]">
       <Link href={watchHref} className="block">
         <div
           className="relative aspect-video overflow-hidden"
@@ -39,7 +39,7 @@ export function VideoCard({
             background: `linear-gradient(145deg, ${video.coverFrom} 0%, ${video.coverVia} 48%, ${video.coverTo} 100%)`,
           }}
         >
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,9,18,0.08),rgba(5,9,18,0.72))]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,9,18,0.08),rgba(5,9,18,0.76))]" />
           <div className="absolute bottom-3 right-3 rounded-md bg-black/80 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur">
             {video.duration}
           </div>

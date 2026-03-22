@@ -463,7 +463,7 @@ export function BlobPlayer({
         </div>
       </div>
 
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.05)_0%,rgba(2,6,23,0.02)_20%,rgba(2,6,23,0.12)_68%,rgba(2,6,23,0.72)_100%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.08)_0%,rgba(2,6,23,0.02)_22%,rgba(2,6,23,0.18)_70%,rgba(2,6,23,0.76)_100%)]" />
 
       <div className="pointer-events-none absolute left-0 right-0 top-0 h-1 bg-white/10">
         <div
@@ -483,7 +483,7 @@ export function BlobPlayer({
           aria-busy={fullscreenPending}
           aria-label="Enter fullscreen"
           data-blob-interactive="true"
-          className="grid min-h-11 min-w-11 place-items-center rounded-full border border-white/10 bg-black/45 text-white backdrop-blur-md transition hover:border-white/20 hover:bg-black/55"
+          className="grid min-h-11 min-w-11 place-items-center rounded-full border border-white/15 bg-[#071326]/78 text-white backdrop-blur-md transition hover:border-cyan-200/38 hover:bg-[#0b1a31]/90"
           onClick={handleFullscreenButton}
           title="Fullscreen"
           type="button"
@@ -493,7 +493,7 @@ export function BlobPlayer({
         <button
           aria-label={muted ? "Unmute video" : "Mute video"}
           data-blob-interactive="true"
-          className="grid min-h-11 min-w-11 place-items-center rounded-full border border-white/10 bg-black/45 text-white backdrop-blur-md transition hover:border-white/20 hover:bg-black/55"
+          className="grid min-h-11 min-w-11 place-items-center rounded-full border border-white/15 bg-[#071326]/78 text-white backdrop-blur-md transition hover:border-cyan-200/38 hover:bg-[#0b1a31]/90"
           onClick={onToggleMute}
           title={muted ? "Unmute" : "Mute"}
           type="button"
@@ -508,14 +508,14 @@ export function BlobPlayer({
           heartPulse ? "scale-100 opacity-100" : "scale-50 opacity-0"
         }`}
       >
-        <div className="grid size-24 place-items-center rounded-full border border-rose-300/20 bg-rose-500/20 text-rose-100 shadow-[0_0_60px_rgba(251,113,133,0.35)]">
+        <div className="grid size-24 place-items-center rounded-full border border-rose-300/26 bg-rose-500/25 text-rose-100 shadow-[0_0_60px_rgba(251,113,133,0.35)]">
           <Heart className="size-11 fill-current" />
         </div>
       </div>
 
       {!sourceUrl && (error || status) ? (
         <div className="absolute inset-0 z-10 grid place-items-center p-6">
-          <div className="inline-flex max-w-[22rem] items-center gap-3 rounded-full border border-white/10 bg-black/55 px-4 py-3 text-left text-sm text-white backdrop-blur-xl">
+          <div className="inline-flex max-w-[22rem] items-center gap-3 rounded-full border border-white/14 bg-[#071326]/86 px-4 py-3 text-left text-sm text-white backdrop-blur-xl">
             {error ? (
               error.includes("wallet") || error.includes("Seal metadata") ? (
                 <LockKeyhole className="size-4 shrink-0 text-cyan-100" />
@@ -533,7 +533,7 @@ export function BlobPlayer({
               <button
                 aria-label="Retry playback"
                 data-blob-interactive="true"
-                className="grid size-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
+                className="grid size-8 shrink-0 place-items-center rounded-full border border-white/14 bg-white/8 text-white transition hover:bg-white/14"
                 onClick={() => {
                   setError(null);
                   setRetryToken((current) => current + 1);
@@ -550,7 +550,7 @@ export function BlobPlayer({
 
       {active && sourceUrl && showRotatePrompt && !fullscreenActive ? (
         <div className="pointer-events-none absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-20 w-[min(92vw,320px)] -translate-x-1/2">
-          <div className="pointer-events-auto rounded-2xl border border-white/15 bg-[rgba(6,10,24,0.72)] px-3 py-2.5 text-xs text-slate-100 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+          <div className="pointer-events-auto rounded-2xl border border-white/16 bg-[rgba(6,14,30,0.82)] px-3 py-2.5 text-xs text-slate-100 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl">
             <div className="flex items-center gap-2">
               <Smartphone className="size-4 shrink-0 text-cyan-200" />
               <p className="min-w-0 flex-1 truncate">Rotate to fullscreen</p>
