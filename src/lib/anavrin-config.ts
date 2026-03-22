@@ -4,7 +4,7 @@ import type { KeyServerConfig } from "@mysten/seal";
 export type AnavrinNetwork = "testnet" | "mainnet";
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const DEFAULT_MAINNET_POLICY_PACKAGE_ID =
-  "0xc9025cfcda1875dad37f8283f7fbd13d99ba57883d9737119402255a31b5598f";
+  "0xdfc6f9761c8bffa029587e2924c9a9d4cdeb1eb89b0965bfc88330ec2a795397";
 const DEFAULT_MAINNET_UPLOAD_TREASURY_ADDRESS =
   "0x91f8fbe4fdb5e0a074c1140b98a9085a7c7129963e2b85f01790eae3d24af0c0";
 
