@@ -2,7 +2,7 @@
 
 import { createDAppKit } from "@mysten/dapp-kit-core";
 import { enokiWalletsInitializer, type AuthProvider } from "@mysten/enoki";
-import { type WalrusClient } from "@mysten/walrus";
+import { walrus, type WalrusClient } from "@mysten/walrus";
 import { SealClient } from "@mysten/seal";
 import { SuiGrpcClient } from "@mysten/sui/grpc";
 import type { ClientWithCoreApi } from "@mysten/sui/client";
@@ -15,6 +15,7 @@ import {
   getEnokiGoogleClientId,
   getEnokiTwitchClientId,
   getRpcUrl,
+  resolveUploadRelayConfig,
   getSealServerConfigs,
   getSealVerifyKeyServers,
 } from "@/lib/anavrin-config";
@@ -26,10 +27,16 @@ export type AnavrinClient = ClientWithCoreApi & {
 };
 
 function createClientForNetwork(network = getNetwork()) {
-  const client = new SuiGrpcClient({
+  const baseClient = new SuiGrpcClient({
     network,
     baseUrl: getRpcUrl(network),
-  }) as ClientWithCoreApi;
+  });
+
+  const client = baseClient.$extend(
+    walrus({
+      uploadRelay: resolveUploadRelayConfig(network) ?? undefined,
+    }),
+  ) as ClientWithCoreApi & { walrus: WalrusClient };
 
   const seal = new SealClient({
     suiClient: client,
