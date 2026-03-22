@@ -6,13 +6,22 @@ const API_PROXY_MARKER = Symbol.for("anavrin.api.fetchProxyInstalled");
 
 function resolveApiPath(pathname: string) {
   const basePath = getBasePath();
+  const normalized = pathname.replace(/\/+$/, "") || "/";
 
-  if (pathname.startsWith("/api/")) {
-    return pathname;
+  if (normalized === "/proxy" || normalized.endsWith("/proxy")) {
+    return "/api/seal/proxy";
   }
 
-  if (basePath && pathname.startsWith(`${basePath}/api/`)) {
-    return pathname.slice(basePath.length);
+  if (normalized.startsWith("/api/")) {
+    return normalized;
+  }
+
+  if (basePath && normalized.startsWith(`${basePath}/api/`)) {
+    return normalized.slice(basePath.length);
+  }
+
+  if (basePath && normalized === `${basePath}/proxy`) {
+    return "/api/seal/proxy";
   }
 
   return null;
@@ -31,7 +40,9 @@ export function installApiFetchProxy() {
 
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = input instanceof Request ? input : null;
-    const requestUrl = request ? new URL(request.url) : new URL(input.toString(), window.location.origin);
+    const requestUrl = request
+      ? new URL(request.url)
+      : new URL(input.toString(), window.location.href);
 
     const sameOrigin = requestUrl.origin === window.location.origin;
     if (!sameOrigin) {

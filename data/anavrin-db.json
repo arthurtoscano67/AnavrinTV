@@ -602,7 +602,7 @@
       "storageExtensionFeeMistPerDay": 10000000,
       "tipPlatformBps": 250,
       "adCampaignSetupFeeMist": 100000000,
-      "minimumTipMist": 1000000000,
+      "minimumTipMist": 1,
       "maxStorageExtensionDays": 730,
       "storageExpiryWarningDays": 14
     },

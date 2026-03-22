@@ -34,7 +34,7 @@ function normalizeFees(input?: Partial<PlatformFeeSchedule>): PlatformFeeSchedul
     ),
     tipPlatformBps: clampNumber(input?.tipPlatformBps, fallback.tipPlatformBps, 0, 10_000),
     adCampaignSetupFeeMist: clampNumber(input?.adCampaignSetupFeeMist, fallback.adCampaignSetupFeeMist, 0),
-    minimumTipMist: clampNumber(input?.minimumTipMist, fallback.minimumTipMist, MIST_PER_SUI),
+    minimumTipMist: clampNumber(input?.minimumTipMist, fallback.minimumTipMist, 1),
     maxStorageExtensionDays: clampNumber(
       input?.maxStorageExtensionDays,
       fallback.maxStorageExtensionDays,
@@ -70,7 +70,7 @@ export function defaultPlatformFeeSchedule(): PlatformFeeSchedule {
     storageExtensionFeeMistPerDay: 10_000_000,
     tipPlatformBps: 250,
     adCampaignSetupFeeMist: 100_000_000,
-    minimumTipMist: MIST_PER_SUI,
+    minimumTipMist: 1,
     maxStorageExtensionDays: 730,
     storageExpiryWarningDays: 14,
   };

@@ -21,6 +21,7 @@ import { getPolicyPackageId } from "@/lib/anavrin-config";
 import { usernameFromDisplayName } from "@/lib/creator-identity";
 import { calculateStorageHealthSummary } from "@/lib/platform-settings";
 import { buildSeedDatabase } from "@/lib/seed";
+import { buildApiUrl } from "@/lib/site-url";
 import { buildRenewTransaction } from "@/lib/video-policy";
 import type { DashboardSnapshot, VideoRecord, VideoVisibility, WalletMode } from "@/lib/types";
 
@@ -320,7 +321,7 @@ export default function LibraryPage() {
       }
 
       try {
-        const response = await fetch(`/api/dashboard?address=${encodeURIComponent(address)}`, {
+        const response = await fetch(buildApiUrl(`/api/dashboard?address=${encodeURIComponent(address)}`), {
           headers: {
             "x-anavrin-actor-address": address.toLowerCase(),
           },
@@ -375,7 +376,7 @@ export default function LibraryPage() {
     const address = account.address;
 
     async function seedProfile() {
-      const response = await fetch("/api/accounts/profile", {
+      const response = await fetch(buildApiUrl("/api/accounts/profile"), {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -392,7 +393,7 @@ export default function LibraryPage() {
         return;
       }
 
-      const refreshResponse = await fetch(`/api/dashboard?address=${encodeURIComponent(address)}`, {
+      const refreshResponse = await fetch(buildApiUrl(`/api/dashboard?address=${encodeURIComponent(address)}`), {
         headers: {
           "x-anavrin-actor-address": address.toLowerCase(),
         },
@@ -454,7 +455,7 @@ export default function LibraryPage() {
     if (!address) return;
 
     try {
-      const response = await fetch(`/api/dashboard?address=${encodeURIComponent(address)}`, {
+      const response = await fetch(buildApiUrl(`/api/dashboard?address=${encodeURIComponent(address)}`), {
         headers: {
           "x-anavrin-actor-address": address.toLowerCase(),
         },
@@ -502,7 +503,7 @@ export default function LibraryPage() {
         }
       }
 
-      const response = await fetch("/api/accounts/renew", {
+      const response = await fetch(buildApiUrl("/api/accounts/renew"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

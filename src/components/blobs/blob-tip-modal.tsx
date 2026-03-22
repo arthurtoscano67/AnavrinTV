@@ -54,7 +54,7 @@ export function BlobTipModal({ blob, open, platform, onClose, onSend }: BlobTipM
     }
 
     if (!preview) {
-      setStatus("Enter at least 1 SUI.");
+      setStatus("Enter a positive SUI amount.");
       return;
     }
 
@@ -107,7 +107,7 @@ export function BlobTipModal({ blob, open, platform, onClose, onSend }: BlobTipM
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-white">{blob.caption}</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-500">
-                  Minimum tips start at 1 SUI with a small platform cut.
+                  Tips are paid in SUI with an automatic platform split.
                 </p>
               </div>
             </div>
@@ -149,10 +149,10 @@ export function BlobTipModal({ blob, open, platform, onClose, onSend }: BlobTipM
             <input
               className="input mt-2 rounded-[18px]"
               inputMode="decimal"
-              min="1"
+              min="0.000000001"
               onChange={(event) => setAmount(event.target.value)}
-              placeholder="1.0"
-              step="0.1"
+              placeholder="0.5"
+              step="0.01"
               type="number"
               value={amount}
             />

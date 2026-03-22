@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { CreatorLink } from "@/components/creator-link";
 import { formatCompact, formatRelativeTime } from "@/lib/format";
+import { buildApiUrl } from "@/lib/site-url";
 import type { VideoRecord } from "@/lib/types";
 
 type DiscoveryVideoCardProps = {
@@ -18,6 +19,10 @@ function initials(value: string) {
 }
 
 function posterFor(video: VideoRecord) {
+  if (video.thumbnailUrl?.trim()) {
+    return buildApiUrl(video.thumbnailUrl);
+  }
+
   const title = (video.title || "Anavrin TV").replace(/[&<>]/g, "");
   const svg = `
 <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1280 720'>

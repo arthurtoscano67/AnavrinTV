@@ -19,6 +19,7 @@ import {
 
 import { isBlobVideoRecord } from "@/lib/blobs";
 import { formatCompact, formatRelativeTime } from "@/lib/format";
+import { buildApiUrl } from "@/lib/site-url";
 import type { SiteMetrics, VideoRecord } from "@/lib/types";
 
 type HomeDiscoveryClientProps = {
@@ -115,6 +116,7 @@ function DiscoveryCarousel({
         {videos.map((video) => {
           const creatorName = video.creatorDisplayName || video.ownerName;
           const watchHref = blobMode ? `/blobs?blob=${encodeURIComponent(video.id)}` : `/video/${video.id}`;
+          const posterUrl = video.thumbnailUrl?.trim() ? buildApiUrl(video.thumbnailUrl) : undefined;
           return (
             <Link
               key={`${title}-${video.id}`}
@@ -127,6 +129,15 @@ function DiscoveryCarousel({
                   background: `linear-gradient(135deg, ${video.coverFrom} 0%, ${video.coverVia} 52%, ${video.coverTo} 100%)`,
                 }}
               >
+                {posterUrl ? (
+                  <img
+                    alt={video.title}
+                    className="absolute inset-0 size-full object-cover"
+                    draggable={false}
+                    loading="lazy"
+                    src={posterUrl}
+                  />
+                ) : null}
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,8,22,0.08),rgba(2,8,22,0.76))]" />
                 <span className="absolute left-2.5 top-2.5 rounded-full border border-white/22 bg-black/35 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-100">
                   {video.category}
@@ -208,6 +219,15 @@ export function HomeDiscoveryClient({ videos, metrics }: HomeDiscoveryClientProp
                 : "linear-gradient(135deg, rgba(34,211,238,0.22) 0%, rgba(99,102,241,0.2) 58%, rgba(8,14,30,0.92) 100%)",
             }}
           >
+            {featured?.thumbnailUrl ? (
+              <img
+                alt={featured.title}
+                className="absolute inset-0 size-full object-cover opacity-55"
+                draggable={false}
+                loading="lazy"
+                src={buildApiUrl(featured.thumbnailUrl)}
+              />
+            ) : null}
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,8,22,0.2),rgba(2,8,22,0.9))]" />
             <div className="pointer-events-none absolute -right-20 -top-24 size-56 rounded-full bg-cyan-200/25 blur-3xl" />
             <div className="relative flex min-h-[230px] flex-col justify-between gap-5">

@@ -8,6 +8,7 @@ import { useCurrentAccount, useCurrentWallet } from "@mysten/dapp-kit-react";
 
 import { normalizeUsernameInput, usernameFromDisplayName } from "@/lib/creator-identity";
 import { shortAddress } from "@/lib/format";
+import { buildApiUrl } from "@/lib/site-url";
 import type { DashboardSnapshot, WalletSession } from "@/lib/types";
 
 type ResolverState = {
@@ -70,7 +71,7 @@ export function ProfileResolverClient({
       }
 
       try {
-        const dashboardResponse = await fetch(`/api/dashboard?address=${encodeURIComponent(address)}`, {
+        const dashboardResponse = await fetch(buildApiUrl(`/api/dashboard?address=${encodeURIComponent(address)}`), {
           cache: "no-store",
           headers: {
             "x-anavrin-actor-address": normalizedAddress,
@@ -83,7 +84,7 @@ export function ProfileResolverClient({
           return;
         }
 
-        const profileResponse = await fetch("/api/accounts/profile", {
+        const profileResponse = await fetch(buildApiUrl("/api/accounts/profile"), {
           method: "PATCH",
           headers: {
             "content-type": "application/json",

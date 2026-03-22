@@ -8,6 +8,7 @@ import { fromHex } from "@mysten/sui/utils";
 import { getPolicyPackageId } from "@/lib/anavrin-config";
 import { getSessionKeyForAccount } from "@/lib/seal-session";
 import type { AnavrinClient } from "@/lib/anavrin-client";
+import { buildApiUrl } from "@/lib/site-url";
 import { buildSealApprovalTransaction } from "@/lib/video-policy";
 
 type VideoPlayerProps = {
@@ -17,10 +18,20 @@ type VideoPlayerProps = {
   ownerAddress: string;
   policyObjectId?: string;
   policyNonce?: string;
+  posterUrl?: string;
 };
 
 function toArrayBuffer(bytes: Uint8Array<ArrayBufferLike>) {
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+function resolvePosterUrl(value?: string) {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith("data:") || trimmed.startsWith("blob:") || /^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  return buildApiUrl(trimmed);
 }
 
 export function VideoPlayer({
@@ -30,6 +41,7 @@ export function VideoPlayer({
   ownerAddress,
   policyObjectId,
   policyNonce,
+  posterUrl,
 }: VideoPlayerProps) {
   const dAppKit = useDAppKit();
   const account = useCurrentAccount();
@@ -38,6 +50,7 @@ export function VideoPlayer({
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const resolvedPosterUrl = resolvePosterUrl(posterUrl);
 
   useEffect(() => {
     let revokedUrl: string | null = null;
@@ -48,7 +61,7 @@ export function VideoPlayer({
       setStatus(null);
 
       if (storageMode !== "walrus") {
-        const url = new URL(`/api/videos/${videoId}/stream`, window.location.origin);
+        const url = new URL(buildApiUrl(`/api/videos/${videoId}/stream`), window.location.origin);
         if (account?.address) {
           url.searchParams.set("address", account.address.toLowerCase());
         }
@@ -75,7 +88,7 @@ export function VideoPlayer({
 
       try {
         setStatus("Loading encrypted bytes from Walrus...");
-        const response = await fetch(`/api/videos/${videoId}/stream`, {
+        const response = await fetch(buildApiUrl(`/api/videos/${videoId}/stream`), {
           cache: "no-store",
           headers: account?.address
             ? {
@@ -155,10 +168,28 @@ export function VideoPlayer({
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/40">
       <div className="relative aspect-video bg-black">
         {sourceUrl ? (
-          <video autoPlay className="h-full w-full bg-black object-contain" controls playsInline preload="metadata" src={sourceUrl} />
+          <video
+            autoPlay
+            className="h-full w-full bg-black object-contain"
+            controls
+            playsInline
+            poster={resolvedPosterUrl}
+            preload="metadata"
+            src={sourceUrl}
+          />
         ) : (
-          <div className="flex h-full items-center justify-center p-8 text-center">
-            <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-black/45 p-6 backdrop-blur">
+          <div className="relative flex h-full items-center justify-center p-8 text-center">
+            {resolvedPosterUrl ? (
+              <img
+                alt="Video poster"
+                className="absolute inset-0 size-full object-cover opacity-60"
+                draggable={false}
+                loading="lazy"
+                src={resolvedPosterUrl}
+              />
+            ) : null}
+            <div className="absolute inset-0 bg-black/45" />
+            <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-black/45 p-6 backdrop-blur">
               <div className="mb-4 h-1.5 w-full animate-pulse rounded-full bg-white/10" />
               {error ? (
                 <AlertTriangle className="mx-auto size-9 text-amber-300" />

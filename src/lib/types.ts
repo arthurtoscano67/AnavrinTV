@@ -83,6 +83,8 @@ export interface VideoAsset {
   walrusBlobId?: string;
   walrusBlobObjectId?: string;
   sealedPath?: string;
+  thumbnailPath?: string;
+  thumbnailContentType?: string;
   originalName: string;
   contentType: string;
   sizeBytes: number;
@@ -109,6 +111,7 @@ export interface VideoRecord {
   creatorUsername: string;
   creatorDisplayName: string;
   creatorAvatarUrl?: string;
+  thumbnailUrl?: string;
   coverFrom: string;
   coverVia: string;
   coverTo: string;

@@ -8,6 +8,7 @@ import {
   normalizeUsernameInput,
   validateUsername,
 } from "@/lib/creator-identity";
+import { buildApiUrl } from "@/lib/site-url";
 import type { WalletSession } from "@/lib/types";
 
 export type EditableProfile = Pick<
@@ -111,7 +112,7 @@ export function EditProfileModal({
     const timeout = window.setTimeout(async () => {
       try {
         const response = await fetch(
-          `/api/accounts/username?username=${encodeURIComponent(trimmedUsername)}&excludeAddress=${encodeURIComponent(address)}`,
+          buildApiUrl(`/api/accounts/username?username=${encodeURIComponent(trimmedUsername)}&excludeAddress=${encodeURIComponent(address)}`),
           { cache: "no-store" },
         );
         const payload = (await response.json().catch(() => ({}))) as {
@@ -202,7 +203,7 @@ export function EditProfileModal({
     setError(null);
 
     try {
-      const response = await fetch("/api/accounts/profile", {
+      const response = await fetch(buildApiUrl("/api/accounts/profile"), {
         method: "PATCH",
         headers: {
           "content-type": "application/json",

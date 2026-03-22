@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { CreatorLink } from "@/components/creator-link";
 import { formatCompact, formatRelativeTime } from "@/lib/format";
+import { buildApiUrl } from "@/lib/site-url";
 import type { VideoRecord } from "@/lib/types";
 
 type RecommendedVideoCardProps = {
@@ -14,6 +15,7 @@ export function RecommendedVideoCard({ video, active = false }: RecommendedVideo
   const creatorName = video.creatorDisplayName || video.ownerName;
   const creatorUsername = video.creatorUsername;
   const creatorLabel = creatorUsername ? `${creatorName} · @${creatorUsername}` : creatorName;
+  const posterUrl = video.thumbnailUrl?.trim() ? buildApiUrl(video.thumbnailUrl) : undefined;
 
   return (
     <article
@@ -32,6 +34,15 @@ export function RecommendedVideoCard({ video, active = false }: RecommendedVideo
               background: `linear-gradient(145deg, ${video.coverFrom} 0%, ${video.coverVia} 48%, ${video.coverTo} 100%)`,
             }}
           >
+            {posterUrl ? (
+              <img
+                alt={video.title}
+                className="absolute inset-0 size-full object-cover"
+                draggable={false}
+                loading="lazy"
+                src={posterUrl}
+              />
+            ) : null}
             <span className="absolute bottom-1.5 right-1.5 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-semibold text-white">
               {video.duration}
             </span>

@@ -1,6 +1,7 @@
 import { PlayCircle } from "lucide-react";
 
 import { VideoPlayer } from "@/components/video-player";
+import { buildApiUrl } from "@/lib/site-url";
 import type { VideoRecord } from "@/lib/types";
 
 type MainVideoPlayerProps = {
@@ -8,6 +9,8 @@ type MainVideoPlayerProps = {
 };
 
 export function MainVideoPlayer({ video }: MainVideoPlayerProps) {
+  const posterUrl = video.thumbnailUrl?.trim() ? buildApiUrl(video.thumbnailUrl) : undefined;
+
   if (video.asset) {
     return (
       <VideoPlayer
@@ -15,6 +18,7 @@ export function MainVideoPlayer({ video }: MainVideoPlayerProps) {
         ownerAddress={video.ownerAddress}
         policyNonce={video.asset.nonce ?? video.policyNonce}
         policyObjectId={video.policyObjectId}
+        posterUrl={posterUrl}
         storageMode={video.asset.storageMode}
         videoId={video.id}
       />
@@ -30,6 +34,15 @@ export function MainVideoPlayer({ video }: MainVideoPlayerProps) {
             background: `linear-gradient(145deg, ${video.coverFrom} 0%, ${video.coverVia} 48%, ${video.coverTo} 100%)`,
           }}
         />
+        {posterUrl ? (
+          <img
+            alt={video.title}
+            className="absolute inset-0 size-full object-cover"
+            draggable={false}
+            loading="lazy"
+            src={posterUrl}
+          />
+        ) : null}
         <div className="absolute inset-0 bg-black/25" />
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
           <div className="rounded-2xl border border-white/15 bg-black/40 px-6 py-5">

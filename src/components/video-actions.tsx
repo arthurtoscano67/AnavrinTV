@@ -7,12 +7,13 @@ import { Transaction } from "@mysten/sui/transactions";
 
 import { formatCompact } from "@/lib/format";
 import { getUploadTreasuryAddress } from "@/lib/anavrin-config";
-import { buildPublicUrl } from "@/lib/site-url";
+import { buildApiUrl, buildPublicUrl } from "@/lib/site-url";
 import { calculateTipPlatformFeeSui, defaultPlatformSettings } from "@/lib/platform-settings";
 import type { VideoRecord } from "@/lib/types";
 
 async function jsonFetch(url: string, init?: RequestInit) {
-  const response = await fetch(url, {
+  const targetUrl = url.startsWith("/api/") ? buildApiUrl(url) : url;
+  const response = await fetch(targetUrl, {
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
@@ -60,7 +61,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
 
     async function loadPlatform() {
       try {
-        const response = await fetch("/api/platform");
+        const response = await fetch(buildApiUrl("/api/platform"));
         const data = (await response.json()) as { settings?: typeof platform };
         if (active && data.settings) {
           setPlatform(data.settings);

@@ -17,6 +17,7 @@ import { fromHex } from "@mysten/sui/utils";
 
 import { getPolicyPackageId } from "@/lib/anavrin-config";
 import type { AnavrinClient } from "@/lib/anavrin-client";
+import { buildApiUrl } from "@/lib/site-url";
 import { buildSealApprovalTransaction } from "@/lib/video-policy";
 import { getSessionKeyForAccount } from "@/lib/seal-session";
 import type { BlobItem } from "@/lib/blobs";
@@ -185,6 +186,7 @@ export function BlobPlayer({
       setError(null);
       setStatus(null);
       setSourceUrl(null);
+      const resolvedVideoUrl = blob.videoUrl.startsWith("/api/") ? buildApiUrl(blob.videoUrl) : blob.videoUrl;
 
       if (!shouldLoad) {
         setSourceUrl(null);
@@ -192,7 +194,7 @@ export function BlobPlayer({
       }
 
       if (blob.storageMode !== "walrus") {
-        setSourceUrl(blob.videoUrl);
+        setSourceUrl(resolvedVideoUrl);
         return;
       }
 
@@ -215,7 +217,7 @@ export function BlobPlayer({
 
       try {
         setStatus("Loading encrypted bytes from Walrus...");
-        const response = await fetch(blob.videoUrl, {
+        const response = await fetch(resolvedVideoUrl, {
           cache: "no-store",
           headers: account?.address
             ? {

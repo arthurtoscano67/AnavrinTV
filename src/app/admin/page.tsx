@@ -19,6 +19,7 @@ import {
 
 import { isAdminAddress } from "@/lib/anavrin-config";
 import { formatBytes, formatCompact, formatDate, shortAddress } from "@/lib/format";
+import { buildApiUrl } from "@/lib/site-url";
 import type { AdminSnapshot, PlatformSettings, ReportRecord, VideoRecord, WalletSession } from "@/lib/types";
 
 function SeverityBadge({ severity }: { severity: ReportRecord["severity"] }) {
@@ -40,7 +41,7 @@ function adminHeaders(adminAddress: string) {
 }
 
 async function fetchAdminSnapshot(adminAddress: string) {
-  const response = await fetch("/api/admin", {
+  const response = await fetch(buildApiUrl("/api/admin"), {
     headers: adminHeaders(adminAddress),
   });
   if (!response.ok) {
@@ -132,7 +133,7 @@ export default function AdminPage() {
   async function resolveReport(id: string) {
     if (!account?.address) return;
 
-    const response = await fetch(`/api/reports/${id}`, {
+    const response = await fetch(buildApiUrl(`/api/reports/${id}`), {
       method: "PATCH",
       headers: adminHeaders(account.address),
     });
@@ -148,7 +149,7 @@ export default function AdminPage() {
   async function hideVideoFromPlatform(video: ModerationTarget) {
     if (!account?.address) return;
 
-    const response = await fetch(`/api/videos/${video.id}`, {
+    const response = await fetch(buildApiUrl(`/api/videos/${video.id}`), {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -176,7 +177,7 @@ export default function AdminPage() {
       return;
     }
 
-    const response = await fetch(`/api/videos/${video.id}`, {
+    const response = await fetch(buildApiUrl(`/api/videos/${video.id}`), {
       method: "DELETE",
       headers: adminHeaders(account.address),
     });
@@ -195,7 +196,7 @@ export default function AdminPage() {
 
     setSavingSettings(true);
     try {
-      const response = await fetch("/api/admin", {
+      const response = await fetch(buildApiUrl("/api/admin"), {
         method: "PATCH",
         headers: {
           "content-type": "application/json",
@@ -238,7 +239,7 @@ export default function AdminPage() {
     const key = `${accountRecord.address}:${patch.banned ?? "fee"}`;
     setPendingAccountAction(key);
     try {
-      const response = await fetch(`/api/admin/accounts/${encodeURIComponent(accountRecord.address)}`, {
+      const response = await fetch(buildApiUrl(`/api/admin/accounts/${encodeURIComponent(accountRecord.address)}`), {
         method: "PATCH",
         headers: {
           "content-type": "application/json",

@@ -21,6 +21,7 @@ import {
 
 export const runtime = "nodejs";
 const BLOB_MAX_DURATION_SECONDS = 30;
+const MAX_THUMBNAIL_BYTES = 10 * 1024 * 1024;
 
 function parseIntegerParam(value: string | null, fallback: number, min: number, max: number) {
   const parsed = Number(value);
@@ -114,9 +115,44 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
   const sealedVideo = formData.get("sealedVideo");
+  const thumbnail = formData.get("thumbnail");
 
   if (!(sealedVideo instanceof File)) {
     return NextResponse.json({ error: "Upload requires an encrypted video bundle." }, { status: 400 });
+  }
+
+  let thumbnailInput:
+    | {
+        bytes: Uint8Array;
+        originalName: string;
+        contentType: string;
+      }
+    | undefined;
+
+  if (thumbnail !== null) {
+    if (!(thumbnail instanceof File)) {
+      return NextResponse.json({ error: "Thumbnail upload is invalid." }, { status: 400 });
+    }
+    if (thumbnail.size > 0) {
+      const thumbnailContentType = (thumbnail.type || "application/octet-stream").toLowerCase();
+      if (!thumbnailContentType.startsWith("image/")) {
+        return NextResponse.json({ error: "Thumbnail must be an image file." }, { status: 400 });
+      }
+      if (thumbnail.size > MAX_THUMBNAIL_BYTES) {
+        return NextResponse.json(
+          {
+            error: `Thumbnail is too large. Max size is ${Math.floor(MAX_THUMBNAIL_BYTES / (1024 * 1024))} MB.`,
+          },
+          { status: 400 },
+        );
+      }
+
+      thumbnailInput = {
+        bytes: new Uint8Array(await thumbnail.arrayBuffer()),
+        originalName: thumbnail.name || "thumbnail",
+        contentType: thumbnail.type || "application/octet-stream",
+      };
+    }
   }
 
   const title = String(formData.get("title") ?? "").trim();
@@ -270,6 +306,7 @@ export async function POST(request: NextRequest) {
       capObjectId,
       policyNonce,
       uploadTxDigest,
+      thumbnail: thumbnailInput,
       storageOwnerAddress: ownerAddress,
       storageDays,
       asset: {

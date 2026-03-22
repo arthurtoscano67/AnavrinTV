@@ -21,6 +21,7 @@ import { toHex } from "@mysten/sui/utils";
 
 import { formatBytes, shortAddress, slugifyText } from "@/lib/format";
 import { getMvrName, getPolicyPackageId, getSealThreshold, getUploadTreasuryAddress } from "@/lib/anavrin-config";
+import { buildApiUrl } from "@/lib/site-url";
 import { buildPolicyInitTransaction, buildVideoIdentityHex, generateVideoNonce } from "@/lib/video-policy";
 import type { AnavrinClient } from "@/lib/anavrin-client";
 import { defaultPlatformSettings } from "@/lib/platform-settings";
@@ -50,6 +51,7 @@ type PendingUpload = {
   originalName: string;
   contentType: string;
   sizeBytes: number;
+  thumbnailFile: File | null;
   durationSeconds: number;
   title: string;
   description: string;
@@ -153,6 +155,7 @@ export default function UploadPage() {
   const [publishAsBlob, setPublishAsBlob] = useState(false);
   const [storageDays, setStorageDays] = useState(30);
   const [file, setFile] = useState<File | null>(null);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [durationSeconds, setDurationSeconds] = useState<number | null>(null);
   const [checkingDuration, setCheckingDuration] = useState(false);
   const [sourceMode, setSourceMode] = useState<"import" | "record">("import");
@@ -185,6 +188,10 @@ export default function UploadPage() {
   const recordingStartedAtRef = useRef<number | null>(null);
 
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+  const thumbnailPreviewUrl = useMemo(
+    () => (thumbnailFile ? URL.createObjectURL(thumbnailFile) : null),
+    [thumbnailFile],
+  );
 
   useEffect(() => {
     return () => {
@@ -193,11 +200,17 @@ export default function UploadPage() {
   }, [previewUrl]);
 
   useEffect(() => {
+    return () => {
+      if (thumbnailPreviewUrl) URL.revokeObjectURL(thumbnailPreviewUrl);
+    };
+  }, [thumbnailPreviewUrl]);
+
+  useEffect(() => {
     let active = true;
 
     async function loadPlatform() {
       try {
-        const response = await fetch("/api/platform");
+        const response = await fetch(buildApiUrl("/api/platform"));
         const data = (await response.json()) as { settings?: PlatformSettings };
         if (active && data.settings) {
           setPlatform(data.settings);
@@ -368,6 +381,22 @@ export default function UploadPage() {
     const selected = await selectVideoFile(nextFile);
     if (!selected) return;
     setSourceMode("import");
+  }
+
+  function selectThumbnailFile(nextFile: File | null) {
+    if (!nextFile) {
+      setThumbnailFile(null);
+      return;
+    }
+
+    if (!nextFile.type.startsWith("image/")) {
+      setStatus("Thumbnail must be an image file.");
+      setThumbnailFile(null);
+      return;
+    }
+
+    setThumbnailFile(nextFile);
+    setStatus(null);
   }
 
   function stopCameraSession() {
@@ -548,8 +577,11 @@ export default function UploadPage() {
     formData.append("sizeBytes", String(pending.sizeBytes));
     formData.append("durationSeconds", String(pending.durationSeconds));
     formData.append("encryptedSizeBytes", String(pending.sealedBytes.length));
+    if (pending.thumbnailFile) {
+      formData.append("thumbnail", pending.thumbnailFile, pending.thumbnailFile.name || "thumbnail");
+    }
 
-    const response = await fetch("/api/videos", {
+    const response = await fetch(buildApiUrl("/api/videos"), {
       method: "POST",
       body: formData,
     });
@@ -587,6 +619,7 @@ export default function UploadPage() {
     setPublishAsBlob(false);
     setStorageDays(30);
     setFile(null);
+    setThumbnailFile(null);
     setDurationSeconds(null);
     setSourceMode("import");
     setCameraError(null);
@@ -767,6 +800,7 @@ export default function UploadPage() {
         originalName: file.name,
         contentType: file.type || "application/octet-stream",
         sizeBytes: file.size,
+        thumbnailFile,
         title: title.trim(),
         description,
         tags,
@@ -1127,6 +1161,27 @@ export default function UploadPage() {
               ) : null}
             </div>
 
+            <div className="block md:col-span-2">
+              <span className="text-sm font-medium text-slate-200">Thumbnail image (optional)</span>
+              <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-[24px] border border-dashed border-white/12 bg-black/20 px-6 py-6 text-center transition hover:border-cyan-300/30 hover:bg-black/28">
+                <p className="text-sm font-semibold text-white">
+                  {thumbnailFile ? "Replace thumbnail image" : "Upload thumbnail image"}
+                </p>
+                <p className="mt-2 text-xs leading-6 text-slate-400">
+                  JPG, PNG, WEBP, GIF, or AVIF. Used across feed cards, profile cards, and blob posters.
+                </p>
+                <input
+                  accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.avif"
+                  className="sr-only"
+                  type="file"
+                  onChange={(event) => {
+                    selectThumbnailFile(event.target.files?.[0] ?? null);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+            </div>
+
             <div className="md:col-span-2 grid gap-3 rounded-[28px] border border-white/10 bg-black/20 p-4 sm:grid-cols-2">
               <label className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
                 <input
@@ -1183,6 +1238,19 @@ export default function UploadPage() {
                   controls
                   src={previewUrl}
                 />
+              ) : null}
+
+              {thumbnailPreviewUrl ? (
+                <div className="mt-5">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Thumbnail preview</p>
+                  <img
+                    alt="Upload thumbnail preview"
+                    className="mt-2 aspect-video w-full rounded-[24px] border border-white/10 bg-black object-cover"
+                    draggable={false}
+                    loading="lazy"
+                    src={thumbnailPreviewUrl}
+                  />
+                </div>
               ) : null}
             </div>
           ) : null}

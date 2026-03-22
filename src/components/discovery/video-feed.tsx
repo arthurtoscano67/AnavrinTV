@@ -6,6 +6,7 @@ import { LoaderCircle } from "lucide-react";
 
 import { DISCOVERY_PAGE_SIZE } from "@/lib/discovery-feed";
 import { formatCompact } from "@/lib/format";
+import { buildApiUrl } from "@/lib/site-url";
 import type { VideoRecord } from "@/lib/types";
 import { CategoryBar } from "@/components/discovery/category-bar";
 import { EmptyFeedState } from "@/components/discovery/empty-feed-state";
@@ -150,7 +151,7 @@ export function VideoFeed({
       if (sort) params.set("sort", sort);
       if (topic !== "All") params.set("topic", topic);
 
-      return `/api/videos?${params.toString()}`;
+      return buildApiUrl(`/api/videos?${params.toString()}`);
     },
     [baseLimit, query, sort, tag],
   );

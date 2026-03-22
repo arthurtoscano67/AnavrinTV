@@ -10,6 +10,12 @@ function shouldProxySealRequest(url: URL) {
   return url.pathname === "/v1/service" || url.pathname === "/v1/fetch_key";
 }
 
+function shouldFallbackToDirect(response: Response) {
+  if (response.status === 404 || response.status === 405) return true;
+  if (response.status >= 500) return true;
+  return false;
+}
+
 export function installSealFetchProxy() {
   if (typeof window === "undefined") return;
   if (!ENABLE_SEAL_PROXY) return;
@@ -18,20 +24,43 @@ export function installSealFetchProxy() {
   if (targetWindow[PROXY_MARKER]) return;
 
   const originalFetch = window.fetch.bind(window);
+  let proxyActive = true;
 
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = input instanceof Request ? input : null;
-    const requestUrl = request ? new URL(request.url) : new URL(input.toString(), window.location.origin);
+    const requestUrl = request ? new URL(request.url, window.location.origin) : new URL(input.toString(), window.location.origin);
 
-    if (shouldProxySealRequest(requestUrl)) {
+    if (proxyActive && shouldProxySealRequest(requestUrl)) {
       const proxyUrl = new URL(buildApiUrl("/api/seal/proxy"), window.location.origin);
       proxyUrl.searchParams.set("url", requestUrl.toString());
 
+      const directRequest = request ? request.clone() : new Request(requestUrl.toString(), init);
+
       if (request) {
-        return originalFetch(new Request(proxyUrl.toString(), request));
+        try {
+          const proxied = await originalFetch(new Request(proxyUrl.toString(), request));
+          if (!shouldFallbackToDirect(proxied)) {
+            return proxied;
+          }
+          proxyActive = false;
+        } catch {
+          // Fall through to direct request below.
+          proxyActive = false;
+        }
+        return originalFetch(directRequest);
       }
 
-      return originalFetch(new Request(proxyUrl.toString(), init));
+      try {
+        const proxied = await originalFetch(new Request(proxyUrl.toString(), init));
+        if (!shouldFallbackToDirect(proxied)) {
+          return proxied;
+        }
+        proxyActive = false;
+      } catch {
+        // Fall through to direct request below.
+        proxyActive = false;
+      }
+      return originalFetch(directRequest);
     }
 
     return originalFetch(input, init);

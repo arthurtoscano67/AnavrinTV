@@ -1,4 +1,5 @@
 import { shortAddress, slugifyText } from "@/lib/format";
+import { buildApiUrl } from "@/lib/site-url";
 import type { VideoRecord, WalletSession } from "@/lib/types";
 
 export interface BlobComment {
@@ -173,13 +174,14 @@ export function mapVideoToBlobItem(
   const creatorName = creatorNameFor(video, account);
   const creatorHandle = creatorHandleFor(video, account);
   const creatorAvatar = creatorAvatarFor(video, account);
-  const poster = creatorPosterFor(video, account);
+  const generatedPoster = creatorPosterFor(video, account);
+  const poster = video.thumbnailUrl?.trim() ? buildApiUrl(video.thumbnailUrl) : generatedPoster;
   const isPublicBlob = isBlobVideoRecord(video);
 
   return {
     id: video.id,
     title: video.title,
-    videoUrl: `/api/videos/${video.id}/stream`,
+    videoUrl: buildApiUrl(`/api/videos/${video.id}/stream`),
     thumbnailUrl: poster,
     posterUrl: poster,
     creatorName,

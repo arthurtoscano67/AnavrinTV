@@ -35,7 +35,7 @@ import {
   type BlobUserState,
 } from "@/lib/blobs";
 import { calculateTipPlatformFeeSui, defaultPlatformSettings } from "@/lib/platform-settings";
-import { buildPublicUrl } from "@/lib/site-url";
+import { buildApiUrl, buildPublicUrl } from "@/lib/site-url";
 import type { PlatformSettings } from "@/lib/types";
 
 function initialsFromName(name: string) {
@@ -106,6 +106,7 @@ export function BlobFeed() {
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [tipOpen, setTipOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [engagedBlobId, setEngagedBlobId] = useState<string | null>(null);
   const [topMenuOpen, setTopMenuOpen] = useState(false);
 
   const [toast, setToast] = useState<string | null>(null);
@@ -170,12 +171,16 @@ export function BlobFeed() {
   );
 
   const activeRawBlob = orderedBlobs[activeIndex] ?? null;
-  const currentBlob = activeRawBlob ? applyUserStateToBlob(activeRawBlob) : null;
+  const contextRawBlob = useMemo(() => {
+    if (!engagedBlobId) return activeRawBlob;
+    return orderedBlobs.find((blob) => blob.id === engagedBlobId) ?? activeRawBlob;
+  }, [activeRawBlob, engagedBlobId, orderedBlobs]);
+  const currentBlob = contextRawBlob ? applyUserStateToBlob(contextRawBlob) : null;
   const currentComments = useMemo(() => {
-    if (!activeRawBlob) return [];
-    return userState.commentsByBlobId[activeRawBlob.id] ?? activeRawBlob.comments;
-  }, [activeRawBlob, userState.commentsByBlobId]);
-  const currentDraft = activeRawBlob ? userState.commentDrafts[activeRawBlob.id] ?? "" : "";
+    if (!contextRawBlob) return [];
+    return userState.commentsByBlobId[contextRawBlob.id] ?? contextRawBlob.comments;
+  }, [contextRawBlob, userState.commentsByBlobId]);
+  const currentDraft = contextRawBlob ? userState.commentDrafts[contextRawBlob.id] ?? "" : "";
 
   const setBlobRef = useCallback((index: number, node: HTMLElement | null) => {
     if (node) {
@@ -324,7 +329,7 @@ export function BlobFeed() {
 
     async function loadPlatform() {
       try {
-        const response = await fetch("/api/platform");
+        const response = await fetch(buildApiUrl("/api/platform"));
         const data = (await response.json()) as { settings?: PlatformSettings };
         if (active && data.settings) {
           setPlatform(data.settings);
@@ -366,7 +371,7 @@ export function BlobFeed() {
       const feedQuery = query || tag || "";
 
       try {
-        const url = new URL("/api/blobs", window.location.origin);
+        const url = new URL(buildApiUrl("/api/blobs"), window.location.origin);
         url.searchParams.set("limit", String(feedLimit));
         if (address) {
           url.searchParams.set("address", address);
@@ -552,25 +557,26 @@ export function BlobFeed() {
   }, [activeIndex, hasMore, loadingFeed, loadingMore, orderedBlobs.length]);
 
   useEffect(() => {
-    if (!activeRawBlob?.videoId) return;
+    if (!contextRawBlob?.videoId) return;
 
     let active = true;
-    const requestNonce = bumpCommentsFetchNonce(activeRawBlob.id);
-    const videoId = activeRawBlob.videoId;
+    const requestNonce = bumpCommentsFetchNonce(contextRawBlob.id);
+    const blobId = contextRawBlob.id;
+    const videoId = contextRawBlob.videoId;
 
     async function loadComments() {
       try {
-        const response = await fetch(`/api/blobs/${encodeURIComponent(videoId)}/comments?limit=100`, {
+        const response = await fetch(buildApiUrl(`/api/blobs/${encodeURIComponent(videoId)}/comments?limit=100`), {
           cache: "no-store",
         });
         const data = (await response.json()) as { comments?: BlobComment[] };
-        if (!active || commentsFetchNonceRef.current[activeRawBlob.id] !== requestNonce || !Array.isArray(data.comments)) return;
+        if (!active || commentsFetchNonceRef.current[blobId] !== requestNonce || !Array.isArray(data.comments)) return;
 
         updateUserState((current) => ({
           ...current,
           commentsByBlobId: {
             ...current.commentsByBlobId,
-            [activeRawBlob.id]: data.comments ?? [],
+            [blobId]: data.comments ?? [],
           },
         }));
       } catch {
@@ -583,7 +589,7 @@ export function BlobFeed() {
     return () => {
       active = false;
     };
-  }, [activeRawBlob?.id, activeRawBlob?.videoId]);
+  }, [contextRawBlob?.id, contextRawBlob?.videoId]);
 
   useEffect(() => {
     if (!toast) return;
@@ -644,30 +650,38 @@ export function BlobFeed() {
   }, [commentsOpen, pingControls, shareOpen, tipOpen]);
 
   useEffect(() => {
+    if (commentsOpen || tipOpen || shareOpen) return;
+    setEngagedBlobId(null);
+  }, [commentsOpen, shareOpen, tipOpen]);
+
+  useEffect(() => {
     setPaused(false);
   }, [activeIndex]);
 
-  async function handleLike() {
-    if (!activeRawBlob) return;
+  function resolveActionBlob(targetBlob?: BlobItem | null) {
+    if (targetBlob) return targetBlob;
+    return contextRawBlob;
+  }
+
+  async function handleLike(targetBlob?: BlobItem | null) {
+    const actionBlob = resolveActionBlob(targetBlob);
+    if (!actionBlob) return;
     if (pendingLike) return;
-    if (activeRawBlob.videoId && !account?.address) {
+    if (actionBlob.videoId && !account?.address) {
       requestConnectFlow("Connect a wallet to like live Blobs.");
       return;
     }
 
     setPendingLike(true);
 
-    const blobId = activeRawBlob.id;
-    const videoId = activeRawBlob.videoId ?? null;
-    const previousLiked =
-      typeof userState.likedIds[blobId] === "boolean" ? userState.likedIds[blobId] : activeRawBlob.likedByUser;
+    const blobId = actionBlob.id;
+    const videoId = actionBlob.videoId ?? null;
+    const previousLiked = typeof userState.likedIds[blobId] === "boolean" ? userState.likedIds[blobId] : actionBlob.likedByUser;
     const previousLikesDelta = userState.likedAdjustments[blobId] ?? 0;
-    const previousLikes = Math.max(0, activeRawBlob.likesCount + previousLikesDelta);
     const desiredLiked = !previousLiked;
 
     updateLiveBlob(blobId, {
       likedByUser: desiredLiked,
-      likesCount: Math.max(0, previousLikes + (desiredLiked ? 1 : -1)),
     });
     updateUserState((current) => ({
       ...current,
@@ -680,14 +694,17 @@ export function BlobFeed() {
         [blobId]: (current.likedAdjustments[blobId] ?? 0) + (desiredLiked ? 1 : -1),
       },
     }));
-    setLikePulseKey((current) => current + 1);
+
+    if (activeRawBlob?.id === blobId) {
+      setLikePulseKey((current) => current + 1);
+    }
 
     try {
       if (!videoId || !account?.address) {
         return;
       }
 
-      const response = await fetch(`/api/blobs/${encodeURIComponent(videoId)}/like`, {
+      const response = await fetch(buildApiUrl(`/api/blobs/${encodeURIComponent(videoId)}/like`), {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -703,15 +720,20 @@ export function BlobFeed() {
         throw new Error(data.error ?? "Could not update like.");
       }
 
+      const syncedLiked = typeof data.liked === "boolean" ? data.liked : desiredLiked;
+      const syncedLikes = Number.isFinite(data.likes)
+        ? Number(data.likes)
+        : Math.max(0, actionBlob.likesCount + previousLikesDelta + (desiredLiked ? 1 : -1));
+
       updateLiveBlob(blobId, {
-        likedByUser: typeof data.liked === "boolean" ? data.liked : desiredLiked,
-        likesCount: Number.isFinite(data.likes) ? Number(data.likes) : Math.max(0, previousLikes + (desiredLiked ? 1 : -1)),
+        likedByUser: syncedLiked,
+        likesCount: syncedLikes,
       });
       updateUserState((current) => ({
         ...current,
         likedIds: {
           ...current.likedIds,
-          [blobId]: typeof data.liked === "boolean" ? data.liked : desiredLiked,
+          [blobId]: syncedLiked,
         },
         likedAdjustments: {
           ...current.likedAdjustments,
@@ -721,7 +743,6 @@ export function BlobFeed() {
     } catch (error) {
       updateLiveBlob(blobId, {
         likedByUser: previousLiked,
-        likesCount: Math.max(0, activeRawBlob.likesCount + previousLikesDelta),
       });
       updateUserState((current) => ({
         ...current,
@@ -740,38 +761,39 @@ export function BlobFeed() {
     }
   }
 
-  async function handleBookmark() {
-    if (!activeRawBlob) return;
+  async function handleBookmark(targetBlob?: BlobItem | null) {
+    const actionBlob = resolveActionBlob(targetBlob);
+    if (!actionBlob) return;
     if (pendingBookmark) return;
 
-    const actorAddress = account?.address ?? null;
+    const walletAddress = account?.address ?? null;
     const previousBookmarked =
-      typeof userState.bookmarkedIds[activeRawBlob.id] === "boolean"
-        ? userState.bookmarkedIds[activeRawBlob.id]
-        : activeRawBlob.bookmarkedByUser;
+      typeof userState.bookmarkedIds[actionBlob.id] === "boolean"
+        ? userState.bookmarkedIds[actionBlob.id]
+        : actionBlob.bookmarkedByUser;
     const desiredBookmarked = !previousBookmarked;
 
-    if (!activeRawBlob.videoId) {
+    if (!actionBlob.videoId) {
       updateUserState((current) => ({
         ...current,
         bookmarkedIds: {
           ...current.bookmarkedIds,
-          [activeRawBlob.id]: desiredBookmarked,
+          [actionBlob.id]: desiredBookmarked,
         },
       }));
       setToast(desiredBookmarked ? "Saved to watch later." : "Removed from watch later.");
       return;
     }
 
-    if (!actorAddress) {
+    if (!walletAddress) {
       requestConnectFlow("Connect a wallet to save Blobs.");
       return;
     }
 
     setPendingBookmark(true);
 
-    const blobId = activeRawBlob.id;
-    const videoId = activeRawBlob.videoId;
+    const blobId = actionBlob.id;
+    const videoId = actionBlob.videoId;
 
     updateLiveBlob(blobId, {
       bookmarkedByUser: desiredBookmarked,
@@ -785,14 +807,14 @@ export function BlobFeed() {
     }));
 
     try {
-      const response = await fetch(`/api/videos/${encodeURIComponent(videoId)}/bookmark`, {
+      const response = await fetch(buildApiUrl(`/api/videos/${encodeURIComponent(videoId)}/bookmark`), {
         method: "POST",
         headers: {
           "content-type": "application/json",
           ...(actorHeaders ?? {}),
         },
         body: JSON.stringify({
-          address: actorAddress,
+          address: walletAddress,
           saved: desiredBookmarked,
         }),
       });
@@ -830,7 +852,11 @@ export function BlobFeed() {
     }
   }
 
-  function handleShare() {
+  function handleShare(targetBlob?: BlobItem | null) {
+    const actionBlob = resolveActionBlob(targetBlob);
+    if (actionBlob) {
+      setEngagedBlobId(actionBlob.id);
+    }
     setShareOpen(true);
   }
 
@@ -869,6 +895,7 @@ export function BlobFeed() {
         registerShareSuccess(currentBlob.id, "Link copied for Discord.");
       }
       setShareOpen(false);
+      setEngagedBlobId(null);
     } catch (error) {
       const fallback = action === "native" ? "Share cancelled." : "Could not share this Blob.";
       setToast(error instanceof Error ? error.message || fallback : fallback);
@@ -877,23 +904,24 @@ export function BlobFeed() {
     }
   }
 
-  async function handleToggleFollow() {
-    if (!activeRawBlob || !activeRawBlob.followable) return;
+  async function handleToggleFollow(targetBlob?: BlobItem | null) {
+    const actionBlob = resolveActionBlob(targetBlob);
+    if (!actionBlob || !actionBlob.followable) return;
     if (pendingFollow) return;
-    const actorAddress = account?.address ?? null;
-    const followKey = creatorFollowKey(activeRawBlob);
+    const walletAddress = account?.address ?? null;
+    const followKey = creatorFollowKey(actionBlob);
     const previousFollowed =
       typeof userState.followedHandles[followKey] === "boolean"
         ? userState.followedHandles[followKey]
-        : activeRawBlob.followedByUser;
+        : actionBlob.followedByUser;
     const desiredFollowed = !previousFollowed;
 
-    if (!actorAddress && activeRawBlob.videoId) {
+    if (!walletAddress && actionBlob.videoId) {
       requestConnectFlow("Connect a wallet to follow creators.");
       return;
     }
 
-    if (!activeRawBlob.videoId) {
+    if (!actionBlob.videoId) {
       updateUserState((current) => ({
         ...current,
         followedHandles: {
@@ -901,14 +929,14 @@ export function BlobFeed() {
           [followKey]: desiredFollowed,
         },
       }));
-      setToast(desiredFollowed ? `Following ${activeRawBlob.creatorName}.` : `Unfollowed ${activeRawBlob.creatorName}.`);
+      setToast(desiredFollowed ? `Following ${actionBlob.creatorName}.` : `Unfollowed ${actionBlob.creatorName}.`);
       return;
     }
 
     setPendingFollow(true);
 
-    const blobId = activeRawBlob.id;
-    const videoId = activeRawBlob.videoId;
+    const blobId = actionBlob.id;
+    const videoId = actionBlob.videoId;
 
     updateLiveBlob(blobId, {
       followedByUser: desiredFollowed,
@@ -922,14 +950,14 @@ export function BlobFeed() {
     }));
 
     try {
-      const response = await fetch(`/api/blobs/${encodeURIComponent(videoId)}/follow`, {
+      const response = await fetch(buildApiUrl(`/api/blobs/${encodeURIComponent(videoId)}/follow`), {
         method: "POST",
         headers: {
           "content-type": "application/json",
           ...(actorHeaders ?? {}),
         },
         body: JSON.stringify({
-          address: actorAddress,
+          address: walletAddress,
           followed: desiredFollowed,
         }),
       });
@@ -937,17 +965,18 @@ export function BlobFeed() {
       if (!response.ok) {
         throw new Error(data.error ?? "Could not update follow state.");
       }
+      const syncedFollowed = typeof data.followed === "boolean" ? data.followed : desiredFollowed;
       updateLiveBlob(blobId, {
-        followedByUser: typeof data.followed === "boolean" ? data.followed : desiredFollowed,
+        followedByUser: syncedFollowed,
       });
       updateUserState((current) => ({
         ...current,
         followedHandles: {
           ...current.followedHandles,
-          [followKey]: typeof data.followed === "boolean" ? data.followed : desiredFollowed,
+          [followKey]: syncedFollowed,
         },
       }));
-      setToast(desiredFollowed ? `Following ${activeRawBlob.creatorName}.` : `Unfollowed ${activeRawBlob.creatorName}.`);
+      setToast(desiredFollowed ? `Following ${actionBlob.creatorName}.` : `Unfollowed ${actionBlob.creatorName}.`);
     } catch (error) {
       updateLiveBlob(blobId, {
         followedByUser: previousFollowed,
@@ -965,18 +994,19 @@ export function BlobFeed() {
     }
   }
 
-  async function handleCommentSubmit() {
-    if (!activeRawBlob) return;
+  async function handleCommentSubmit(targetBlob?: BlobItem | null) {
+    const actionBlob = resolveActionBlob(targetBlob);
+    if (!actionBlob) return;
     if (pendingComment) return;
-    const draft = currentDraft.trim();
+    const draft = (userState.commentDrafts[actionBlob.id] ?? "").trim();
     if (!draft) return;
 
     setPendingComment(true);
 
     try {
-      if (!activeRawBlob.videoId) {
+      if (!actionBlob.videoId) {
         const nextComment = createLocalComment({
-          blob: activeRawBlob,
+          blob: actionBlob,
           accountAddress: account?.address,
           walletName: wallet?.name,
           body: draft,
@@ -986,11 +1016,11 @@ export function BlobFeed() {
           ...current,
           commentsByBlobId: {
             ...current.commentsByBlobId,
-            [activeRawBlob.id]: [nextComment, ...(current.commentsByBlobId[activeRawBlob.id] ?? [])],
+            [actionBlob.id]: [nextComment, ...(current.commentsByBlobId[actionBlob.id] ?? [])],
           },
           commentDrafts: {
             ...current.commentDrafts,
-            [activeRawBlob.id]: "",
+            [actionBlob.id]: "",
           },
         }));
         setToast("Comment posted.");
@@ -1002,13 +1032,13 @@ export function BlobFeed() {
         return;
       }
 
-      const requestNonce = bumpCommentsFetchNonce(activeRawBlob.id);
-      const previousComments = userState.commentsByBlobId[activeRawBlob.id] ?? [];
-      const previousDraft = currentDraft;
-      const previousCommentsCount = activeRawBlob.commentsCount;
-      const videoId = activeRawBlob.videoId;
+      const requestNonce = bumpCommentsFetchNonce(actionBlob.id);
+      const previousComments = userState.commentsByBlobId[actionBlob.id] ?? [];
+      const previousDraft = userState.commentDrafts[actionBlob.id] ?? "";
+      const previousCommentsCount = actionBlob.commentsCount;
+      const videoId = actionBlob.videoId;
       const nextLocalComment = createLocalComment({
-        blob: activeRawBlob,
+        blob: actionBlob,
         accountAddress: account.address,
         walletName: wallet?.name,
         body: draft,
@@ -1018,19 +1048,19 @@ export function BlobFeed() {
         ...current,
         commentsByBlobId: {
           ...current.commentsByBlobId,
-          [activeRawBlob.id]: [nextLocalComment, ...previousComments],
+          [actionBlob.id]: [nextLocalComment, ...previousComments],
         },
         commentDrafts: {
           ...current.commentDrafts,
-          [activeRawBlob.id]: "",
+          [actionBlob.id]: "",
         },
       }));
-      updateLiveBlob(activeRawBlob.id, {
+      updateLiveBlob(actionBlob.id, {
         commentsCount: previousCommentsCount + 1,
       });
 
       try {
-        const response = await fetch(`/api/blobs/${encodeURIComponent(videoId)}/comments`, {
+        const response = await fetch(buildApiUrl(`/api/blobs/${encodeURIComponent(videoId)}/comments`), {
           method: "POST",
           headers: {
             "content-type": "application/json",
@@ -1052,7 +1082,7 @@ export function BlobFeed() {
           throw new Error(data.error ?? "Could not post comment.");
         }
 
-        if (commentsFetchNonceRef.current[activeRawBlob.id] !== requestNonce) {
+        if (commentsFetchNonceRef.current[actionBlob.id] !== requestNonce) {
           throw new Error("Comment state changed while posting. Please try again.");
         }
 
@@ -1064,15 +1094,15 @@ export function BlobFeed() {
           ...current,
           commentsByBlobId: {
             ...current.commentsByBlobId,
-            [activeRawBlob.id]: persistedComments,
+            [actionBlob.id]: persistedComments,
           },
           commentDrafts: {
             ...current.commentDrafts,
-            [activeRawBlob.id]: "",
+            [actionBlob.id]: "",
           },
         }));
-        updateLiveBlob(activeRawBlob.id, {
-          commentsCount: Number.isFinite(data.commentsCount) ? Number(data.commentsCount) : activeRawBlob.commentsCount + 1,
+        updateLiveBlob(actionBlob.id, {
+          commentsCount: Number.isFinite(data.commentsCount) ? Number(data.commentsCount) : previousCommentsCount + 1,
         });
         setToast("Comment posted.");
       } catch (error) {
@@ -1082,14 +1112,14 @@ export function BlobFeed() {
             ...current,
             commentsByBlobId: {
               ...current.commentsByBlobId,
-              [activeRawBlob.id]: previousComments,
+              [actionBlob.id]: previousComments,
             },
             commentDrafts: {
               ...current.commentDrafts,
-              [activeRawBlob.id]: previousDraft,
+              [actionBlob.id]: previousDraft,
             },
           }));
-          updateLiveBlob(activeRawBlob.id, {
+          updateLiveBlob(actionBlob.id, {
             commentsCount: previousCommentsCount,
           });
         }
@@ -1100,10 +1130,13 @@ export function BlobFeed() {
     }
   }
 
-  async function handleSendTip(amountSui: number) {
-    if (!currentBlob) throw new Error("No Blob is active.");
+  async function handleSendTip(amountSui: number, targetBlob?: BlobItem | null) {
+    const tipBlobRaw = resolveActionBlob(targetBlob);
+    if (!tipBlobRaw) throw new Error("No Blob is active.");
     if (!account) throw new Error("Connect a wallet to tip.");
-    if (!currentBlob.creatorAddress) throw new Error("This creator does not have a tip address.");
+
+    const tipBlob = applyUserStateToBlob(tipBlobRaw);
+    if (!tipBlob.creatorAddress) throw new Error("This creator does not have a tip address.");
 
     const treasuryAddress = getUploadTreasuryAddress();
     if (!treasuryAddress) {
@@ -1116,7 +1149,7 @@ export function BlobFeed() {
       tx.pure.u64(tipPreview.creatorMist),
       tx.pure.u64(tipPreview.platformFeeMist),
     ]);
-    tx.transferObjects([creatorCoin], tx.pure.address(currentBlob.creatorAddress));
+    tx.transferObjects([creatorCoin], tx.pure.address(tipBlob.creatorAddress));
     if (tipPreview.platformFeeMist > 0) {
       tx.transferObjects([platformCoin], tx.pure.address(treasuryAddress));
     }
@@ -1128,9 +1161,9 @@ export function BlobFeed() {
     }
 
     let synced = true;
-    if (currentBlob.videoId) {
+    if (tipBlob.videoId) {
       try {
-        const response = await fetch(`/api/videos/${encodeURIComponent(currentBlob.videoId)}/tip`, {
+        const response = await fetch(buildApiUrl(`/api/videos/${encodeURIComponent(tipBlob.videoId)}/tip`), {
           method: "POST",
           headers: {
             "content-type": "application/json",
@@ -1152,13 +1185,14 @@ export function BlobFeed() {
 
     setToast(
       synced
-        ? `Tipped ${tipPreview.amountSui.toFixed(2)} SUI to ${currentBlob.creatorName}.`
-        : `Tip sent to ${currentBlob.creatorName}. Feed stats will sync shortly.`,
+        ? `Tipped ${tipPreview.amountSui.toFixed(2)} SUI to ${tipBlob.creatorName}.`
+        : `Tip sent to ${tipBlob.creatorName}. Feed stats will sync shortly.`,
     );
   }
 
-  async function handleReport() {
-    if (!currentBlob?.videoId) {
+  async function handleReport(targetBlob?: BlobItem | null) {
+    const actionBlob = resolveActionBlob(targetBlob);
+    if (!actionBlob?.videoId) {
       setToast("Report is unavailable for this Blob.");
       return;
     }
@@ -1179,7 +1213,7 @@ export function BlobFeed() {
 
     setPendingReport(true);
     try {
-      const response = await fetch(`/api/videos/${encodeURIComponent(currentBlob.videoId)}/report`, {
+      const response = await fetch(buildApiUrl(`/api/videos/${encodeURIComponent(actionBlob.videoId)}/report`), {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -1379,7 +1413,9 @@ export function BlobFeed() {
                   controlsVisible={overlayVisible && isActive}
                   likePulseKey={isActive ? likePulseKey : 0}
                   muted={userState.muted}
-                  onLike={handleLike}
+                  onLike={() => {
+                    void handleLike(blob);
+                  }}
                   onToggleMute={() => {
                     updateUserState((current) => ({
                       ...current,
@@ -1415,7 +1451,7 @@ export function BlobFeed() {
                         handleOpenOwnProfile();
                         return;
                       }
-                      void handleToggleFollow();
+                      void handleToggleFollow(blob);
                     }}
                     title={isCreatorOwner ? "Open profile" : followed ? "Following" : "Follow creator"}
                     type="button"
@@ -1439,20 +1475,30 @@ export function BlobFeed() {
                   pendingLike={isActive ? pendingLike : false}
                   pendingShare={isActive ? pendingShareAction !== null : false}
                   pendingReport={isActive ? pendingReport : false}
-                  onBookmark={handleBookmark}
+                  onBookmark={() => {
+                    void handleBookmark(blob);
+                  }}
                   onComment={() => {
+                    setEngagedBlobId(blob.id);
                     setCommentsOpen(true);
                     pingControls();
                   }}
-                  onLike={handleLike}
+                  onLike={() => {
+                    void handleLike(blob);
+                  }}
                   onOpenOwnProfile={() => handleOpenOwnProfile()}
-                  onShare={handleShare}
+                  onShare={() => handleShare(blob)}
                   onTip={() => {
+                    setEngagedBlobId(blob.id);
                     setTipOpen(true);
                     pingControls();
                   }}
-                  onReport={handleReport}
-                  onToggleFollow={handleToggleFollow}
+                  onReport={() => {
+                    void handleReport(blob);
+                  }}
+                  onToggleFollow={() => {
+                    void handleToggleFollow(blob);
+                  }}
                   showFollowAction={false}
                 />
               </div>
@@ -1470,7 +1516,9 @@ export function BlobFeed() {
                   isCreatorOwner={isCreatorOwner}
                   onOpenOwnProfile={() => handleOpenOwnProfile()}
                   onTagClick={handleTagClick}
-                  onToggleFollow={handleToggleFollow}
+                  onToggleFollow={() => {
+                    void handleToggleFollow(blob);
+                  }}
                   showFollowButton={false}
                 />
               </div>
@@ -1497,17 +1545,19 @@ export function BlobFeed() {
         draft={currentDraft}
         onClose={() => setCommentsOpen(false)}
         onDraftChange={(value) => {
-          if (!activeRawBlob) return;
+          if (!contextRawBlob) return;
           updateUserState((current) => ({
             ...current,
             commentDrafts: {
               ...current.commentDrafts,
-              [activeRawBlob.id]: value,
+              [contextRawBlob.id]: value,
             },
           }));
         }}
         submitting={pendingComment}
-        onSubmit={handleCommentSubmit}
+        onSubmit={() => {
+          void handleCommentSubmit(contextRawBlob);
+        }}
         open={commentsOpen}
       />
 
@@ -1516,7 +1566,7 @@ export function BlobFeed() {
         open={tipOpen}
         platform={platform}
         onClose={() => setTipOpen(false)}
-        onSend={handleSendTip}
+        onSend={(amountSui) => handleSendTip(amountSui, contextRawBlob)}
       />
 
       {toast ? (

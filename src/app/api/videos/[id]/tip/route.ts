@@ -12,9 +12,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     platformFeeSui?: number;
     address?: string;
   };
-  const amount = Number.isFinite(body.amount) ? Number(body.amount) : 1;
-  if (amount < 1) {
-    return NextResponse.json({ error: "Tips must be at least 1 SUI." }, { status: 400 });
+  const amount = Number.isFinite(body.amount) ? Number(body.amount) : 0;
+  if (amount <= 0) {
+    return NextResponse.json({ error: "Tip amount must be greater than 0 SUI." }, { status: 400 });
   }
 
   const actorAddress = readActorAddress(request);

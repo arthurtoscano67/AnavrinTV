@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { formatCompact, formatRelativeTime } from "@/lib/format";
+import { buildApiUrl } from "@/lib/site-url";
 
 export type ProfileContentItem = {
   id: string;
@@ -10,6 +11,7 @@ export type ProfileContentItem = {
   views: number;
   createdAt: string;
   durationLabel: string;
+  thumbnailUrl?: string;
   coverFrom: string;
   coverVia: string;
   coverTo: string;
@@ -20,6 +22,8 @@ type ContentCardProps = {
 };
 
 export function ContentCard({ item }: ContentCardProps) {
+  const thumbnailUrl = item.thumbnailUrl?.trim() ? buildApiUrl(item.thumbnailUrl) : undefined;
+
   return (
     <Link
       className="group block overflow-hidden rounded-xl border border-white/10 bg-[#1a1a1a] transition hover:border-white/20 hover:bg-[#212121]"
@@ -31,6 +35,15 @@ export function ContentCard({ item }: ContentCardProps) {
           background: `linear-gradient(145deg, ${item.coverFrom} 0%, ${item.coverVia} 52%, ${item.coverTo} 100%)`,
         }}
       >
+        {thumbnailUrl ? (
+          <img
+            alt={item.title}
+            className="absolute inset-0 size-full object-cover"
+            draggable={false}
+            loading="lazy"
+            src={thumbnailUrl}
+          />
+        ) : null}
         <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-semibold text-white">
           {item.durationLabel}
         </span>

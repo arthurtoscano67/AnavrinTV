@@ -30,7 +30,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open the app URL printed by the Next.js dev server.
 
 ## Environment
 
@@ -93,6 +93,19 @@ If you host the frontend on Pages:
 1. Deploy this app backend (`next start`) on a Node host (for example: Vercel, Fly.io, Render, Railway).
 2. Set `NEXT_PUBLIC_API_ORIGIN` in the frontend build to that backend origin (for example `https://api.onreel.xyz`).
 3. Keep `NEXT_PUBLIC_ENABLE_SEAL_PROXY=false` unless your Seal key servers require proxying.
+
+Railway production example:
+
+```bash
+NEXT_PUBLIC_API_ORIGIN=https://anavrintv-production.up.railway.app
+NEXT_PUBLIC_ENABLE_SEAL_PROXY=false
+```
+
+Backend CORS allowlist (Railway API host):
+
+```bash
+CORS_ALLOWED_ORIGINS=https://onreel.xyz,https://www.onreel.xyz,https://arthurtoscano67.github.io
+```
 
 Without a live API origin, `/api/videos`, `/api/platform`, and `/api/seal/proxy` will return `404` on Pages and uploads will fail.
 

@@ -39,6 +39,7 @@ import type {
 
 const DATA_DIR = join(/* turbopackIgnore: true */ process.cwd(), "data");
 const WALRUS_DIR = join(DATA_DIR, "walrus");
+const THUMBNAILS_DIR = join(DATA_DIR, "thumbnails");
 const DB_FILE = join(DATA_DIR, "anavrin-db.json");
 let bootstrapPromise: Promise<Database> | null = null;
 const DEFAULT_STORAGE_DAYS = 30;
@@ -47,6 +48,7 @@ const DEFAULT_STORAGE_LIMIT_BYTES = 500 * 1024 * 1024 * 1024;
 async function ensureStorage() {
   await mkdir(DATA_DIR, { recursive: true });
   await mkdir(WALRUS_DIR, { recursive: true });
+  await mkdir(THUMBNAILS_DIR, { recursive: true });
 }
 
 function normalizeAddress(value: string | null | undefined) {
@@ -221,6 +223,11 @@ function normalizeVideoRecord(video: Partial<VideoRecord> & Pick<VideoRecord, "i
   const createdAt = video.createdAt || timestamp();
   const ownerAddress = normalizeAddress(video.ownerAddress);
   const asset = normalizeVideoAsset(video.asset ?? null, ownerAddress, createdAt);
+  const explicitThumbnailUrl =
+    typeof video.thumbnailUrl === "string" && video.thumbnailUrl.trim().length > 0
+      ? video.thumbnailUrl.trim()
+      : undefined;
+  const derivedThumbnailUrl = asset?.thumbnailPath ? `/api/videos/${video.id}/thumbnail` : undefined;
   const creatorUsername =
     normalizeUsernameInput(video.creatorUsername) ||
     normalizeUsernameInput(video.ownerName) ||
@@ -241,6 +248,7 @@ function normalizeVideoRecord(video: Partial<VideoRecord> & Pick<VideoRecord, "i
     creatorUsername,
     creatorDisplayName: video.creatorDisplayName || video.ownerName || "Creator",
     creatorAvatarUrl: video.creatorAvatarUrl,
+    thumbnailUrl: explicitThumbnailUrl || derivedThumbnailUrl,
     coverFrom: video.coverFrom || "#22d3ee",
     coverVia: video.coverVia || "#3b82f6",
     coverTo: video.coverTo || "#0f172a",
@@ -601,10 +609,35 @@ function guessExtension(fileName: string, contentType: string) {
     "video/x-flv": ".flv",
     "video/x-ms-wmv": ".wmv",
     "video/ogg": ".ogv",
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+    "image/avif": ".avif",
     "application/octet-stream": ".bin",
   };
 
   return contentMap[contentType] ?? ".bin";
+}
+
+type ThumbnailUploadInput = {
+  bytes: Uint8Array | Buffer;
+  originalName: string;
+  contentType: string;
+};
+
+async function storeThumbnailAsset(videoId: string, thumbnail?: ThumbnailUploadInput | null) {
+  if (!thumbnail) return null;
+  const contentType = thumbnail.contentType?.trim() || "application/octet-stream";
+  const extension = guessExtension(thumbnail.originalName, contentType);
+  const relativePath = join("data", "thumbnails", `${videoId}${extension}`);
+  const absolutePath = join(/* turbopackIgnore: true */ process.cwd(), relativePath);
+  await ensureStorage();
+  await writeFile(absolutePath, Buffer.from(thumbnail.bytes));
+  return {
+    path: relativePath,
+    contentType,
+  };
 }
 
 function chooseCover(category: string) {
@@ -1184,6 +1217,7 @@ export async function addBlobComment(input: { blobId: string; authorAddress: str
 
 export async function createUpload(input: {
   file: File;
+  thumbnail?: ThumbnailUploadInput;
   title: string;
   description: string;
   tags: string[];
@@ -1207,6 +1241,7 @@ export async function createUpload(input: {
   const sealedAbsolutePath = join(/* turbopackIgnore: true */ process.cwd(), sealedPath);
   const fileBytes = Buffer.from(await input.file.arrayBuffer());
   const sealedBytes = sealBuffer(fileBytes, id);
+  const thumbnailAsset = await storeThumbnailAsset(id, input.thumbnail);
 
   await ensureStorage();
   await writeFile(sealedAbsolutePath, sealedBytes);
@@ -1236,6 +1271,7 @@ export async function createUpload(input: {
     creatorUsername: account.username,
     creatorDisplayName: account.displayName,
     creatorAvatarUrl: account.avatarUrl,
+    thumbnailUrl: thumbnailAsset ? `/api/videos/${id}/thumbnail` : undefined,
     coverFrom: cover.from,
     coverVia: cover.via,
     coverTo: cover.to,
@@ -1261,6 +1297,8 @@ export async function createUpload(input: {
       storageMaxExtensionDays: 730,
       walrusUri: `walrus://${id}`,
       sealedPath,
+      thumbnailPath: thumbnailAsset?.path,
+      thumbnailContentType: thumbnailAsset?.contentType,
       originalName: input.file.name,
       contentType: input.file.type || "application/octet-stream",
       sizeBytes: fileBytes.length,
@@ -1307,6 +1345,7 @@ export async function persistUploadRecord(input: {
   policyNonce: string;
   uploadTxDigest: string;
   asset: VideoAsset;
+  thumbnail?: ThumbnailUploadInput;
   storageOwnerAddress?: string;
   storageDays?: number;
 }) {
@@ -1316,10 +1355,13 @@ export async function persistUploadRecord(input: {
   const id = crypto.randomUUID();
   const slug = `${slugifyText(input.title)}-${id.slice(0, 6)}`;
   const cover = chooseCover(input.category);
+  const thumbnailAsset = await storeThumbnailAsset(id, input.thumbnail);
   const storageOwnerAddress = normalizeAddress(input.storageOwnerAddress ?? input.ownerAddress);
   const asset = normalizeVideoAsset(
     {
       ...input.asset,
+      thumbnailPath: thumbnailAsset?.path ?? input.asset.thumbnailPath,
+      thumbnailContentType: thumbnailAsset?.contentType ?? input.asset.thumbnailContentType,
       storageMode: "walrus",
       storageOwnerAddress,
       storageStartedAt: input.asset.storageStartedAt ?? createdAt,
@@ -1363,6 +1405,7 @@ export async function persistUploadRecord(input: {
     creatorUsername: account.username,
     creatorDisplayName: account.displayName,
     creatorAvatarUrl: account.avatarUrl,
+    thumbnailUrl: asset?.thumbnailPath ? `/api/videos/${id}/thumbnail` : undefined,
     coverFrom: cover.from,
     coverVia: cover.via,
     coverTo: cover.to,
@@ -1441,6 +1484,14 @@ export async function removeVideo(id: string) {
       await unlink(sealedAbsolutePath);
     } catch {
       // Ignore missing sealed bundles in local development.
+    }
+  }
+  if (video?.asset?.thumbnailPath) {
+    const thumbnailAbsolutePath = join(/* turbopackIgnore: true */ process.cwd(), video.asset.thumbnailPath);
+    try {
+      await unlink(thumbnailAbsolutePath);
+    } catch {
+      // Ignore missing thumbnails in local development.
     }
   }
 
