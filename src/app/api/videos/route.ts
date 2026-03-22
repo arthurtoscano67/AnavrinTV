@@ -41,6 +41,39 @@ function parseWalletMode(value: string | null): WalletMode {
   return "guest";
 }
 
+function decodeBase64Url(value: string) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  return new Uint8Array(Buffer.from(padded, "base64"));
+}
+
+function toByteArray(value: unknown, fieldName: string) {
+  if (value instanceof Uint8Array) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    return decodeBase64Url(value);
+  }
+
+  if (Array.isArray(value)) {
+    return new Uint8Array(value.map((item) => Number(item)));
+  }
+
+  if (value && typeof value === "object") {
+    const orderedValues = Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => /^\d+$/.test(key))
+      .sort((left, right) => Number(left[0]) - Number(right[0]))
+      .map(([, entryValue]) => Number(entryValue));
+
+    if (orderedValues.length) {
+      return new Uint8Array(orderedValues);
+    }
+  }
+
+  throw new Error(`Walrus certificate ${fieldName} is invalid.`);
+}
+
 function parseWalrusCertificate(value: string): ProtocolMessageCertificate | string {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -52,7 +85,43 @@ function parseWalrusCertificate(value: string): ProtocolMessageCertificate | str
   }
 
   try {
-    return JSON.parse(trimmed) as ProtocolMessageCertificate;
+    const parsed = JSON.parse(trimmed) as
+      | ProtocolMessageCertificate
+      | {
+          signers?: number[];
+          serializedMessage?: unknown;
+          serialized_message?: unknown;
+          signature?: unknown;
+          confirmation_certificate?: {
+            signers?: number[];
+            serializedMessage?: unknown;
+            serialized_message?: unknown;
+            signature?: unknown;
+          };
+        };
+
+    const candidate =
+      parsed && typeof parsed === "object" && "confirmation_certificate" in parsed && parsed.confirmation_certificate
+        ? parsed.confirmation_certificate
+        : parsed;
+
+    if (!candidate || typeof candidate !== "object") {
+      throw new Error("Walrus certificate is invalid.");
+    }
+
+    const signers = Array.isArray(candidate.signers) ? candidate.signers.map((item) => Number(item)) : null;
+    const serializedMessage = "serializedMessage" in candidate ? candidate.serializedMessage : candidate.serialized_message;
+    const signature = candidate.signature;
+
+    if (!signers) {
+      throw new Error("Walrus certificate is invalid.");
+    }
+
+    return {
+      signers,
+      serializedMessage: toByteArray(serializedMessage, "serializedMessage"),
+      signature: toByteArray(signature, "signature"),
+    };
   } catch {
     throw new Error("Walrus certificate is invalid.");
   }

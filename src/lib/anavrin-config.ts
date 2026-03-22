@@ -295,6 +295,10 @@ export function getUploadRelayTimeoutMs() {
   return readTimeoutMs(process.env.NEXT_PUBLIC_WALRUS_UPLOAD_RELAY_TIMEOUT_MS, 600_000);
 }
 
+export function getUploadRelayIdleTimeoutMs() {
+  return readTimeoutMs(process.env.NEXT_PUBLIC_WALRUS_UPLOAD_RELAY_IDLE_TIMEOUT_MS, 300_000);
+}
+
 export function resolveUploadRelayConfig(network = getNetwork()) {
   const host = getUploadRelayHost(network);
   if (!host) return null;

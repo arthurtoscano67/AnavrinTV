@@ -22,6 +22,8 @@ import { walrus } from "@mysten/walrus";
 
 import { formatBytes, shortAddress, slugifyText } from "@/lib/format";
 import {
+  getUploadRelayHost,
+  getUploadRelayIdleTimeoutMs,
   getMvrName,
   getNetwork,
   getPolicyPackageId,
@@ -34,6 +36,11 @@ import { buildPolicyInitTransaction, buildVideoIdentityHex, generateVideoNonce }
 import type { AnavrinClient } from "@/lib/anavrin-client";
 import { defaultPlatformSettings } from "@/lib/platform-settings";
 import { formatMistAsSui, parseSuiAmountToMist } from "@/lib/video-monetization";
+import {
+  serializeWalrusCertificate,
+  uploadBlobToWalrusRelayWithProgress,
+  type RelayUploadProgress,
+} from "@/lib/walrus-upload-relay";
 import { clearWalletBalanceSnapshot, getWalletBalanceSnapshot, type WalletBalanceSnapshot } from "@/lib/wallet-funds";
 import type { PlatformSettings, VideoAccessModel, VideoRecord, WalletMode } from "@/lib/types";
 
@@ -97,6 +104,16 @@ type PendingUpload = {
   };
 };
 
+type PendingRelayUpload = Omit<PendingUpload, "walrus"> & {
+  walrus: {
+    blobId: string;
+    blobObjectId: string;
+    nonce: Uint8Array;
+    encryptedBytes: Uint8Array;
+    encodingType?: string;
+  };
+};
+
 type WalrusReadyClient = AnavrinClient & {
   walrus: NonNullable<AnavrinClient["walrus"]>;
 };
@@ -117,6 +134,21 @@ function normalizeVideoExtension(mimeType: string) {
   if (mimeType.includes("mp4")) return "mp4";
   if (mimeType.includes("ogg")) return "ogv";
   return "webm";
+}
+
+function formatRelayEta(seconds: number | null) {
+  if (!Number.isFinite(seconds) || seconds == null || seconds < 0) return "Calculating ETA";
+
+  const rounded = Math.max(0, Math.ceil(seconds));
+  const hours = Math.floor(rounded / 3600);
+  const minutes = Math.floor((rounded % 3600) / 60);
+  const secs = rounded % 60;
+
+  if (hours > 0) {
+    return `ETA ${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }
+
+  return `ETA ${minutes}:${String(secs).padStart(2, "0")}`;
 }
 
 async function readApiError(response: Response, fallback: string) {
@@ -157,7 +189,11 @@ function describeUploadFailure(error: unknown, fallback: string) {
     message.includes("timed out") ||
     error.name === "TimeoutError"
   ) {
-    return "Walrus relay upload timed out before the encrypted blob finished uploading. The relay timeout has been increased in this rollout; hard refresh and retry.";
+    return "Walrus relay upload timed out before the encrypted blob finished uploading. Retry the relay step without signing again.";
+  }
+
+  if (message.includes("stalled before the relay acknowledged the blob")) {
+    return "Walrus relay upload stalled before the relay acknowledged the blob. Retry the relay upload without signing again.";
   }
 
   return message;
@@ -251,6 +287,7 @@ export default function UploadPage() {
   const [balances, setBalances] = useState<WalletBalanceSnapshot | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [relayUploadProgress, setRelayUploadProgress] = useState<RelayUploadProgress | null>(null);
   const [result, setResult] = useState<{
     video: VideoRecord;
     walrus: {
@@ -262,6 +299,7 @@ export default function UploadPage() {
     publishAsBlob: boolean;
   } | null>(null);
   const pendingUploadRef = useRef<PendingUpload | null>(null);
+  const pendingRelayUploadRef = useRef<PendingRelayUpload | null>(null);
   const blobModeSeededRef = useRef(false);
   const recorderVideoRef = useRef<HTMLVideoElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -270,6 +308,7 @@ export default function UploadPage() {
   const recordingTickRef = useRef<number | null>(null);
   const recordingStopTimeoutRef = useRef<number | null>(null);
   const recordingStartedAtRef = useRef<number | null>(null);
+  const relayUploadRequestRef = useRef<XMLHttpRequest | null>(null);
 
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
   const thumbnailPreviewUrl = useMemo(
@@ -398,6 +437,10 @@ export default function UploadPage() {
 
   useEffect(() => {
     return () => {
+      const relayRequest = relayUploadRequestRef.current;
+      if (relayRequest) {
+        relayRequest.abort();
+      }
       if (recordingTickRef.current) {
         window.clearInterval(recordingTickRef.current);
       }
@@ -430,6 +473,10 @@ export default function UploadPage() {
   }
 
   async function selectVideoFile(nextFile: File | null, fallbackDurationSeconds?: number) {
+    pendingUploadRef.current = null;
+    pendingRelayUploadRef.current = null;
+    setRelayUploadProgress(null);
+
     if (!nextFile) {
       setFile(null);
       setDurationSeconds(null);
@@ -655,6 +702,54 @@ export default function UploadPage() {
     }
   }
 
+  function buildPendingUploadFromRelayUpload(pending: PendingRelayUpload, certificate: string): PendingUpload {
+    return {
+      ...pending,
+      walrus: {
+        blobId: pending.walrus.blobId,
+        blobObjectId: pending.walrus.blobObjectId,
+        certificate,
+      },
+    };
+  }
+
+  async function uploadPendingRelayBundle(pending: PendingRelayUpload) {
+    const relayHost = getUploadRelayHost(getNetwork());
+    if (!relayHost) {
+      throw new Error("Walrus upload relay host is not configured.");
+    }
+
+    let currentStage: RelayUploadProgress["stage"] = "uploading";
+    const certificate = await uploadBlobToWalrusRelayWithProgress({
+      host: relayHost,
+      blobId: pending.walrus.blobId,
+      blob: pending.walrus.encryptedBytes,
+      nonce: pending.walrus.nonce,
+      txDigest: pending.uploadTxDigest,
+      blobObjectId: pending.walrus.blobObjectId,
+      deletable: false,
+      encodingType: pending.walrus.encodingType,
+      idleTimeoutMs: getUploadRelayIdleTimeoutMs(),
+      onRequestReady: (request) => {
+        relayUploadRequestRef.current = request;
+      },
+      onProgress: (progress) => {
+        setRelayUploadProgress(progress);
+        if (progress.stage !== currentStage) {
+          currentStage = progress.stage;
+          if (progress.stage === "awaiting_certificate") {
+            setStatus(
+              "Encrypted bytes uploaded. Waiting for the Walrus relay to return the availability certificate...",
+            );
+          }
+        }
+      },
+    });
+
+    setRelayUploadProgress(null);
+    return buildPendingUploadFromRelayUpload(pending, serializeWalrusCertificate(certificate));
+  }
+
   async function submitPendingUpload(pending: PendingUpload) {
     const formData = new FormData();
     formData.append("title", pending.title);
@@ -719,6 +814,8 @@ export default function UploadPage() {
         : "Upload complete. The video is sealed, registered under your wallet, uploaded through Walrus, and linked to your policy object.",
     );
     pendingUploadRef.current = null;
+    pendingRelayUploadRef.current = null;
+    setRelayUploadProgress(null);
     setTitle("");
     setDescription("");
     setTags("sui, walrus, seal");
@@ -843,6 +940,9 @@ export default function UploadPage() {
       return;
     }
 
+    pendingUploadRef.current = null;
+    pendingRelayUploadRef.current = null;
+    setRelayUploadProgress(null);
     setSubmitting(true);
     setStatus("Encrypting the video with Seal...");
 
@@ -975,17 +1075,7 @@ export default function UploadPage() {
       }
 
       setStatus("Uploading the encrypted bundle to the Walrus relay...");
-      const relayResult = await walrusClient.walrus.writeBlobToUploadRelay({
-        blobId: blobMetadata.blobId,
-        blob: encryptedObject,
-        nonce,
-        txDigest: signedTx.Transaction.digest,
-        blobObjectId,
-        deletable: false,
-        encodingType: blobMetadata.metadata.encodingType,
-      });
-
-      const pendingUpload: PendingUpload = {
+      const pendingRelayUpload: PendingRelayUpload = {
         encryptedSizeBytes: encryptedObject.length,
         originalName: file.name,
         contentType: file.type || "application/octet-stream",
@@ -1013,15 +1103,20 @@ export default function UploadPage() {
         walrus: {
           blobId: blobMetadata.blobId,
           blobObjectId,
-          certificate: JSON.stringify(relayResult.certificate),
+          nonce,
+          encryptedBytes: encryptedObject,
+          encodingType: blobMetadata.metadata.encodingType,
         },
       };
-
+      pendingRelayUploadRef.current = pendingRelayUpload;
+      const pendingUpload = await uploadPendingRelayBundle(pendingRelayUpload);
       pendingUploadRef.current = pendingUpload;
+      pendingRelayUploadRef.current = null;
       setStatus("Finalizing the Walrus upload...");
       await submitPendingUpload(pendingUpload);
     } catch (error) {
       const message = describeUploadFailure(error, "Upload failed");
+      setRelayUploadProgress(null);
       setStatus(message);
     } finally {
       setSubmitting(false);
@@ -1029,24 +1124,38 @@ export default function UploadPage() {
   }
 
   async function retryUpload() {
-    if (!pendingUploadRef.current) {
+    if (!pendingUploadRef.current && !pendingRelayUploadRef.current) {
       setStatus("There is no pending upload to retry.");
       return;
     }
 
     setSubmitting(true);
-    setStatus("Retrying the Walrus upload...");
+    setRelayUploadProgress(null);
 
     try {
+      if (pendingRelayUploadRef.current) {
+        setStatus("Retrying the Walrus relay upload...");
+        const pendingUpload = await uploadPendingRelayBundle(pendingRelayUploadRef.current);
+        pendingUploadRef.current = pendingUpload;
+        pendingRelayUploadRef.current = null;
+      }
+
+      if (!pendingUploadRef.current) {
+        throw new Error("There is no finalized Walrus upload to submit.");
+      }
+
+      setStatus("Finalizing the Walrus upload...");
       await submitPendingUpload(pendingUploadRef.current);
     } catch (error) {
       const message = describeUploadFailure(error, "Retry failed");
+      setRelayUploadProgress(null);
       setStatus(message);
     } finally {
       setSubmitting(false);
     }
   }
 
+  const canRetryUpload = Boolean(pendingUploadRef.current || pendingRelayUploadRef.current);
   const fileStats = file
     ? [
         { label: "File name", value: file.name },
@@ -1568,7 +1677,7 @@ export default function UploadPage() {
               <UploadCloud className="size-4" />
               {submitting ? "Uploading..." : publishAsBlob ? "Sign, store, and publish Blob" : "Seal and upload"}
             </button>
-            {pendingUploadRef.current ? (
+            {canRetryUpload ? (
               <button className="btn-secondary" disabled={submitting} type="button" onClick={retryUpload}>
                 <CheckCircle2 className="size-4" />
                 Retry Walrus upload
@@ -1579,6 +1688,65 @@ export default function UploadPage() {
               Open profile
             </Link>
           </div>
+
+          {relayUploadProgress ? (
+            <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-white">
+                  {relayUploadProgress.stage === "uploading"
+                    ? "Uploading encrypted bytes to Walrus"
+                    : "Encrypted bytes sent. Waiting for the Walrus certificate"}
+                </p>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100/70">
+                  {Math.max(
+                    0,
+                    Math.min(
+                      100,
+                      Math.round((relayUploadProgress.loadedBytes / Math.max(1, relayUploadProgress.totalBytes)) * 100),
+                    ),
+                  )}
+                  %
+                </p>
+              </div>
+
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-cyan-300 transition-[width] duration-300"
+                  style={{
+                    width: `${Math.max(
+                      0,
+                      Math.min(
+                        100,
+                        (relayUploadProgress.loadedBytes / Math.max(1, relayUploadProgress.totalBytes)) * 100,
+                      ),
+                    )}%`,
+                  }}
+                />
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs leading-6 text-slate-300">
+                <span>
+                  {formatBytes(relayUploadProgress.loadedBytes)} / {formatBytes(relayUploadProgress.totalBytes)}
+                </span>
+                <span>
+                  {relayUploadProgress.stage === "uploading" && relayUploadProgress.bytesPerSecond
+                    ? `${formatBytes(relayUploadProgress.bytesPerSecond)}/s`
+                    : relayUploadProgress.stage === "uploading"
+                      ? "Calculating speed"
+                      : "Encrypted bytes uploaded"}
+                </span>
+                <span>
+                  {relayUploadProgress.stage === "uploading"
+                    ? formatRelayEta(relayUploadProgress.etaSeconds)
+                    : "Relay is encoding the blob and returning the certificate"}
+                </span>
+              </div>
+              <p className="mt-2 text-xs leading-6 text-slate-400">
+                Keep this tab open. If the relay step fails, you can retry it without signing the wallet transaction
+                again.
+              </p>
+            </div>
+          ) : null}
 
           {status ? (
             <div className="mt-4 rounded-[24px] border border-cyan-300/20 bg-cyan-300/10 p-4 text-sm leading-7 text-cyan-50">
