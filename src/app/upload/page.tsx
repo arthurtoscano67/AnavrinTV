@@ -622,6 +622,9 @@ export default function UploadPage() {
     const response = await fetch(buildApiUrl("/api/videos"), {
       method: "POST",
       body: formData,
+      headers: {
+        "x-anavrin-actor-address": pending.ownerAddress,
+      },
     });
 
     if (!response.ok) {
