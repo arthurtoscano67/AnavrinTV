@@ -113,7 +113,15 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const formData = await request.formData();
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch (error) {
+    console.error("POST /api/videos formData parsing failed", error);
+    const message = error instanceof Error && error.message.trim() ? error.message : "Could not parse upload form data.";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+
   const sealedVideo = formData.get("sealedVideo");
   const thumbnail = formData.get("thumbnail");
 

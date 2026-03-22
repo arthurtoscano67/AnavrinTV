@@ -25,6 +25,12 @@ const nextConfig: NextConfig = {
   },
   poweredByHeader: false,
   serverExternalPackages: ["@mysten/walrus", "@mysten/walrus-wasm"],
+  experimental: {
+    // Upload finalization posts sealed multipart payloads through proxy/middleware.
+    // Next.js buffers these bodies with a 10 MB default limit, which truncates
+    // real video uploads before the route handler can parse them.
+    proxyClientMaxBodySize: "64mb",
+  },
   turbopack: {
     root: process.cwd(),
   },
