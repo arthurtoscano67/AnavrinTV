@@ -18,6 +18,10 @@ const DEFAULT_ALLOWED_HEADERS = [
 ];
 
 const DEFAULT_ALLOWED_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
+const DEFAULT_EXPOSE_HEADERS = [
+  "X-KeyServer-Version",
+  "X-KeyServer-GitVersion",
+];
 
 function getAllowedOrigins() {
   const configured = process.env.CORS_ALLOWED_ORIGINS?.trim();
@@ -50,6 +54,7 @@ function applyCorsHeaders(response: NextResponse, request: NextRequest) {
 
   response.headers.set("Access-Control-Allow-Methods", DEFAULT_ALLOWED_METHODS.join(", "));
   response.headers.set("Access-Control-Allow-Headers", DEFAULT_ALLOWED_HEADERS.join(", "));
+  response.headers.set("Access-Control-Expose-Headers", DEFAULT_EXPOSE_HEADERS.join(", "));
   response.headers.set("Access-Control-Max-Age", "86400");
   response.headers.append("Vary", "Origin");
 }
