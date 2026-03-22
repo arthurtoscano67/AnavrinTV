@@ -3,6 +3,10 @@ import type { KeyServerConfig } from "@mysten/seal";
 
 export type AnavrinNetwork = "testnet" | "mainnet";
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const DEFAULT_MAINNET_POLICY_PACKAGE_ID =
+  "0xc9025cfcda1875dad37f8283f7fbd13d99ba57883d9737119402255a31b5598f";
+const DEFAULT_MAINNET_UPLOAD_TREASURY_ADDRESS =
+  "0x91f8fbe4fdb5e0a074c1140b98a9085a7c7129963e2b85f01790eae3d24af0c0";
 
 export const NETWORK_RPC_URLS: Record<AnavrinNetwork, string> = {
   testnet: "https://fullnode.testnet.sui.io:443",
@@ -42,7 +46,12 @@ function readAddressList(value: string | undefined | null) {
 const ADMIN_ADDRESSES = readAddressList(process.env.NEXT_PUBLIC_ADMIN_ADDRESSES?.trim() ?? null);
 
 function readDefaultAdminAddresses() {
-  const treasuryAddress = process.env.NEXT_PUBLIC_UPLOAD_TREASURY_ADDRESS?.trim().toLowerCase();
+  const treasuryAddress = firstConfiguredValue(
+    process.env.ANAVRIN_UPLOAD_TREASURY_ADDRESS,
+    process.env.NEXT_PRIVATE_UPLOAD_TREASURY_ADDRESS,
+    process.env.NEXT_PUBLIC_UPLOAD_TREASURY_ADDRESS,
+    IS_PRODUCTION ? DEFAULT_MAINNET_UPLOAD_TREASURY_ADDRESS : null,
+  ).toLowerCase();
   if (treasuryAddress && isValidSuiAddress(treasuryAddress)) {
     return [treasuryAddress];
   }
@@ -70,6 +79,15 @@ function requireProductionEnv(value: string | undefined | null, name: string) {
 
   if (IS_PRODUCTION) {
     throw new Error(`${name} is required in production.`);
+  }
+
+  return "";
+}
+
+function firstConfiguredValue(...values: Array<string | undefined | null>) {
+  for (const value of values) {
+    const trimmed = value?.trim() ?? "";
+    if (trimmed) return trimmed;
   }
 
   return "";
@@ -187,7 +205,15 @@ export function isAdminAddress(address?: string | null) {
 }
 
 export function getUploadTreasuryAddress() {
-  const value = requireProductionEnv(process.env.NEXT_PUBLIC_UPLOAD_TREASURY_ADDRESS, "NEXT_PUBLIC_UPLOAD_TREASURY_ADDRESS");
+  const value = requireProductionEnv(
+    firstConfiguredValue(
+      process.env.ANAVRIN_UPLOAD_TREASURY_ADDRESS,
+      process.env.NEXT_PRIVATE_UPLOAD_TREASURY_ADDRESS,
+      process.env.NEXT_PUBLIC_UPLOAD_TREASURY_ADDRESS,
+      getNetwork() === "mainnet" ? DEFAULT_MAINNET_UPLOAD_TREASURY_ADDRESS : null,
+    ),
+    "NEXT_PUBLIC_UPLOAD_TREASURY_ADDRESS",
+  );
   if (!value) return null;
   if (!isValidSuiAddress(value)) {
     throw new Error("NEXT_PUBLIC_UPLOAD_TREASURY_ADDRESS is not a valid Sui address.");
@@ -196,7 +222,15 @@ export function getUploadTreasuryAddress() {
 }
 
 export function getPolicyPackageId() {
-  const value = requireProductionEnv(process.env.NEXT_PUBLIC_SEAL_POLICY_PACKAGE_ID, "NEXT_PUBLIC_SEAL_POLICY_PACKAGE_ID");
+  const value = requireProductionEnv(
+    firstConfiguredValue(
+      process.env.ANAVRIN_SEAL_POLICY_PACKAGE_ID,
+      process.env.NEXT_PRIVATE_SEAL_POLICY_PACKAGE_ID,
+      process.env.NEXT_PUBLIC_SEAL_POLICY_PACKAGE_ID,
+      getNetwork() === "mainnet" ? DEFAULT_MAINNET_POLICY_PACKAGE_ID : null,
+    ),
+    "NEXT_PUBLIC_SEAL_POLICY_PACKAGE_ID",
+  );
   if (!value) return null;
   if (!isValidSuiObjectId(value)) {
     throw new Error("NEXT_PUBLIC_SEAL_POLICY_PACKAGE_ID is not a valid Sui object ID.");
