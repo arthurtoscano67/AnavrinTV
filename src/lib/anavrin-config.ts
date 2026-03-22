@@ -137,7 +137,7 @@ export function getNetwork() {
   }
 
   if (IS_PRODUCTION) {
-    throw new Error("NEXT_PUBLIC_SUI_NETWORK is required in production.");
+    return "mainnet";
   }
 
   return "testnet";
