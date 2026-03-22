@@ -6,7 +6,7 @@ import { getVideo, getVideos } from "@/lib/db";
 import type { VideoRecord } from "@/lib/types";
 import { isPublishedWatchRelease } from "@/lib/video-monetization";
 
-export const dynamicParams = true;
+export const dynamicParams = false;
 
 export async function generateStaticParams() {
   const videos = await getVideos({ publicOnly: true, includeDrafts: false });

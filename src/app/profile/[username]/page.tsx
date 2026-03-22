@@ -17,6 +17,8 @@ type CreatorSource = {
   videos: VideoRecord[];
 };
 
+export const dynamicParams = false;
+
 function initials(value: string) {
   const parts = value.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "AT";
