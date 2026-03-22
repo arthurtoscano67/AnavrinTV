@@ -812,7 +812,7 @@ export default function UploadPage() {
         nonce: blobMetadata.nonce,
       })(tx);
 
-      await walrusClient.walrus.registerBlob({
+      const registeredBlob = await walrusClient.walrus.registerBlob({
         size: encryptedObject.length,
         epochs: storageEpochs,
         blobId: blobMetadata.blobId,
@@ -827,6 +827,7 @@ export default function UploadPage() {
           policyNonce: toHex(nonce),
         },
       })(tx);
+      tx.transferObjects([registeredBlob], account.address);
 
       setStatus("Confirm the single wallet signature for Seal, Walrus, and the platform fee...");
       const signedTx = await dAppKit.signAndExecuteTransaction({ transaction: tx });
