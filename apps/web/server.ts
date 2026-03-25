@@ -9,7 +9,9 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  // Railway injects the PORT environment variable automatically.
+  // Locally it falls back to 3000.
+  const PORT = parseInt(process.env.PORT || '3000', 10);
 
   // Middleware for parsing body
   app.use(express.json({ limit: '50mb' }));
@@ -153,7 +155,9 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    // Use __dirname so the path is always relative to THIS file (apps/web/),
+    // not wherever the process was launched from (which would be wrong on Railway).
+    const distPath = path.join(__dirname, 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
