@@ -1,0 +1,5 @@
+{
+  "name": "SuiTube",
+  "description": "A decentralized YouTube-style video platform on Sui blockchain using Walrus storage. Upload, watch, and share videos with full ownership.",
+  "requestFramePermissions": []
+}

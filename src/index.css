@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@theme {
+  --color-yt-black: #0f0f0f;
+  --color-yt-dark: #212121;
+  --color-yt-red: #ff4444;
+  --color-yt-gray: #aaaaaa;
+  --color-yt-border: #3f3f3f;
+}
+
+@layer base {
+  body {
+    @apply bg-yt-black text-white selection:bg-yt-red selection:text-white;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
