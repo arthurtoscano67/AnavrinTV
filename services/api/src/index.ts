@@ -18,6 +18,7 @@ import {
   selectorSchema,
 } from '@onreel/shared';
 
+import { runMigrations } from './migrate.js';
 import { db } from './db.js';
 import { env } from './env.js';
 import { enqueueJob } from './jobs.js';
@@ -531,6 +532,14 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
   return res.status(500).send({ error: message });
 });
 
-app.listen(env.API_PORT, () => {
-  logger.info({ port: env.API_PORT }, 'api listening');
-});
+runMigrations()
+  .then(() => {
+        logger.info('database migrations complete');
+        app.listen(env.API_PORT, () => {
+                logger.info({ port: env.API_PORT }, 'api listening');
+        });
+  })
+  .catch((err) => {
+        logger.error({ err }, 'migration failed');
+        process.exit(1);
+  });
