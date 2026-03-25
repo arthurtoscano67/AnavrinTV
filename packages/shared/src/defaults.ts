@@ -1,0 +1,28 @@
+import { FeeProfile } from './types.js';
+
+export const defaultFeeProfile: FeeProfile = {
+  uploadFlatMist: 0n,
+  uploadPercentBps: 0,
+  uploadPerGbMist: 0n,
+  uploadPerMinuteMist: 0n,
+  renewalFlatMist: 0n,
+  renewalPerGbPerEpochMist: 0n,
+  renewalPerEpochMist: 0n,
+  rentalPlatformFlatMist: 0n,
+  rentalPlatformBps: 0,
+  purchasePlatformFlatMist: 0n,
+  purchasePlatformBps: 0,
+  tipPlatformFlatMist: 0n,
+  tipPlatformBps: 0,
+  adCreatorPayoutBps: 6000,
+  payoutMinMist: 100000000n,
+  payoutHoldDays: 7,
+  sponsorshipMode: 'NONE',
+  sponsorCoverageBps: 0,
+  maxUploadBytes: 21474836480n,
+  maxVideoSeconds: 21600,
+  adEligible: true,
+  monetizationEligible: true,
+  uploadAllowedMime: ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska'],
+  royaltyBps: 500,
+};

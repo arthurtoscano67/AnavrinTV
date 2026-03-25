@@ -1,20 +1,26 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# OnReel Platform Monorepo
 
-# Run and deploy your AI Studio app
+Production-first Sui + Walrus + Seal video platform foundation.
 
-This contains everything you need to run your app locally.
+## Workspaces
+- `apps/web`: consumer client (wallet + playback UI)
+- `apps/admin`: admin dashboard
+- `services/api`: platform API and admin config plane
+- `services/workflow`: queue orchestrator and retry engine
+- `services/*`: specialized workers (media, walrus, chain, indexer, ads, payout, moderation, notifications)
+- `packages/shared`: shared domain model + fee/override engine
+- `packages/move/onreel_core`: Move modules for ownership, access, treasury, config
+- `infra/db/migrations`: PostgreSQL schema
 
-View your app in AI Studio: https://ai.studio/apps/975e7991-c367-43b5-898d-f0f6783f141f
+## Quick start
+1. `npm install`
+2. create DB and run migration SQL files in `infra/db/migrations`
+3. run services:
+   - `npm run dev:api`
+   - `npm run dev:workflow`
+   - `npm run dev:web`
 
-## Run Locally
+## Rule precedence (deterministic)
+`GLOBAL < CREATOR_TIER < CAMPAIGN < INDIVIDUAL < MANUAL < EMERGENCY`
 
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+All fee simulations and effective configuration responses include a resolution trace.
