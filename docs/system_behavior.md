@@ -16,6 +16,7 @@
 - `MEDIA_ENCRYPT` uses AES-256-GCM for content payloads and wraps DEKs with Seal.
 - `WALRUS_UPLOAD` persists resumable `writeBlob` checkpoints (`onStep` + `resume`) to DB metadata.
 - `CHAIN_MINT` executes the real `onreel::video_asset::mint` move call and stores tx digest/object ID.
+- Web clients upload through backend intake (`POST /uploads/intents` + `PUT /uploads/intents/:id/file`) so mainnet uploads do not depend on public publishers.
 
 ## Upload Lifecycle States
 `RECEIVED -> VALIDATED -> TRANSCODED -> ENCRYPTED -> WALRUS_STORED -> MINTED -> INDEXED -> PUBLISHED`

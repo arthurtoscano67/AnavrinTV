@@ -1,8 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, X, FileVideo, CheckCircle2, AlertCircle, Loader2, Play, Shield, Coins, Clock } from 'lucide-react';
-import { uploadToWalrus, calculateStorageCost } from '../services/walrusService';
-import { encryptBlob } from '../services/sealService';
+import { calculateStorageCost } from '../services/walrusService';
 import { Video, UserProfile } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,6 +16,111 @@ interface UploadPageProps {
   onUploadSuccess: (video: Video) => void;
 }
 
+type UploadStatus =
+  | 'RECEIVED'
+  | 'VALIDATED'
+  | 'SCANNED'
+  | 'TRANSCODED'
+  | 'ENCRYPTED'
+  | 'WALRUS_STORED'
+  | 'MINTED'
+  | 'INDEXED'
+  | 'PUBLISHED'
+  | 'FAILED';
+
+interface UploadIntentCreateResponse {
+  uploadIntentId: string;
+}
+
+interface UploadIntentStatusResponse {
+  uploadIntentId: string;
+  status: UploadStatus;
+  failureReason: string | null;
+  walrusManifestBlobId: string | null;
+}
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
+
+function apiUrl(relativePath: string): string {
+  return API_BASE_URL ? `${API_BASE_URL}${relativePath}` : relativePath;
+}
+
+function parseErrorMessage(input: unknown, fallback: string): string {
+  if (!input || typeof input !== 'object') {
+    return fallback;
+  }
+  const errorValue = (input as Record<string, unknown>).error;
+  if (typeof errorValue === 'string' && errorValue.length > 0) {
+    return errorValue;
+  }
+  return fallback;
+}
+
+async function uploadIntentBinary(
+  uploadIntentId: string,
+  file: File,
+  onProgress: (fraction: number) => void,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', apiUrl(`/uploads/intents/${uploadIntentId}/file`));
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        onProgress(event.loaded / event.total);
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network error while uploading file to backend intake.'));
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+        return;
+      }
+      try {
+        const parsed = JSON.parse(xhr.responseText);
+        reject(new Error(parseErrorMessage(parsed, `Upload intake failed (${xhr.status})`)));
+      } catch {
+        reject(new Error(`Upload intake failed (${xhr.status})`));
+      }
+    };
+
+    xhr.send(file);
+  });
+}
+
+function statusToProgress(status: UploadStatus): number {
+  switch (status) {
+    case 'RECEIVED':
+      return 74;
+    case 'VALIDATED':
+      return 78;
+    case 'SCANNED':
+      return 80;
+    case 'TRANSCODED':
+      return 84;
+    case 'ENCRYPTED':
+      return 90;
+    case 'WALRUS_STORED':
+      return 94;
+    case 'MINTED':
+      return 97;
+    case 'INDEXED':
+      return 99;
+    case 'PUBLISHED':
+      return 100;
+    case 'FAILED':
+      return 100;
+    default:
+      return 74;
+  }
+}
+
+async function wait(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function UploadPage({ userProfile, onUploadSuccess }: UploadPageProps) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
@@ -28,12 +132,12 @@ export function UploadPage({ userProfile, onUploadSuccess }: UploadPageProps) {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [storageCost, setStorageCost] = useState<number>(0);
   const [selectedDuration, setSelectedDuration] = useState(STORAGE_DURATION_OPTIONS[1]); // Default 1 month
-  const [isEncrypted, setIsEncrypted] = useState(true);
   const [uploadedVideo, setUploadedVideo] = useState<Video | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const navigate = useNavigate();
   const account = useCurrentAccount();
   const suiClient = useSuiClient();
+  const isEncrypted = true;
 
   useEffect(() => {
     const updateCost = async () => {
@@ -74,29 +178,81 @@ export function UploadPage({ userProfile, onUploadSuccess }: UploadPageProps) {
     setUploadProgress(10); // Reading file
 
     try {
-      // 1. Platform-sponsored storage path (no wallet WAL prepayment required)
+      // 1. Create upload intent on backend
       setUploadProgress(20);
+      const intentResponse = await fetch(apiUrl('/uploads/intents'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userProfile.address,
+          walletAddress: account.address,
+          channelId: userProfile.address,
+          title: title.trim(),
+          description: description.trim(),
+          fileName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          sizeBytes: String(file.size),
+          selector: {
+            creatorId: userProfile.address,
+            walletAddress: account.address,
+          },
+        }),
+      });
 
-      // 2. Encrypt with Seal
-      setUploadProgress(30);
-      let blobToUpload: Blob = file;
-      let sealPolicyId: string | undefined;
-
-      if (isEncrypted) {
-        const { encryptedBlob, policyId } = await encryptBlob(file, account.address);
-        blobToUpload = encryptedBlob;
-        sealPolicyId = policyId;
+      if (!intentResponse.ok) {
+        const payload = await intentResponse.json().catch(() => ({}));
+        throw new Error(parseErrorMessage(payload, `Failed to create upload intent (${intentResponse.status})`));
       }
 
-      // 3. Upload to Walrus (with failover and progress)
-      const blobId = await uploadToWalrus(blobToUpload, selectedDuration.epochs, (progress) => {
-        setUploadProgress(progress);
+      const intentPayload = (await intentResponse.json()) as UploadIntentCreateResponse;
+      const uploadIntentId = intentPayload.uploadIntentId;
+      if (!uploadIntentId) {
+        throw new Error('Upload intent response missing uploadIntentId.');
+      }
+
+      // 2. Upload binary file to backend intake
+      setUploadProgress(30);
+      await uploadIntentBinary(uploadIntentId, file, (fraction) => {
+        const uploadStageProgress = 30 + Math.round(Math.max(0, Math.min(1, fraction)) * 40);
+        setUploadProgress(uploadStageProgress);
       });
+
+      // 3. Poll backend workflow status until Walrus/chain pipeline reaches publish.
+      let finalStatus: UploadIntentStatusResponse | null = null;
+      for (let attempt = 0; attempt < 160; attempt += 1) {
+        const statusResponse = await fetch(apiUrl(`/uploads/intents/${uploadIntentId}`));
+        if (!statusResponse.ok) {
+          throw new Error(`Failed to fetch upload status (${statusResponse.status})`);
+        }
+
+        const statusPayload = (await statusResponse.json()) as UploadIntentStatusResponse;
+        setUploadProgress((current) => Math.max(current, statusToProgress(statusPayload.status)));
+
+        if (statusPayload.status === 'FAILED') {
+          throw new Error(statusPayload.failureReason ?? 'Upload pipeline failed.');
+        }
+
+        if (
+          statusPayload.status === 'PUBLISHED' ||
+          (statusPayload.status === 'WALRUS_STORED' && Boolean(statusPayload.walrusManifestBlobId))
+        ) {
+          finalStatus = statusPayload;
+          break;
+        }
+
+        await wait(3000);
+      }
+
+      if (!finalStatus?.walrusManifestBlobId) {
+        throw new Error('Upload pipeline timed out before Walrus blob was finalized.');
+      }
 
       const storageExpiry = Date.now() + (selectedDuration.epochs * EPOCH_DURATION_MS);
 
       const newVideo: Video = {
-        blobId,
+        blobId: finalStatus.walrusManifestBlobId,
         size: file.size,
         title,
         description,
@@ -113,7 +269,7 @@ export function UploadPage({ userProfile, onUploadSuccess }: UploadPageProps) {
         duration: '0:00',
         mimeType: file.type,
         isPublic: true,
-        sealPolicyId,
+        sealPolicyId: isEncrypted ? 'backend-seal-policy' : undefined,
         storageExpiry,
         storedEpochs: selectedDuration.epochs,
       };
@@ -225,13 +381,13 @@ export function UploadPage({ userProfile, onUploadSuccess }: UploadPageProps) {
                 <div className="flex items-center justify-between p-4 rounded-xl bg-yt-black border border-yt-border">
                   <div className="flex flex-col gap-1">
                     <span className="text-sm font-bold">Seal Encryption</span>
-                    <span className="text-[10px] text-yt-gray">Encrypt video for your identity only</span>
+                    <span className="text-[10px] text-yt-gray">Mainnet uploads are backend-encrypted with Seal</span>
                   </div>
                   <button 
-                    onClick={() => setIsEncrypted(!isEncrypted)}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${isEncrypted ? 'bg-yt-red' : 'bg-yt-gray/20'}`}
+                    disabled
+                    className="w-12 h-6 rounded-full transition-colors relative bg-yt-red opacity-80 cursor-not-allowed"
                   >
-                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isEncrypted ? 'left-7' : 'left-1'}`} />
+                    <div className="absolute top-1 w-4 h-4 bg-white rounded-full transition-all left-7" />
                   </button>
                 </div>
 

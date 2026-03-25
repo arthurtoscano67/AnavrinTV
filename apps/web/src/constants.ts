@@ -1,9 +1,13 @@
 export const WALRUS_AGGREGATORS = [
-  'https://aggregator.walrus-testnet.walrus.space'
+  'https://aggregator.walrus-mainnet.walrus.space',
+  'https://aggregator.walrus-mainnet.h2o-nodes.com',
+  'https://aggregator.suicore.com',
+  'https://wal-aggregator-mainnet.staketab.org'
 ];
 
 export const WALRUS_PUBLISHERS = [
-  'https://publisher.walrus-testnet.walrus.space'
+  // Mainnet has no public unauthenticated publishers.
+  // Uploads must go through platform backend workers.
 ];
 
 export const WAL_TOKEN_DECIMALS = 9;

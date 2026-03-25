@@ -1,6 +1,13 @@
+import crypto from 'node:crypto';
+import { createWriteStream } from 'node:fs';
+import { mkdir, rename, rm } from 'node:fs/promises';
+import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
+import { Transform } from 'node:stream';
 import express from 'express';
 import pino from 'pino';
 import { z } from 'zod';
+import cors from 'cors';
 import {
   applySponsorship,
   calculateFee,
@@ -20,6 +27,12 @@ import { sanitizeProfile, serializeForJson } from './serialization.js';
 const logger = pino({ name: 'onreel-api' });
 const app = express();
 
+const allowAllCors = env.CORS_ALLOW_ORIGINS.includes('*');
+app.use(
+  cors({
+    origin: allowAllCors ? true : env.CORS_ALLOW_ORIGINS,
+  }),
+);
 app.use(express.json({ limit: '2mb' }));
 app.use((req, res, next) => {
   const start = Date.now();
@@ -87,6 +100,33 @@ app.get('/health', async (_req, res) => {
   await db.query('SELECT 1');
   res.send({ ok: true, service: 'api' });
 });
+
+function resolveUploadTargetPath(tmpObjectKey: string): string {
+  const root = path.resolve(env.UPLOAD_TMP_ROOT);
+  const target = path.resolve(root, tmpObjectKey);
+  if (target !== root && !target.startsWith(`${root}${path.sep}`)) {
+    throw new Error('invalid tmp object key path');
+  }
+  return target;
+}
+
+async function enqueueJobIfMissing(jobType: string, uploadIntentId: string): Promise<void> {
+  const { rows } = await db.query<{ id: string }>(
+    `
+    SELECT id
+    FROM workflow_jobs
+    WHERE job_type = $1
+      AND status IN ('QUEUED','RUNNING')
+      AND payload->>'uploadIntentId' = $2
+    LIMIT 1
+    `,
+    [jobType, uploadIntentId],
+  );
+
+  if (!rows[0]) {
+    await enqueueJob(db, jobType as Parameters<typeof enqueueJob>[1], { uploadIntentId });
+  }
+}
 
 app.post('/admin/rules', async (req, res) => {
   const input = ruleInputSchema.parse(req.body);
@@ -331,16 +371,153 @@ app.post('/uploads/intents', async (req, res) => {
   );
 
   const uploadIntentId = String(rows[0].id);
-  const job = await enqueueJob(db, 'UPLOAD_PIPELINE', {
+  res.status(201).send({
     uploadIntentId,
-    selector: input.selector,
+    workflowJobId: null,
+    resumableUrl,
+    tmpObjectKey,
   });
+});
+
+app.put('/uploads/intents/:uploadIntentId/file', async (req, res) => {
+  const uploadIntentId = z.string().uuid().parse(req.params.uploadIntentId);
+
+  const { rows } = await db.query<{
+    id: string;
+    tmp_object_key: string;
+    size_bytes: string;
+    checksum_sha256: string | null;
+  }>(
+    `
+    SELECT id, tmp_object_key, size_bytes, checksum_sha256
+    FROM upload_intents
+    WHERE id = $1
+    LIMIT 1
+    `,
+    [uploadIntentId],
+  );
+
+  const uploadIntent = rows[0];
+  if (!uploadIntent) {
+    return res.status(404).send({ error: 'upload_intent_not_found' });
+  }
+
+  const targetPath = resolveUploadTargetPath(uploadIntent.tmp_object_key);
+  const stagingPath = `${targetPath}.part`;
+  await mkdir(path.dirname(targetPath), { recursive: true });
+
+  const hasher = crypto.createHash('sha256');
+  let bytesWritten = 0n;
+
+  try {
+    await pipeline(
+      req,
+      new Transform({
+        transform(chunk, _encoding, callback) {
+          const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          hasher.update(buffer);
+          bytesWritten += BigInt(buffer.length);
+          callback(null, buffer);
+        },
+      }),
+      createWriteStream(stagingPath, { flags: 'w' }),
+    );
+  } catch (error) {
+    await rm(stagingPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
+
+  const expectedBytes = BigInt(uploadIntent.size_bytes);
+  if (bytesWritten !== expectedBytes) {
+    await rm(stagingPath, { force: true }).catch(() => undefined);
+    return res.status(400).send({
+      error: 'upload_size_mismatch',
+      expectedBytes: expectedBytes.toString(),
+      receivedBytes: bytesWritten.toString(),
+    });
+  }
+
+  const checksumSha256 = hasher.digest('hex');
+  if (uploadIntent.checksum_sha256 && uploadIntent.checksum_sha256 !== checksumSha256) {
+    await rm(stagingPath, { force: true }).catch(() => undefined);
+    return res.status(400).send({
+      error: 'checksum_mismatch',
+      expectedChecksumSha256: uploadIntent.checksum_sha256,
+      receivedChecksumSha256: checksumSha256,
+    });
+  }
+
+  await rename(stagingPath, targetPath);
+  await db.query(
+    `
+    UPDATE upload_intents
+    SET checksum_sha256 = COALESCE(checksum_sha256, $2),
+        status = CASE
+          WHEN status = 'FAILED' THEN status
+          ELSE 'RECEIVED'
+        END,
+        updated_at = now()
+    WHERE id = $1
+    `,
+    [uploadIntentId, checksumSha256],
+  );
+
+  await enqueueJobIfMissing('UPLOAD_PIPELINE', uploadIntentId);
 
   res.status(201).send({
     uploadIntentId,
-    workflowJobId: job.id,
-    resumableUrl,
-    tmpObjectKey,
+    bytesWritten: bytesWritten.toString(),
+    checksumSha256,
+    status: 'RECEIVED',
+  });
+});
+
+app.get('/uploads/intents/:uploadIntentId', async (req, res) => {
+  const uploadIntentId = z.string().uuid().parse(req.params.uploadIntentId);
+  const { rows } = await db.query<{
+    id: string;
+    status: string;
+    failure_reason: string | null;
+    walrus_manifest_blob_id: string | null;
+    walrus_manifest_object_id: string | null;
+    onchain_video_object_id: string | null;
+    onchain_mint_tx_digest: string | null;
+    published_at: string | null;
+    updated_at: string;
+  }>(
+    `
+    SELECT
+      id,
+      status,
+      failure_reason,
+      walrus_manifest_blob_id,
+      walrus_manifest_object_id,
+      onchain_video_object_id,
+      onchain_mint_tx_digest,
+      published_at,
+      updated_at
+    FROM upload_intents
+    WHERE id = $1
+    LIMIT 1
+    `,
+    [uploadIntentId],
+  );
+
+  const uploadIntent = rows[0];
+  if (!uploadIntent) {
+    return res.status(404).send({ error: 'upload_intent_not_found' });
+  }
+
+  return res.send({
+    uploadIntentId: uploadIntent.id,
+    status: uploadIntent.status,
+    failureReason: uploadIntent.failure_reason,
+    walrusManifestBlobId: uploadIntent.walrus_manifest_blob_id,
+    walrusManifestObjectId: uploadIntent.walrus_manifest_object_id,
+    onchainVideoObjectId: uploadIntent.onchain_video_object_id,
+    onchainMintTxDigest: uploadIntent.onchain_mint_tx_digest,
+    publishedAt: uploadIntent.published_at,
+    updatedAt: uploadIntent.updated_at,
   });
 });
 

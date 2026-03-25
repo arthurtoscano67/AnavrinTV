@@ -16,16 +16,23 @@ async function startServer() {
   app.use(express.raw({ type: 'application/octet-stream', limit: '500mb' }));
 
   // --- Walrus Proxy Routes ---
-  const WALRUS_PUBLISHERS = [
-    'https://publisher.walrus-testnet.walrus.space'
-  ];
+  const WALRUS_PUBLISHERS: string[] = [];
 
   const WALRUS_AGGREGATORS = [
-    'https://aggregator.walrus-testnet.walrus.space'
+    'https://aggregator.walrus-mainnet.walrus.space',
+    'https://aggregator.walrus-mainnet.h2o-nodes.com',
+    'https://aggregator.suicore.com'
   ];
 
   // 1. Store (Proxy to Publisher with Failover)
   app.put('/api/walrus/store', async (req, res) => {
+    if (WALRUS_PUBLISHERS.length === 0) {
+      return res.status(501).json({
+        error: 'public mainnet publisher unavailable',
+        details: 'Use backend upload-intent pipeline for mainnet uploads.',
+      });
+    }
+
     const epochs = req.query.epochs || '1';
     let lastError = null;
 

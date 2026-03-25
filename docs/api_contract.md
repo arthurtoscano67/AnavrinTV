@@ -51,6 +51,8 @@ Base URL: `http://localhost:4000`
 
 ## Upload Intent
 - `POST /uploads/intents`
+- `PUT /uploads/intents/:uploadIntentId/file` (binary `application/octet-stream`)
+- `GET /uploads/intents/:uploadIntentId`
 
 ```json
 {
@@ -65,5 +67,20 @@ Base URL: `http://localhost:4000`
   "checksumSha256": "...",
   "uploaderSignature": "base64-signature-optional",
   "selector": {"creatorTier": "verified"}
+}
+```
+
+### Upload Status Example
+```json
+{
+  "uploadIntentId": "uuid",
+  "status": "ENCRYPTED",
+  "failureReason": null,
+  "walrusManifestBlobId": null,
+  "walrusManifestObjectId": null,
+  "onchainVideoObjectId": null,
+  "onchainMintTxDigest": null,
+  "publishedAt": null,
+  "updatedAt": "2026-03-25T05:00:00.000Z"
 }
 ```
