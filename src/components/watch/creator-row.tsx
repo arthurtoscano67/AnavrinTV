@@ -118,7 +118,7 @@ export function CreatorRow({ video }: CreatorRowProps) {
         <div className="flex min-w-0 items-center gap-3">
           <CreatorLink
             username={video.creatorUsername}
-            className="block size-11 shrink-0 overflow-hidden rounded-full border border-white/10 bg-white/5"
+            className="block size-11 shrink-0 overflow-hidden rounded-full border border-white/10 bg-[#2a2a2a]"
             title={creatorName}
           >
             {video.creatorAvatarUrl ? (
@@ -136,16 +136,16 @@ export function CreatorRow({ video }: CreatorRowProps) {
           </CreatorLink>
           <div className="min-w-0">
             <CreatorLink
-              className="block truncate text-sm font-semibold text-white hover:text-cyan-100"
+              className="block truncate text-sm font-semibold text-white hover:text-[#ffd0d0]"
               title={creatorName}
               username={video.creatorUsername}
             >
               {creatorName}
             </CreatorLink>
-            <div className="flex flex-wrap items-center gap-1 text-xs text-slate-400">
+            <div className="flex flex-wrap items-center gap-1 text-xs text-[#9f9f9f]">
               {creatorHandle ? (
                 <CreatorLink
-                  className="truncate text-xs text-slate-400 hover:text-cyan-100"
+                  className="truncate text-xs text-[#9f9f9f] hover:text-white"
                   title={creatorHandle}
                   username={video.creatorUsername}
                 >
@@ -182,9 +182,9 @@ export function CreatorRow({ video }: CreatorRowProps) {
       >
         {subscribed ? (
           <>
-            <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+            <div className="rounded-[24px] border border-white/10 bg-[#1d1d1d] p-4">
               <p className="text-sm font-semibold text-white">You are subscribed to {creatorName}.</p>
-              <p className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-500">
+              <p className="mt-1 text-xs uppercase tracking-[0.24em] text-[#7f7f7f]">
                 Choose how loudly this channel should reach you.
               </p>
             </div>
@@ -202,7 +202,7 @@ export function CreatorRow({ video }: CreatorRowProps) {
                     key={option.value}
                     className={[
                       "flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition",
-                      active ? "border-cyan-300/30 bg-cyan-300/12 text-cyan-50" : "border-white/10 bg-white/5 text-white hover:bg-white/10",
+                      active ? "border-[#ff5f5f]/55 bg-[#ff5f5f]/20 text-[#ffd5d5]" : "border-white/10 bg-[#222222] text-white hover:bg-[#2b2b2b]",
                     ].join(" ")}
                     onClick={() => updateNotificationLevel(option.value)}
                     type="button"
@@ -211,17 +211,17 @@ export function CreatorRow({ video }: CreatorRowProps) {
                       <Icon className="size-4" />
                       <span>
                         <span className="block text-sm font-semibold">{option.label}</span>
-                        <span className="block text-xs text-slate-400">{option.detail}</span>
+                        <span className="block text-xs text-[#9f9f9f]">{option.detail}</span>
                       </span>
                     </span>
-                    {active ? <span className="text-xs uppercase tracking-[0.24em] text-cyan-100">Active</span> : null}
+                    {active ? <span className="text-xs uppercase tracking-[0.24em] text-[#ffd5d5]">Active</span> : null}
                   </button>
                 );
               })}
             </div>
           </>
         ) : (
-          <div className="rounded-[24px] border border-dashed border-white/10 bg-white/5 p-5 text-sm leading-7 text-slate-300">
+          <div className="rounded-[24px] border border-dashed border-white/10 bg-[#1d1d1d] p-5 text-sm leading-7 text-[#c1c1c1]">
             Connect a wallet first, then subscribe to keep creator engagement tied to one account.
           </div>
         )}

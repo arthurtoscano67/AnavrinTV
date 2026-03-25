@@ -82,7 +82,7 @@ export function WatchPage({ video, recommendations }: WatchPageProps) {
         </section>
 
         <section className="min-w-0 space-y-2">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-400">Up next</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-[0.24em] text-[#a4a4a4]">Up next</h2>
           <RecommendedVideoList
             currentCategory={video.category}
             currentVideoId={video.id}

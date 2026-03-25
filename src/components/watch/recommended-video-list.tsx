@@ -43,8 +43,8 @@ export function RecommendedVideoList({
               className={[
                 "rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition",
                 active
-                  ? "border-cyan-300/35 bg-cyan-300/14 text-cyan-100"
-                  : "border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:text-white",
+                  ? "border-[#ff5f5f]/55 bg-[#ff5f5f]/18 text-[#ffd5d5]"
+                  : "border-white/10 bg-[#222222] text-[#bdbdbd] hover:border-white/20 hover:bg-[#2c2c2c] hover:text-white",
               ].join(" ")}
               onClick={() => setActiveFilter(category)}
               type="button"

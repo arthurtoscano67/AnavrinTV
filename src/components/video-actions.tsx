@@ -353,8 +353,8 @@ export function VideoActions({ video }: { video: VideoRecord }) {
     return [
       "inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-medium transition",
       active
-        ? "border-cyan-300/35 bg-cyan-300/14 text-cyan-100"
-        : "border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/10 hover:text-white",
+        ? "border-[#ff5f5f]/55 bg-[#ff5f5f]/20 text-[#ffd5d5]"
+        : "border-white/10 bg-[#222222] text-[#d5d5d5] hover:border-white/20 hover:bg-[#2b2b2b] hover:text-white",
     ].join(" ");
   }
 
@@ -413,8 +413,8 @@ export function VideoActions({ video }: { video: VideoRecord }) {
         </button>
       </div>
 
-      <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-slate-300">
-        <MessageSquareMore className="size-4 text-cyan-200" />
+      <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-[#1d1d1d] px-3 py-2.5 text-sm text-[#c1c1c1]">
+        <MessageSquareMore className="size-4 text-[#ffd0d0]" />
         {status ?? "Engagement actions update instantly for the current clip."}
       </div>
 
@@ -428,7 +428,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
         title={video.title}
       >
         <button
-          className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+          className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-[#212121] px-4 py-3 text-sm text-white transition hover:bg-[#2a2a2a] disabled:cursor-not-allowed disabled:opacity-45"
           disabled={Boolean(pendingShareAction)}
           onClick={() => void handleShareAction("copy")}
           type="button"
@@ -441,7 +441,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
         </button>
 
         <button
-          className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+          className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-[#212121] px-4 py-3 text-sm text-white transition hover:bg-[#2a2a2a] disabled:cursor-not-allowed disabled:opacity-45"
           disabled={Boolean(pendingShareAction) || typeof navigator === "undefined" || typeof navigator.share !== "function"}
           onClick={() => void handleShareAction("native")}
           type="button"
@@ -453,7 +453,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
           {pendingShareAction === "native" ? (
             <Loader2 className="size-4 animate-spin" />
           ) : typeof navigator === "undefined" || typeof navigator.share !== "function" ? (
-            <span className="text-xs text-slate-400">Unavailable</span>
+            <span className="text-xs text-[#9f9f9f]">Unavailable</span>
           ) : null}
         </button>
 
@@ -465,7 +465,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
           ].map((option) => (
             <button
               key={option.action}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#212121] px-3 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-[#2a2a2a] disabled:cursor-not-allowed disabled:opacity-45"
               disabled={Boolean(pendingShareAction)}
               onClick={() => void handleShareAction(option.action)}
               type="button"
@@ -482,7 +482,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
         eyebrow="Tip creator"
         footer={
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs leading-6 text-slate-400">
+            <p className="text-xs leading-6 text-[#9f9f9f]">
               {account ? "The creator and treasury split are handled automatically." : "Connect a wallet to tip this video."}
             </p>
             <button className="btn-primary" disabled={submittingTip} onClick={handleTip} type="button">
@@ -494,9 +494,9 @@ export function VideoActions({ video }: { video: VideoRecord }) {
         open={tipOpen}
         title={video.ownerName}
       >
-        <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+        <div className="rounded-[24px] border border-white/10 bg-[#1d1d1d] p-4">
           <p className="text-sm font-semibold text-white">{video.title}</p>
-          <p className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-500">
+          <p className="mt-1 text-xs uppercase tracking-[0.24em] text-[#7f7f7f]">
             Tip in SUI and confirm once in your wallet.
           </p>
         </div>
@@ -509,7 +509,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
                 key={amount}
                 className={[
                   "rounded-2xl border px-3 py-3 text-sm font-semibold transition",
-                  active ? "border-cyan-300/30 bg-cyan-300/12 text-cyan-50" : "border-white/10 bg-white/5 text-white hover:bg-white/10",
+                  active ? "border-[#ff5f5f]/55 bg-[#ff5f5f]/20 text-[#ffd5d5]" : "border-white/10 bg-[#222222] text-white hover:bg-[#2b2b2b]",
                 ].join(" ")}
                 onClick={() => setTipAmount(String(amount))}
                 type="button"
@@ -521,7 +521,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
         </div>
 
         <label className="block">
-          <span className="text-xs uppercase tracking-[0.28em] text-slate-400">Custom amount</span>
+          <span className="text-xs uppercase tracking-[0.28em] text-[#9f9f9f]">Custom amount</span>
           <input
             className="input mt-2 rounded-[18px]"
             inputMode="decimal"
@@ -534,23 +534,23 @@ export function VideoActions({ video }: { video: VideoRecord }) {
           />
         </label>
 
-        <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
-          <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">Tip preview</p>
+        <div className="rounded-[24px] border border-white/10 bg-[#222222] p-4">
+          <p className="text-[11px] uppercase tracking-[0.28em] text-[#9f9f9f]">Tip preview</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Creator</p>
+            <div className="rounded-2xl border border-white/10 bg-[#1b1b1b] px-3 py-3">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[#7f7f7f]">Creator</p>
               <p className="mt-2 text-sm font-semibold text-white">
                 {tipPreview ? `${tipPreview.creatorSui.toFixed(2)} SUI` : "Enter amount"}
               </p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Platform fee</p>
+            <div className="rounded-2xl border border-white/10 bg-[#1b1b1b] px-3 py-3">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[#7f7f7f]">Platform fee</p>
               <p className="mt-2 text-sm font-semibold text-white">
                 {tipPreview ? `${tipPreview.platformFeeSui.toFixed(2)} SUI` : "0.00 SUI"}
               </p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Total</p>
+            <div className="rounded-2xl border border-white/10 bg-[#1b1b1b] px-3 py-3">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[#7f7f7f]">Total</p>
               <p className="mt-2 text-sm font-semibold text-white">
                 {tipPreview ? `${tipPreview.amountSui.toFixed(2)} SUI` : "0.00 SUI"}
               </p>
@@ -564,7 +564,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
         eyebrow="Safety"
         footer={
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs leading-6 text-slate-400">
+            <p className="text-xs leading-6 text-[#9f9f9f]">
               Include enough detail for admin to review the clip quickly.
             </p>
             <button className="btn-primary" disabled={submittingReport} onClick={handleReport} type="button">
@@ -585,7 +585,7 @@ export function VideoActions({ video }: { video: VideoRecord }) {
                 key={reason.value}
                 className={[
                   "rounded-2xl border px-3 py-3 text-left text-sm transition",
-                  active ? "border-cyan-300/30 bg-cyan-300/12 text-cyan-50" : "border-white/10 bg-white/5 text-white hover:bg-white/10",
+                  active ? "border-[#ff5f5f]/55 bg-[#ff5f5f]/20 text-[#ffd5d5]" : "border-white/10 bg-[#222222] text-white hover:bg-[#2b2b2b]",
                 ].join(" ")}
                 onClick={() => setReportReason(reason.value)}
                 type="button"
@@ -597,9 +597,9 @@ export function VideoActions({ video }: { video: VideoRecord }) {
         </div>
 
         <label className="block">
-          <span className="text-xs uppercase tracking-[0.28em] text-slate-400">Review note</span>
+          <span className="text-xs uppercase tracking-[0.28em] text-[#9f9f9f]">Review note</span>
           <textarea
-            className="mt-2 min-h-32 w-full rounded-[22px] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/35"
+            className="mt-2 min-h-32 w-full rounded-[22px] border border-white/10 bg-[#222222] px-4 py-3 text-sm text-white outline-none transition focus:border-[#ff5f5f]/55"
             onChange={(event) => setReportDetail(event.target.value)}
             placeholder="Describe what needs review and include timestamps if useful."
             value={reportDetail}

@@ -24,8 +24,8 @@ export function RecommendedVideoCard({ video, active = false }: RecommendedVideo
       className={[
         "group rounded-xl border p-2 transition",
         active
-          ? "border-cyan-300/35 bg-cyan-300/8"
-          : "border-white/10 bg-[#1a1a1a] hover:border-white/20 hover:bg-white/5",
+          ? "border-[#ff5f5f]/55 bg-[#ff5f5f]/14"
+          : "border-white/10 bg-[#1a1a1a] hover:border-white/20 hover:bg-[#242424]",
       ].join(" ")}
     >
       <div className="flex gap-3">
@@ -48,7 +48,7 @@ export function RecommendedVideoCard({ video, active = false }: RecommendedVideo
             {isPaidRelease ? (
               <div className="absolute left-1.5 top-1.5 flex flex-wrap gap-1">
                 {video.monetization.purchasePriceMist > 0 ? (
-                  <span className="rounded bg-cyan-300/85 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-slate-950">
+                  <span className="rounded bg-[#ff6a6a]/90 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white">
                     Buy {formatMistAsSui(video.monetization.purchasePriceMist)} SUI
                   </span>
                 ) : null}
@@ -66,12 +66,12 @@ export function RecommendedVideoCard({ video, active = false }: RecommendedVideo
         </Link>
 
         <div className="min-w-0 pt-0.5">
-          <Link href={`/video/${video.id}`} className="line-clamp-2 block text-sm font-medium leading-5 text-white group-hover:text-cyan-100">
+          <Link href={`/video/${video.id}`} className="line-clamp-2 block text-sm font-medium leading-5 text-white group-hover:text-[#ffd0d0]">
             <h3>{video.title}</h3>
           </Link>
           <div className="mt-1 flex items-center gap-1.5">
             <CreatorLink
-              className="block size-5 overflow-hidden rounded-full border border-white/10 bg-white/5"
+              className="block size-5 overflow-hidden rounded-full border border-white/10 bg-[#2a2a2a]"
               title={creatorName}
               username={creatorUsername}
             >
@@ -89,14 +89,14 @@ export function RecommendedVideoCard({ video, active = false }: RecommendedVideo
               )}
             </CreatorLink>
             <CreatorLink
-              className="truncate text-xs text-slate-300 hover:text-cyan-100"
+              className="truncate text-xs text-[#b7b7b7] hover:text-white"
               title={creatorName}
               username={creatorUsername}
             >
               {creatorLabel}
             </CreatorLink>
           </div>
-          <p className="mt-1 text-xs text-slate-400">
+          <p className="mt-1 text-xs text-[#9b9b9b]">
             {formatCompact(video.views)} views • {formatRelativeTime(publishedAt)}
           </p>
         </div>

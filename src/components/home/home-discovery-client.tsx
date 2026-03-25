@@ -102,12 +102,12 @@ function DiscoveryCarousel({
     <section className="space-y-3" style={{ contentVisibility: "auto", containIntrinsicSize: "360px" }}>
       <div className="flex items-center justify-between gap-3">
         <h2 className="inline-flex items-center gap-2 text-base font-bold text-white sm:text-lg">
-          <span className="grid size-7 place-items-center rounded-full border border-cyan-200/25 bg-cyan-300/10 text-cyan-100">
+          <span className="grid size-7 place-items-center rounded-full border border-white/14 bg-[#242424] text-[#ffd0d0]">
             <Icon className="size-3.5" />
           </span>
           {title}
         </h2>
-        <Link href={href} className="rounded-full border border-white/14 bg-[#101e37]/82 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-200 transition hover:border-cyan-200/35 hover:text-cyan-100">
+        <Link href={href} className="rounded-full border border-white/14 bg-[#202020] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#e3e3e3] transition hover:border-white/25 hover:bg-[#2a2a2a] hover:text-white">
           View all
         </Link>
       </div>
@@ -121,7 +121,7 @@ function DiscoveryCarousel({
             <Link
               key={`${title}-${video.id}`}
               href={watchHref}
-              className="group min-w-[78vw] snap-start overflow-hidden rounded-2xl border border-white/12 bg-[#0c162d]/88 shadow-[0_12px_30px_rgba(2,6,23,0.34)] transition duration-200 hover:border-cyan-200/32 hover:shadow-[0_14px_34px_rgba(14,116,144,0.24)] sm:min-w-[320px]"
+              className="group min-w-[78vw] snap-start overflow-hidden rounded-2xl border border-white/12 bg-[#181818] shadow-[0_8px_24px_rgba(0,0,0,0.32)] transition duration-200 hover:border-white/20 hover:bg-[#202020] sm:min-w-[320px]"
             >
               <div
                 className="relative aspect-video overflow-hidden"
@@ -138,8 +138,8 @@ function DiscoveryCarousel({
                     src={posterUrl}
                   />
                 ) : null}
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,8,22,0.08),rgba(2,8,22,0.76))]" />
-                <span className="absolute left-2.5 top-2.5 rounded-full border border-white/22 bg-black/35 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-100">
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.74))]" />
+                <span className="absolute left-2.5 top-2.5 rounded-full border border-white/20 bg-black/45 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#ececec]">
                   {video.category}
                 </span>
                 <span className="absolute bottom-2.5 right-2.5 rounded-md border border-black/20 bg-black/70 px-2 py-1 text-[11px] font-semibold text-white">
@@ -148,14 +148,14 @@ function DiscoveryCarousel({
               </div>
 
               <div className="space-y-2 p-3">
-                <h3 className="line-clamp-2 text-sm font-semibold text-white group-hover:text-cyan-100">{video.title}</h3>
+                <h3 className="line-clamp-2 text-sm font-semibold text-white group-hover:text-[#ffc9c9]">{video.title}</h3>
                 <div className="flex items-center gap-2">
-                  <span className="grid size-7 shrink-0 place-items-center rounded-full border border-white/14 bg-white/7 text-[10px] font-semibold uppercase text-slate-100">
+                  <span className="grid size-7 shrink-0 place-items-center rounded-full border border-white/14 bg-[#2a2a2a] text-[10px] font-semibold uppercase text-white">
                     {initials(creatorName)}
                   </span>
                   <div className="min-w-0">
-                    <p className="truncate text-xs text-slate-200">{creatorName}</p>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="truncate text-xs text-[#dfdfdf]">{creatorName}</p>
+                    <p className="text-[11px] text-[#a2a2a2]">
                       {formatCompact(video.views)} views · {formatRelativeTime(video.publishedAt ?? video.createdAt)}
                     </p>
                   </div>
@@ -209,14 +209,14 @@ export function HomeDiscoveryClient({ videos, metrics }: HomeDiscoveryClientProp
 
   return (
     <div className="space-y-4">
-      <section className="overflow-hidden rounded-[28px] border border-white/14 bg-[#091427]/82 p-3 shadow-[0_20px_56px_rgba(2,6,23,0.45)] backdrop-blur-2xl sm:p-4">
+      <section className="overflow-hidden rounded-[28px] border border-white/12 bg-[#141414] p-3 shadow-[0_10px_34px_rgba(0,0,0,0.35)] sm:p-4">
         <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
           <div
-            className="relative overflow-hidden rounded-2xl border border-white/14 p-4 sm:p-5"
+            className="relative overflow-hidden rounded-2xl border border-white/12 p-4 sm:p-5"
             style={{
               background: featured
                 ? `linear-gradient(135deg, ${featured.coverFrom} 0%, ${featured.coverVia} 52%, ${featured.coverTo} 100%)`
-                : "linear-gradient(135deg, rgba(34,211,238,0.22) 0%, rgba(99,102,241,0.2) 58%, rgba(8,14,30,0.92) 100%)",
+                : "linear-gradient(135deg, rgba(255,68,68,0.28) 0%, rgba(38,38,38,0.94) 62%, rgba(18,18,18,0.96) 100%)",
             }}
           >
             {featured?.thumbnailUrl ? (
@@ -228,14 +228,13 @@ export function HomeDiscoveryClient({ videos, metrics }: HomeDiscoveryClientProp
                 src={buildApiUrl(featured.thumbnailUrl)}
               />
             ) : null}
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,8,22,0.2),rgba(2,8,22,0.9))]" />
-            <div className="pointer-events-none absolute -right-20 -top-24 size-56 rounded-full bg-cyan-200/25 blur-3xl" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.2),rgba(0,0,0,0.84))]" />
             <div className="relative flex min-h-[230px] flex-col justify-between gap-5">
               <div className="flex items-center justify-between gap-2">
-                <span className="rounded-full border border-white/25 bg-black/30 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-50">
+                <span className="rounded-full border border-white/25 bg-black/35 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#ffdbdb]">
                   Public Feed
                 </span>
-                <span className="rounded-full border border-white/20 bg-black/28 px-2.5 py-1 text-[11px] font-semibold text-slate-100">
+                <span className="rounded-full border border-white/20 bg-black/35 px-2.5 py-1 text-[11px] font-semibold text-[#ededed]">
                   {featured?.duration ?? "0:00"}
                 </span>
               </div>
@@ -244,10 +243,10 @@ export function HomeDiscoveryClient({ videos, metrics }: HomeDiscoveryClientProp
                 <h1 className="line-clamp-2 text-2xl font-semibold text-white sm:text-[1.75rem]">
                   {featured?.title ?? "Discover what to watch next"}
                 </h1>
-                <p className="line-clamp-2 text-sm text-slate-100/95 sm:text-[15px]">
+                <p className="line-clamp-2 text-sm text-[#f2f2f2] sm:text-[15px]">
                   {featured?.description?.trim() || "Fresh blobs, encrypted drops, and creator-first video discovery in one feed."}
                 </p>
-                <p className="text-[11px] text-slate-200/90">
+                <p className="text-[11px] text-[#cfcfcf]">
                   {(featured?.creatorDisplayName || featured?.ownerName || "Anavrin TV")} · {formatCompact(featured?.views ?? 0)} views
                 </p>
               </div>
@@ -266,16 +265,16 @@ export function HomeDiscoveryClient({ videos, metrics }: HomeDiscoveryClientProp
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-            <div className="rounded-2xl border border-white/12 bg-[#0e1a32]/86 p-4">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-cyan-100/75">Now Trending</p>
+            <div className="rounded-2xl border border-white/12 bg-[#1c1c1c] p-4">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[#ffc7c7]">Now Trending</p>
               <p className="mt-2 text-lg font-semibold text-white">{formatCompact(metrics.activeStreams)} live sessions</p>
-              <p className="mt-1 text-sm text-slate-300">New creators and public drops are accelerating this week.</p>
+              <p className="mt-1 text-sm text-[#b8b8b8]">New creators and public drops are accelerating this week.</p>
             </div>
 
-            <div className="rounded-2xl border border-white/12 bg-[#0e1a32]/86 p-4">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-cyan-100/75">Creator Momentum</p>
+            <div className="rounded-2xl border border-white/12 bg-[#1c1c1c] p-4">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[#ffc7c7]">Creator Momentum</p>
               <p className="mt-2 text-lg font-semibold text-white">{formatCompact(metrics.uploadsToday)} uploads today</p>
-              <p className="mt-1 text-sm text-slate-300">Short-form blobs and long-form vault videos are both active.</p>
+              <p className="mt-1 text-sm text-[#b8b8b8]">Short-form blobs and long-form vault videos are both active.</p>
             </div>
           </div>
         </div>
@@ -287,19 +286,19 @@ export function HomeDiscoveryClient({ videos, metrics }: HomeDiscoveryClientProp
           return (
             <div
               key={stat.label}
-              className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border border-white/12 bg-[#101d36]/85 px-3.5 text-[11px] text-slate-200"
+              className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border border-white/12 bg-[#1f1f1f] px-3.5 text-[11px] text-[#dddddd]"
             >
-              <span className="grid size-5 place-items-center rounded-full border border-cyan-200/22 bg-cyan-300/10 text-cyan-100">
+              <span className="grid size-5 place-items-center rounded-full border border-white/14 bg-[#2b2b2b] text-[#ffd0d0]">
                 <Icon className="size-3" />
               </span>
               <span className="font-semibold text-white">{stat.value}</span>
-              <span className="text-slate-400">{stat.label}</span>
+              <span className="text-[#9f9f9f]">{stat.label}</span>
             </div>
           );
         })}
       </section>
 
-      <section className="sticky top-[calc(var(--safe-top)+3.25rem)] z-20 rounded-2xl border border-white/10 bg-[#060e1f]/84 p-2 backdrop-blur-2xl">
+      <section className="sticky top-[calc(var(--safe-top)+3.25rem)] z-20 rounded-2xl border border-white/10 bg-[#141414]/95 p-2 backdrop-blur-xl">
         <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {FILTERS.map((filter) => (
             <button

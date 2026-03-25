@@ -183,17 +183,17 @@ export function VideoAccessPanel({ video, onUnlocked }: VideoAccessPanelProps) {
 
   return (
     <>
-      <section className="rounded-[24px] border border-cyan-300/16 bg-cyan-300/10 p-4">
+      <section className="rounded-[24px] border border-[#ff5f5f]/24 bg-[#ff5f5f]/12 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.28em] text-cyan-100/70">Release Access</p>
+            <p className="text-xs uppercase tracking-[0.28em] text-[#ffd2d2]/90">Release Access</p>
             <h2 className="mt-2 text-base font-semibold text-white">{statusCopy.title}</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-300">{statusCopy.detail}</p>
+            <p className="mt-1 text-sm leading-6 text-[#c1c1c1]">{statusCopy.detail}</p>
           </div>
 
           <div className="flex flex-wrap gap-2">
             {checkingEntitlement ? (
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#222222] px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#c7c7c7]">
                 <Loader2 className="size-4 animate-spin" />
                 Checking
               </span>
@@ -225,31 +225,31 @@ export function VideoAccessPanel({ video, onUnlocked }: VideoAccessPanelProps) {
         title={video.title}
       >
         {!account ? (
-          <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-5 text-sm leading-7 text-slate-300">
+          <div className="rounded-2xl border border-dashed border-white/10 bg-[#1d1d1d] p-5 text-sm leading-7 text-[#c1c1c1]">
             Connect a wallet first so purchase and rental entitlements are minted to a real Sui account.
           </div>
         ) : (
           <>
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <div className="rounded-2xl border border-white/10 bg-[#1d1d1d] p-4">
               <p className="text-sm font-semibold text-white">{video.ownerName}</p>
-              <p className="mt-1 text-sm leading-6 text-slate-300">{video.description || "Encrypted playback stays sealed until entitlement is proven."}</p>
+              <p className="mt-1 text-sm leading-6 text-[#c1c1c1]">{video.description || "Encrypted playback stays sealed until entitlement is proven."}</p>
             </div>
 
             {supportsPurchase ? (
               <button
-                className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-left transition hover:bg-white/10"
+                className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-[#1f1f1f] px-4 py-4 text-left transition hover:bg-[#282828]"
                 disabled={processingKind !== null}
                 onClick={() => void handleAcquire("purchase")}
                 type="button"
               >
                 <span className="inline-flex items-center gap-3">
-                  <ShoppingBag className="size-5 text-cyan-100" />
+                  <ShoppingBag className="size-5 text-[#ffd0d0]" />
                   <span>
                     <span className="block text-sm font-semibold text-white">Buy permanent license</span>
-                    <span className="block text-xs text-slate-400">Keep the entitlement in wallet or move it into a kiosk later.</span>
+                    <span className="block text-xs text-[#9f9f9f]">Keep the entitlement in wallet or move it into a kiosk later.</span>
                   </span>
                 </span>
-                <span className="text-sm font-semibold text-cyan-100">
+                <span className="text-sm font-semibold text-[#ffd0d0]">
                   {formatMistAsSui(video.monetization.purchasePriceMist)} SUI
                 </span>
               </button>
@@ -257,32 +257,32 @@ export function VideoAccessPanel({ video, onUnlocked }: VideoAccessPanelProps) {
 
             {supportsRental ? (
               <button
-                className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-left transition hover:bg-white/10"
+                className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-[#1f1f1f] px-4 py-4 text-left transition hover:bg-[#282828]"
                 disabled={processingKind !== null}
                 onClick={() => void handleAcquire("rental")}
                 type="button"
               >
                 <span className="inline-flex items-center gap-3">
-                  <Ticket className="size-5 text-cyan-100" />
+                  <Ticket className="size-5 text-[#ffd0d0]" />
                   <span>
                     <span className="block text-sm font-semibold text-white">Rent encrypted playback</span>
-                    <span className="block text-xs text-slate-400">
+                    <span className="block text-xs text-[#9f9f9f]">
                       Active for {Math.max(1, video.monetization.rentalDurationDays)} day
                       {Math.max(1, video.monetization.rentalDurationDays) === 1 ? "" : "s"} after mint.
                     </span>
                   </span>
                 </span>
-                <span className="text-sm font-semibold text-cyan-100">
+                <span className="text-sm font-semibold text-[#ffd0d0]">
                   {formatMistAsSui(video.monetization.rentalPriceMist)} SUI
                 </span>
               </button>
             ) : null}
 
             {transactionStatus ? (
-              <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-slate-300">
+              <div className="rounded-2xl border border-white/10 bg-[#1d1d1d] px-4 py-3 text-sm leading-6 text-[#c1c1c1]">
                 {processingKind ? (
                   <span className="inline-flex items-center gap-2">
-                    <Loader2 className="size-4 animate-spin text-cyan-100" />
+                    <Loader2 className="size-4 animate-spin text-[#ffd0d0]" />
                     {transactionStatus}
                   </span>
                 ) : (

@@ -15,19 +15,19 @@ export function VideoTitleSection({ video }: VideoTitleSectionProps) {
       {isPaidRelease ? (
         <div className="flex flex-wrap gap-2">
           {video.monetization.purchasePriceMist > 0 ? (
-            <span className="rounded-full border border-cyan-300/20 bg-cyan-300/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-100">
+            <span className="rounded-full border border-[#ff5f5f]/45 bg-[#ff5f5f]/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#ffd5d5]">
               Buy {formatMistAsSui(video.monetization.purchasePriceMist)} SUI
             </span>
           ) : null}
           {video.monetization.rentalPriceMist > 0 ? (
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-200">
+            <span className="rounded-full border border-white/10 bg-[#242424] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#dadada]">
               Rent {formatMistAsSui(video.monetization.rentalPriceMist)} SUI
             </span>
           ) : null}
         </div>
       ) : null}
       <h1 className="text-xl font-semibold leading-7 text-white md:text-2xl">{video.title}</h1>
-      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 md:text-sm">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-[#9e9e9e] md:text-sm">
         <span>{formatCompact(video.views)} views</span>
         <span>•</span>
         <span>{formatRelativeTime(publishedAt)}</span>

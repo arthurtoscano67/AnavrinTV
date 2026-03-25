@@ -55,7 +55,7 @@ export function VideoCard({ video }: DiscoveryVideoCardProps) {
   return (
     <article className="group video-card cursor-pointer">
       <Link className="block" href={watchHref}>
-        <div className="relative aspect-video overflow-hidden rounded-t-2xl bg-[#15233d]">
+        <div className="relative aspect-video overflow-hidden rounded-t-2xl bg-[#202020]">
           <img
             alt={video.title}
             className="size-full object-cover transition duration-300 group-hover:scale-[1.04]"
@@ -64,7 +64,7 @@ export function VideoCard({ video }: DiscoveryVideoCardProps) {
             src={posterFor(video)}
           />
 
-          <div className="absolute inset-0 bg-gradient-to-t from-black/62 via-black/16 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/68 via-black/20 to-transparent" />
 
           {isTrending(video) ? (
             <span className="absolute left-2 top-2 rounded-full border border-amber-300/30 bg-amber-300/18 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-amber-100 backdrop-blur-sm">
@@ -75,7 +75,7 @@ export function VideoCard({ video }: DiscoveryVideoCardProps) {
           {isPaidRelease ? (
             <div className="absolute left-2 top-11 flex flex-wrap gap-1.5">
               {video.monetization.purchasePriceMist > 0 ? (
-                <span className="rounded-full border border-cyan-300/25 bg-cyan-300/16 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.15em] text-cyan-100 backdrop-blur-sm">
+                <span className="rounded-full border border-[#ff5f5f]/40 bg-[#ff5f5f]/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.15em] text-[#ffd3d3] backdrop-blur-sm">
                   Buy {formatMistAsSui(video.monetization.purchasePriceMist)} SUI
                 </span>
               ) : null}
@@ -95,7 +95,7 @@ export function VideoCard({ video }: DiscoveryVideoCardProps) {
 
       <div className="mt-3 flex items-start gap-3 p-3 pt-0">
         <CreatorLink
-          className="mt-0.5 block size-9 shrink-0 overflow-hidden rounded-full border border-white/14 bg-white/7"
+          className="mt-0.5 block size-9 shrink-0 overflow-hidden rounded-full border border-white/14 bg-[#2a2a2a]"
           title={creatorName}
           username={video.creatorUsername}
         >
@@ -108,7 +108,7 @@ export function VideoCard({ video }: DiscoveryVideoCardProps) {
               src={video.creatorAvatarUrl}
             />
           ) : (
-            <span className="grid size-full place-items-center text-[11px] font-bold uppercase tracking-wide text-white/85">
+            <span className="grid size-full place-items-center text-[11px] font-bold uppercase tracking-wide text-white">
               {initials(creatorName)}
             </span>
           )}
@@ -116,20 +116,20 @@ export function VideoCard({ video }: DiscoveryVideoCardProps) {
 
         <div className="min-w-0 flex-1">
           <Link
-            className="line-clamp-2 text-sm font-semibold leading-5 text-[#f8fbff] transition group-hover:text-cyan-100"
+            className="line-clamp-2 text-sm font-semibold leading-5 text-[#f8fbff] transition group-hover:text-[#ffd0d0]"
             href={watchHref}
           >
             {video.title}
           </Link>
 
           <CreatorLink
-            className="mt-1 block truncate text-xs text-slate-300 transition hover:text-cyan-100"
+            className="mt-1 block truncate text-xs text-[#b4b4b4] transition hover:text-white"
             username={video.creatorUsername}
           >
             {video.creatorUsername ? `${creatorName} · @${video.creatorUsername}` : creatorName}
           </CreatorLink>
 
-          <p className="mt-0.5 text-xs text-slate-400">
+          <p className="mt-0.5 text-xs text-[#939393]">
             {formatCompact(video.views)} views · {formatRelativeTime(publishedAt)}
           </p>
         </div>

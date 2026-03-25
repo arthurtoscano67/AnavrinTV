@@ -493,20 +493,20 @@ export function VideoFeed({
 
   return (
     <div className="space-y-5 pb-24">
-      <section className="rounded-2xl border border-white/12 bg-[#0b172d]/72 p-4 shadow-[0_16px_44px_rgba(2,6,23,0.38)] backdrop-blur-xl">
+      <section className="rounded-2xl border border-white/12 bg-[#181818] p-4 shadow-[0_10px_28px_rgba(0,0,0,0.35)]">
         <div className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="max-w-3xl">
             <p className="section-label">{label}</p>
             <h1 className="mt-1 text-2xl font-semibold text-white md:text-3xl">{title}</h1>
-            <p className="mt-1.5 text-sm text-slate-300 md:text-base">{description}</p>
+            <p className="mt-1.5 text-sm text-[#b4b4b4] md:text-base">{description}</p>
           </div>
 
-          <div className="inline-flex items-center gap-3 rounded-full border border-white/12 bg-[#111f39]/82 px-4 py-2 text-sm">
-            <span className="text-slate-400">Showing</span>
+          <div className="inline-flex items-center gap-3 rounded-full border border-white/12 bg-[#222222] px-4 py-2 text-sm">
+            <span className="text-[#9f9f9f]">Showing</span>
             <span className="font-semibold text-white">{formatCompact(showingCount)}</span>
-            <span className="text-slate-500">/</span>
-            <span className="text-slate-300">{formatCompact(totalCount)}</span>
+            <span className="text-[#666666]">/</span>
+            <span className="text-[#c7c7c7]">{formatCompact(totalCount)}</span>
           </div>
         </div>
 
@@ -517,7 +517,7 @@ export function VideoFeed({
             opacity: pullDistance > 0 || refreshing ? 1 : 0,
           }}
         >
-          <div className="flex items-center justify-center pt-2 text-xs uppercase tracking-[0.25em] text-cyan-100/85">
+          <div className="flex items-center justify-center pt-2 text-xs uppercase tracking-[0.25em] text-[#ffd1d1]">
             <LoaderCircle className={`mr-2 size-4 ${refreshing ? "animate-spin" : ""}`} />
             {refreshing ? "Refreshing" : pullDistance >= 70 ? "Release to refresh" : "Pull to refresh"}
           </div>

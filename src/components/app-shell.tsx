@@ -22,8 +22,8 @@ function navClass(active: boolean) {
   return [
     "flex min-h-11 items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-semibold transition",
     active
-      ? "border-cyan-200/35 bg-[linear-gradient(135deg,rgba(34,211,238,0.18)_0%,rgba(99,102,241,0.2)_100%)] text-cyan-100"
-      : "border-transparent text-slate-300 hover:border-white/14 hover:bg-white/8 hover:text-white",
+      ? "border-white/18 bg-[#2a2a2a] text-white"
+      : "border-transparent text-[#b7b7b7] hover:border-white/14 hover:bg-[#232323] hover:text-white",
   ].join(" ");
 }
 
@@ -49,7 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navItems = showAdmin ? baseNavItems : baseNavItems.filter((item) => item.href !== "/admin");
 
   if (isBlobsRoute) {
-    return <div className="min-h-screen bg-[#040912] text-white">{children}</div>;
+    return <div className="min-h-screen bg-[#0f0f0f] text-white">{children}</div>;
   }
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
@@ -60,61 +60,57 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="relative min-h-[100dvh] overflow-x-hidden text-white">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_460px_at_6%_-14%,rgba(34,211,238,0.16),transparent_58%),radial-gradient(980px_560px_at_105%_-12%,rgba(99,102,241,0.2),transparent_56%)]" />
+    <div className="min-h-[100dvh] overflow-x-hidden bg-[#0f0f0f] text-white">
+      <TopNav
+        onSearchChange={setSearch}
+        onSearchSubmit={submitSearch}
+        searchValue={search}
+        networkLabel={network ? String(network).toUpperCase() : "TESTNET"}
+        addressLabel={account ? shortAddress(account.address, 4) : null}
+        walletLabel={wallet?.name ?? "Connect"}
+      />
 
-      <div className="relative z-10">
-        <TopNav
-          onSearchChange={setSearch}
-          onSearchSubmit={submitSearch}
-          searchValue={search}
-          networkLabel={network ? String(network).toUpperCase() : "TESTNET"}
-          addressLabel={account ? shortAddress(account.address, 4) : null}
-          walletLabel={wallet?.name ?? "Connect"}
-        />
+      <div className={`mx-auto flex w-full max-w-[1880px] gap-4 px-3 pb-6 pt-4 sm:px-4 lg:px-6 ${isWatchRoute ? "" : "xl:gap-5"}`}>
+        <aside className={`w-64 shrink-0 ${isWatchRoute ? "hidden" : "hidden lg:block"}`}>
+          <div className="sticky top-[4.6rem] rounded-2xl border border-white/10 bg-[#171717] p-3 shadow-[0_8px_22px_rgba(0,0,0,0.35)]">
+            <nav className="space-y-1">
+              {navItems.map((item) => {
+                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const Icon = item.icon;
 
-        <div className={`mx-auto flex w-full max-w-[1720px] gap-4 px-3 pb-6 pt-4 sm:px-4 lg:px-6 ${isWatchRoute ? "" : "xl:gap-5"}`}>
-          <aside className={`w-64 shrink-0 ${isWatchRoute ? "hidden" : "hidden lg:block"}`}>
-            <div className="sticky top-[5.1rem] rounded-2xl border border-white/12 bg-[#081225]/74 p-3 shadow-[0_18px_50px_rgba(2,6,23,0.45)] backdrop-blur-2xl">
-              <nav className="space-y-1">
-                {navItems.map((item) => {
-                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                  const Icon = item.icon;
+                return (
+                  <Link key={item.href} href={item.href} className={navClass(active)}>
+                    <Icon className="size-4 shrink-0" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
 
-                  return (
-                    <Link key={item.href} href={item.href} className={navClass(active)}>
-                      <Icon className="size-4 shrink-0" />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </nav>
+            <div className="mx-1 my-2.5 border-t border-white/10" />
 
-              <div className="mx-1 my-2.5 border-t border-white/10" />
+            <Link
+              href="/upload"
+              className="flex min-h-11 items-center gap-3 rounded-xl border border-white/12 bg-[#202020] px-3 py-2.5 text-sm font-semibold text-[#dfdfdf] transition hover:border-white/25 hover:bg-[#292929] hover:text-white"
+            >
+              <PlusSquare className="size-4 shrink-0" />
+              Upload
+            </Link>
+          </div>
+        </aside>
 
-              <Link
-                href="/upload"
-                className="flex min-h-11 items-center gap-3 rounded-xl border border-white/12 bg-white/5 px-3 py-2.5 text-sm font-semibold text-slate-200 transition hover:border-white/25 hover:bg-white/10 hover:text-white"
-              >
-                <PlusSquare className="size-4 shrink-0" />
-                Upload
-              </Link>
-            </div>
-          </aside>
-
-          <main
-            className={`min-w-0 flex-1 ${
-              isWatchRoute ? "pb-12" : showMobileBottomNav ? "pb-[7.4rem] md:pb-20" : "pb-20"
-            }`}
-          >
-            <div className={isWatchRoute ? "space-y-4" : "space-y-5"}>{children}</div>
-          </main>
-        </div>
+        <main
+          className={`min-w-0 flex-1 ${
+            isWatchRoute ? "pb-12" : showMobileBottomNav ? "pb-[7.4rem] md:pb-20" : "pb-20"
+          }`}
+        >
+          <div className={isWatchRoute ? "space-y-4" : "space-y-5"}>{children}</div>
+        </main>
       </div>
 
       {showMobileBottomNav ? (
         <nav className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.45rem)] z-40 px-3 md:hidden">
-          <div className="mx-auto max-w-md rounded-2xl border border-white/14 bg-[#070f1f]/86 p-1.5 shadow-[0_16px_44px_rgba(2,6,23,0.55)] backdrop-blur-2xl">
+          <div className="mx-auto max-w-md rounded-2xl border border-white/14 bg-[#141414]/95 p-1.5 shadow-[0_12px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl">
             <div className="grid grid-cols-5 gap-1">
               {mobileTabs.map((tab) => {
                 const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`);

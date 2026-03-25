@@ -79,6 +79,26 @@ export function buildPolicyInitTransaction(input: {
   rentalDurationDays?: number;
 }) {
   const tx = new Transaction();
+  appendPolicyInitCall(tx, input);
+  tx.setGasBudgetIfNotSet(100_000_000);
+  return tx;
+}
+
+export function appendPolicyInitCall(
+  tx: Transaction,
+  input: {
+    packageId: string;
+    visibility: VideoVisibilityValue;
+    published: boolean;
+    nonce: Uint8Array;
+    title: string;
+    slug: string;
+    ttlDays?: number;
+    purchasePriceMist?: bigint | number;
+    rentalPriceMist?: bigint | number;
+    rentalDurationDays?: number;
+  },
+) {
   tx.moveCall({
     target: `${input.packageId}::${VIDEO_POLICY_MODULE}::${VIDEO_POLICY_CREATE_ENTRY}`,
     arguments: [
@@ -94,8 +114,6 @@ export function buildPolicyInitTransaction(input: {
       tx.object("0x6"),
     ],
   });
-  tx.setGasBudgetIfNotSet(100_000_000);
-  return tx;
 }
 
 export type VideoSealApprovalProof =

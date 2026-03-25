@@ -62,12 +62,12 @@ export function CommentsSection({ totalCount, initialComments }: CommentsSection
       </h2>
 
       <div className="mt-3 flex items-start gap-3">
-        <div className="grid size-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-xs font-semibold text-white">
+        <div className="grid size-9 shrink-0 place-items-center rounded-full border border-white/10 bg-[#2a2a2a] text-xs font-semibold text-white">
           YOU
         </div>
         <div className="min-w-0 flex-1 space-y-2">
           <textarea
-            className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-300/35"
+            className="w-full rounded-xl border border-white/10 bg-[#202020] px-3 py-2 text-sm text-white outline-none placeholder:text-[#7a7a7a] focus:border-[#ff5f5f]/55"
             onChange={(event) => setDraft(event.target.value)}
             placeholder="Add a comment..."
             rows={2}
@@ -84,23 +84,23 @@ export function CommentsSection({ totalCount, initialComments }: CommentsSection
       <div className="mt-4 space-y-4">
         {orderedComments.map((comment) => (
           <article key={comment.id} className="flex gap-3">
-            <div className="grid size-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-xs font-semibold text-white">
+            <div className="grid size-9 shrink-0 place-items-center rounded-full border border-white/10 bg-[#2a2a2a] text-xs font-semibold text-white">
               {initials(comment.authorName)}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-[#9f9f9f]">
                 <span className="font-semibold text-white">{comment.authorName}</span>
                 <span>{comment.authorHandle}</span>
                 <span>•</span>
                 <span>{formatRelativeTime(comment.createdAt)}</span>
                 {comment.pinned ? (
-                  <span className="rounded-full border border-cyan-300/25 bg-cyan-300/12 px-2 py-0.5 uppercase tracking-[0.22em] text-cyan-100">
+                  <span className="rounded-full border border-[#ff5f5f]/45 bg-[#ff5f5f]/18 px-2 py-0.5 uppercase tracking-[0.22em] text-[#ffd5d5]">
                     Pinned
                   </span>
                 ) : null}
               </div>
-              <p className="mt-1 text-sm leading-6 text-slate-200">{comment.body}</p>
-              <p className="mt-1 text-xs text-slate-500">{formatCompact(comment.likes)} likes</p>
+              <p className="mt-1 text-sm leading-6 text-[#d4d4d4]">{comment.body}</p>
+              <p className="mt-1 text-xs text-[#7f7f7f]">{formatCompact(comment.likes)} likes</p>
             </div>
           </article>
         ))}
