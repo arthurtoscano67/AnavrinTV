@@ -1,17 +1,12 @@
 import type { Metadata } from "next";
-import { Manrope, Space_Grotesk } from "next/font/google";
+import { Inter } from "next/font/google";
 
 import { AppShell } from "@/components/app-shell";
 import { Providers } from "@/components/providers";
 import "./globals.css";
 
-const bodyFont = Manrope({
+const bodyFont = Inter({
   variable: "--font-body",
-  subsets: ["latin"],
-});
-
-const displayFont = Space_Grotesk({
-  variable: "--font-heading",
   subsets: ["latin"],
 });
 
@@ -27,8 +22,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${bodyFont.variable} ${displayFont.variable} h-full antialiased`}>
-      <body className="min-h-full bg-background text-white">
+    <html lang="en" className={`${bodyFont.variable} h-full antialiased`}>
+      <body className="min-h-full bg-yt-black text-white">
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>

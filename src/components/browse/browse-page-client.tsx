@@ -3,125 +3,105 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import { Filter } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 
-import { VideoCard } from "@/components/video-card";
-import { browseTopics } from "@/lib/seed";
-import { formatCompact } from "@/lib/format";
-import type { SiteMetrics, VideoRecord } from "@/lib/types";
+import { formatCompact, formatRelativeTime } from "@/lib/format";
+import { buildApiUrl } from "@/lib/site-url";
+import type { VideoRecord } from "@/lib/types";
 
 type BrowsePageClientProps = {
-  initialVideos: VideoRecord[];
-  initialMetrics: SiteMetrics;
+  videos: VideoRecord[];
 };
 
-function matchesQuery(video: VideoRecord, q: string) {
-  if (!q) return true;
-  const searchable = [
-    video.title,
-    video.description,
-    video.ownerName,
-    video.category,
-    video.tags.join(" "),
-  ]
-    .join(" ")
-    .toLowerCase();
-  return searchable.includes(q);
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "AT";
+  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("");
 }
 
-export function BrowsePageClient({ initialVideos, initialMetrics }: BrowsePageClientProps) {
+export function BrowsePageClient({ videos }: BrowsePageClientProps) {
   const searchParams = useSearchParams();
-  const q = searchParams.get("q")?.trim().toLowerCase() ?? "";
-  const category = searchParams.get("category")?.trim() ?? "All";
+  const query = searchParams.get("q")?.toLowerCase().trim() || "";
 
-  const videos = useMemo(() => {
-    return initialVideos.filter((video) => {
-      if (category !== "All" && video.category !== category) return false;
-      return matchesQuery(video, q);
-    });
-  }, [category, initialVideos, q]);
+  const results = useMemo(
+    () =>
+      videos.filter((video) => {
+        if (!query) return true;
+        return (
+          video.title.toLowerCase().includes(query) ||
+          video.description.toLowerCase().includes(query) ||
+          video.tags.some((tag) => tag.toLowerCase().includes(query))
+        );
+      }),
+    [query, videos],
+  );
 
   return (
-    <div className="space-y-6">
-      <section className="space-y-4 rounded-2xl border border-white/12 bg-[#181818] p-4 shadow-[0_8px_24px_rgba(0,0,0,0.34)]">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="max-w-3xl">
-            <p className="section-label">Browse</p>
-            <h1 className="mt-2 text-2xl font-semibold text-white md:text-3xl">
-              {q ? `Search results for “${q}”` : category === "All" ? "All published videos" : category}
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-7 text-[#b4b4b4] md:text-base">
-              Search by title, creator, tag, or category and scan the feed without leaving the desktop layout.
-            </p>
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="kpi">
-              <p className="text-[11px] uppercase tracking-[0.28em] text-[#9f9f9f]">Results</p>
-              <p className="mt-2 text-lg font-semibold text-white">{formatCompact(videos.length)}</p>
-            </div>
-            <div className="kpi">
-              <p className="text-[11px] uppercase tracking-[0.28em] text-[#9f9f9f]">Visitors today</p>
-              <p className="mt-2 text-lg font-semibold text-white">{formatCompact(initialMetrics.visitorsToday)}</p>
-            </div>
-          </div>
+    <div className="mx-auto max-w-[1284px] p-4 sm:p-6 lg:p-8">
+      <div className="mb-8 flex items-center justify-between border-b border-yt-border pb-4">
+        <div className="flex items-center gap-2 text-sm font-bold text-yt-gray">
+          <span>About {results.length} results</span>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/browse"
-            className={`chip transition hover:border-white/15 hover:bg-white/8 hover:text-white ${
-              category === "All" ? "border-[#ff5f5f]/50 bg-[#ff5f5f]/18 text-[#ffd6d6]" : ""
-            }`}
-          >
-            <Filter className="size-4" />
-            All
-          </Link>
-          {browseTopics.map((topic) => (
-            <Link
-              key={topic}
-              href={`/browse?category=${encodeURIComponent(topic)}`}
-              className={`chip transition hover:border-white/15 hover:bg-white/8 hover:text-white ${
-                category === topic ? "border-[#ff5f5f]/50 bg-[#ff5f5f]/18 text-[#ffd6d6]" : ""
-              }`}
-            >
-              {topic}
-            </Link>
-          ))}
-        </div>
-      </section>
+        <button className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-colors hover:bg-white/10" type="button">
+          <SlidersHorizontal className="h-4 w-4" />
+          Filters
+        </button>
+      </div>
 
-      <section className="space-y-3">
-        <div className="flex items-center justify-between gap-4">
-          <p className="section-label">Results</p>
-          <p className="text-sm text-[#9f9f9f]">
-            {formatCompact(videos.length)} result{videos.length === 1 ? "" : "s"} available to viewers.
-          </p>
-        </div>
+      <div className="flex flex-col gap-8">
+        {results.length > 0 ? (
+          results.map((video) => {
+            const href = `/video/${video.id}`;
+            const thumb = video.thumbnailUrl?.trim() ? buildApiUrl(video.thumbnailUrl) : null;
+            const creatorName = video.creatorDisplayName || video.ownerName;
 
-        {videos.length ? (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {videos.map((video) => (
-              <VideoCard key={video.id} video={video} compact />
-            ))}
-          </div>
+            return (
+              <Link key={video.id} href={href} className="group flex flex-col gap-4 sm:flex-row">
+                <div className="relative aspect-video w-full flex-shrink-0 overflow-hidden rounded-xl border border-yt-border bg-yt-dark sm:w-80">
+                  {thumb ? (
+                    <img src={thumb} alt={video.title} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                  ) : (
+                    <div
+                      className="h-full w-full transition-transform duration-300 group-hover:scale-105"
+                      style={{ background: `linear-gradient(145deg, ${video.coverFrom} 0%, ${video.coverVia} 48%, ${video.coverTo} 100%)` }}
+                    />
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2 overflow-hidden py-1">
+                  <h3 className="line-clamp-2 text-lg font-bold leading-tight transition-colors group-hover:text-yt-red">{video.title}</h3>
+
+                  <div className="flex items-center gap-2 text-xs text-yt-gray">
+                    <span>{formatCompact(video.views)} views</span>
+                    <span>•</span>
+                    <span>{formatRelativeTime(video.publishedAt ?? video.createdAt)}</span>
+                  </div>
+
+                  <div className="my-2 flex items-center gap-2">
+                    <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-yt-border bg-yt-dark">
+                      {video.creatorAvatarUrl ? (
+                        <img src={video.creatorAvatarUrl} alt={creatorName} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-[10px]">{initials(creatorName)}</span>
+                      )}
+                    </div>
+                    <span className="text-xs text-yt-gray transition-colors hover:text-white">{creatorName}</span>
+                  </div>
+
+                  <p className="line-clamp-2 text-xs leading-snug text-yt-gray">{video.description}</p>
+                </div>
+              </Link>
+            );
+          })
         ) : (
-          <div className="rounded-2xl border border-dashed border-white/12 bg-[#181818] p-8 text-center">
-            <h2 className="text-xl font-semibold text-white">No videos matched that filter</h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-[#b4b4b4]">
-              Try a different search term or category. Creators can always add new sealed uploads from their profile.
-            </p>
-            <div className="mt-6 flex flex-wrap justify-center gap-3">
-              <Link href="/profile#content" className="btn-primary">
-                Upload video
-              </Link>
-              <Link href="/browse" className="btn-secondary">
-                Reset filters
-              </Link>
-            </div>
+          <div className="flex flex-col items-center justify-center gap-4 py-20 text-yt-gray">
+            <div className="text-4xl">🔍</div>
+            <h3 className="text-xl font-bold text-white">No results found for &quot;{query}&quot;</h3>
+            <p className="max-w-xs text-center text-sm">Try different keywords or check your spelling.</p>
           </div>
         )}
-      </section>
+      </div>
     </div>
   );
 }

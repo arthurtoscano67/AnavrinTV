@@ -2,38 +2,48 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, type FormEvent, type ReactNode } from "react";
-import { Clapperboard, Compass, House, PlusSquare, ShieldAlert, UserRound } from "lucide-react";
+import { type FormEvent, type ReactNode, useMemo, useState } from "react";
+import {
+  Clock3,
+  Compass,
+  History,
+  Home,
+  Library,
+  PlaySquare,
+  ShieldAlert,
+  ThumbsUp,
+  Upload,
+  User,
+  type LucideIcon,
+} from "lucide-react";
 import { useCurrentAccount, useCurrentNetwork, useCurrentWallet } from "@mysten/dapp-kit-react";
 
-import { TopNav, type TopNavItem } from "@/components/top-nav";
+import { TopNav } from "@/components/top-nav";
 import { isAdminAddress } from "@/lib/anavrin-config";
 import { shortAddress } from "@/lib/format";
 
-const baseNavItems: TopNavItem[] = [
-  { href: "/", label: "Home", icon: House },
-  { href: "/browse", label: "Browse", icon: Compass },
-  { href: "/blobs", label: "Blobs", icon: Clapperboard },
-  { href: "/profile", label: "Profile", icon: UserRound },
-  { href: "/admin", label: "Admin", icon: ShieldAlert },
-];
+type NavItem = {
+  icon: LucideIcon;
+  label: string;
+  href: string;
+};
 
-function navClass(active: boolean) {
+function sidebarItemClass(active: boolean) {
   return [
-    "flex min-h-11 items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-semibold transition",
-    active
-      ? "border-white/18 bg-[#2a2a2a] text-white"
-      : "border-transparent text-[#b7b7b7] hover:border-white/14 hover:bg-[#232323] hover:text-white",
+    "flex items-center gap-5 px-3 py-2.5 rounded-xl transition-all duration-200 group",
+    active ? "bg-white/10 text-white font-semibold" : "text-yt-gray hover:bg-white/5 hover:text-white",
   ].join(" ");
 }
 
-const mobileTabs = [
-  { href: "/", label: "Home", icon: House },
-  { href: "/browse", label: "Discover", icon: Compass },
-  { href: "/blobs", label: "Blobs", icon: Clapperboard },
-  { href: "/upload", label: "Create", icon: PlusSquare },
-  { href: "/profile", label: "Profile", icon: UserRound },
-] as const;
+function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
+  const Icon = item.icon;
+  return (
+    <Link href={item.href} className={sidebarItemClass(active)}>
+      <Icon className={active ? "h-6 w-6 text-yt-red" : "h-6 w-6 group-hover:text-yt-red"} />
+      <span className="text-sm tracking-tight">{item.label}</span>
+    </Link>
+  );
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -41,16 +51,37 @@ export function AppShell({ children }: { children: ReactNode }) {
   const account = useCurrentAccount();
   const wallet = useCurrentWallet();
   const network = useCurrentNetwork();
-  const isBlobsRoute = pathname.startsWith("/blobs");
-  const isWatchRoute = pathname.startsWith("/video/");
-  const showMobileBottomNav = !isBlobsRoute && !isWatchRoute;
   const [search, setSearch] = useState("");
-  const showAdmin = Boolean(account?.address && isAdminAddress(account.address));
-  const navItems = showAdmin ? baseNavItems : baseNavItems.filter((item) => item.href !== "/admin");
 
-  if (isBlobsRoute) {
-    return <div className="min-h-screen bg-[#0f0f0f] text-white">{children}</div>;
-  }
+  const showAdmin = Boolean(account?.address && isAdminAddress(account.address));
+
+  const sectionOne = useMemo<NavItem[]>(
+    () => [
+      { icon: Home, label: "Home", href: "/" },
+      { icon: Compass, label: "Explore", href: "/browse" },
+      { icon: PlaySquare, label: "Subscriptions", href: "/library" },
+    ],
+    [],
+  );
+
+  const sectionTwo = useMemo<NavItem[]>(
+    () => [
+      { icon: Library, label: "Library", href: "/library" },
+      { icon: History, label: "History", href: "/browse?sort=recent" },
+      { icon: Clock3, label: "Watch later", href: "/library?tab=watch-later" },
+      { icon: ThumbsUp, label: "Liked videos", href: "/library?tab=liked" },
+    ],
+    [],
+  );
+
+  const sectionThree = useMemo<NavItem[]>(
+    () => [
+      { icon: Upload, label: "Upload Video", href: "/upload" },
+      { icon: User, label: "My Channel", href: "/profile" },
+      ...(showAdmin ? [{ icon: ShieldAlert, label: "Admin", href: "/admin" }] : []),
+    ],
+    [showAdmin],
+  );
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,79 +91,44 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-[100dvh] overflow-x-hidden bg-[#0f0f0f] text-white">
+    <div className="min-h-screen bg-yt-black text-white">
       <TopNav
+        addressLabel={account ? shortAddress(account.address, 4) : null}
+        networkLabel={network ? String(network).toUpperCase() : "TESTNET"}
         onSearchChange={setSearch}
         onSearchSubmit={submitSearch}
         searchValue={search}
-        networkLabel={network ? String(network).toUpperCase() : "TESTNET"}
-        addressLabel={account ? shortAddress(account.address, 4) : null}
         walletLabel={wallet?.name ?? "Connect"}
       />
 
-      <div className={`mx-auto flex w-full max-w-[1880px] gap-4 px-3 pb-6 pt-4 sm:px-4 lg:px-6 ${isWatchRoute ? "" : "xl:gap-5"}`}>
-        <aside className={`w-64 shrink-0 ${isWatchRoute ? "hidden" : "hidden lg:block"}`}>
-          <div className="sticky top-[4.6rem] rounded-2xl border border-white/10 bg-[#171717] p-3 shadow-[0_8px_22px_rgba(0,0,0,0.35)]">
-            <nav className="space-y-1">
-              {navItems.map((item) => {
-                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                const Icon = item.icon;
+      <aside className="fixed bottom-0 left-0 top-14 z-40 hidden w-64 overflow-y-auto border-r border-yt-border bg-yt-black p-3 lg:block">
+        <div className="space-y-1">
+          {sectionOne.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return <SidebarLink key={item.label} active={active} item={item} />;
+          })}
+        </div>
 
-                return (
-                  <Link key={item.href} href={item.href} className={navClass(active)}>
-                    <Icon className="size-4 shrink-0" />
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
+        <div className="my-4 border-t border-yt-border" />
 
-            <div className="mx-1 my-2.5 border-t border-white/10" />
+        <div className="space-y-1">
+          {sectionTwo.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return <SidebarLink key={item.label} active={active} item={item} />;
+          })}
+        </div>
 
-            <Link
-              href="/upload"
-              className="flex min-h-11 items-center gap-3 rounded-xl border border-white/12 bg-[#202020] px-3 py-2.5 text-sm font-semibold text-[#dfdfdf] transition hover:border-white/25 hover:bg-[#292929] hover:text-white"
-            >
-              <PlusSquare className="size-4 shrink-0" />
-              Upload
-            </Link>
-          </div>
-        </aside>
+        <div className="my-4 border-t border-yt-border" />
 
-        <main
-          className={`min-w-0 flex-1 ${
-            isWatchRoute ? "pb-12" : showMobileBottomNav ? "pb-[7.4rem] md:pb-20" : "pb-20"
-          }`}
-        >
-          <div className={isWatchRoute ? "space-y-4" : "space-y-5"}>{children}</div>
-        </main>
-      </div>
+        <div className="space-y-1">
+          {sectionThree.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return <SidebarLink key={item.label} active={active} item={item} />;
+          })}
+        </div>
+      </aside>
 
-      {showMobileBottomNav ? (
-        <nav className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.45rem)] z-40 px-3 md:hidden">
-          <div className="mx-auto max-w-md rounded-2xl border border-white/14 bg-[#141414]/95 p-1.5 shadow-[0_12px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-            <div className="grid grid-cols-5 gap-1">
-              {mobileTabs.map((tab) => {
-                const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
-                const Icon = tab.icon;
-                return (
-                  <Link
-                    key={tab.href}
-                    href={tab.href}
-                    className={[
-                      "atv-mobile-tab",
-                      active ? "atv-mobile-tab-active" : "hover:text-slate-200",
-                    ].join(" ")}
-                  >
-                    <Icon className="size-4" />
-                    {tab.label}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        </nav>
-      ) : null}
+      <main className="min-h-screen pt-14 lg:pl-64">{children}</main>
     </div>
   );
 }

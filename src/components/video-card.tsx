@@ -1,9 +1,12 @@
+"use client";
+
 import Link from "next/link";
+import { Play, Clock } from "lucide-react";
+import { useCurrentAccount } from "@mysten/dapp-kit-react";
 
 import { CreatorLink } from "@/components/creator-link";
 import { formatCompact, formatRelativeTime } from "@/lib/format";
 import { buildApiUrl } from "@/lib/site-url";
-import { formatMistAsSui, isPaidVideoMonetization } from "@/lib/video-monetization";
 import type { VideoRecord } from "@/lib/types";
 
 function getInitials(name: string) {
@@ -20,101 +23,101 @@ function getInitials(name: string) {
     .join("");
 }
 
+function getDaysUntilExpiry(storageExpiry?: string) {
+  if (!storageExpiry) return null;
+  const diff = new Date(storageExpiry).getTime() - Date.now();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
 export function VideoCard({
   video,
-  compact = false,
 }: {
   video: VideoRecord;
   compact?: boolean;
 }) {
+  const account = useCurrentAccount();
   const publishedAt = video.publishedAt ?? video.createdAt;
   const creatorName = video.creatorDisplayName || video.ownerName;
   const creatorUsername = video.creatorUsername;
   const watchHref = `/video/${video.id}`;
   const posterUrl = video.thumbnailUrl?.trim() ? buildApiUrl(video.thumbnailUrl) : undefined;
-  const isPaidRelease = isPaidVideoMonetization(video.monetization);
+  const isOwner = account?.address?.toLowerCase() === video.ownerAddress.toLowerCase();
+  const daysLeft = getDaysUntilExpiry(video.storageExpiresAt ?? video.asset?.storageExpiresAt);
 
   return (
-    <article className="group overflow-hidden rounded-2xl border border-white/12 bg-[#181818] shadow-[0_8px_22px_rgba(0,0,0,0.3)] transition duration-200 hover:border-white/20 hover:bg-[#202020]">
-      <Link href={watchHref} className="block">
-        <div
-          className="relative aspect-video overflow-hidden"
-          style={{
-            background: `linear-gradient(145deg, ${video.coverFrom} 0%, ${video.coverVia} 48%, ${video.coverTo} 100%)`,
-          }}
-        >
-          {posterUrl ? (
-            <img
-              alt={video.title}
-              className="absolute inset-0 size-full object-cover"
-              draggable={false}
-              loading="lazy"
-              src={posterUrl}
-            />
-          ) : null}
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.76))]" />
-          {isPaidRelease ? (
-            <div className="absolute left-3 top-3 flex flex-wrap gap-2">
-              {video.monetization.purchasePriceMist > 0 ? (
-                <span className="rounded-full border border-[#ff5f5f]/40 bg-[#ff5f5f]/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-[#ffd3d3] backdrop-blur-sm">
-                  Buy {formatMistAsSui(video.monetization.purchasePriceMist)} SUI
-                </span>
-              ) : null}
-              {video.monetization.rentalPriceMist > 0 ? (
-                <span className="rounded-full border border-white/12 bg-black/45 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-white backdrop-blur-sm">
-                  Rent {formatMistAsSui(video.monetization.rentalPriceMist)} SUI
-                </span>
-              ) : null}
-            </div>
-          ) : null}
-          <div className="absolute bottom-3 right-3 rounded-md bg-black/80 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur">
+    <div className="group flex cursor-pointer flex-col gap-3">
+      <Link href={watchHref} className="relative aspect-video overflow-hidden rounded-xl border border-yt-border bg-yt-dark">
+        {posterUrl ? (
+          <img
+            src={posterUrl}
+            alt={video.title}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div
+            className="flex h-full w-full items-center justify-center transition-transform duration-300 group-hover:scale-105"
+            style={{
+              background: `linear-gradient(145deg, ${video.coverFrom} 0%, ${video.coverVia} 48%, ${video.coverTo} 100%)`,
+            }}
+          >
+            <Play className="h-12 w-12 fill-white/10 text-white/20" />
+          </div>
+        )}
+
+        {video.duration ? (
+          <div className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-bold text-white">
             {video.duration}
           </div>
-        </div>
+        ) : null}
+
+        {isOwner && daysLeft !== null ? (
+          <div
+            className={[
+              "absolute right-2 top-2 flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold shadow-lg backdrop-blur-md",
+              daysLeft <= 0
+                ? "bg-red-500 text-white"
+                : daysLeft < 7
+                  ? "bg-red-500/80 text-white"
+                  : daysLeft < 30
+                    ? "bg-yellow-500/80 text-black"
+                    : "bg-emerald-500/80 text-white",
+            ].join(" ")}
+          >
+            <Clock className="h-3 w-3" />
+            {daysLeft <= 0 ? "Expired" : `${daysLeft}d`}
+          </div>
+        ) : null}
       </Link>
 
-      <div className={`flex gap-3 ${compact ? "p-3" : "p-3.5 md:p-4"}`}>
+      <div className="flex gap-3 px-1">
         <CreatorLink
           username={creatorUsername}
-          className="mt-0.5 block size-9 shrink-0 overflow-hidden rounded-full border border-white/10 bg-[#2a2a2a]"
+          className="h-9 w-9 flex-shrink-0 overflow-hidden rounded-full border border-yt-border bg-yt-dark"
           title={creatorName}
         >
           {video.creatorAvatarUrl ? (
-            <img
-              alt={creatorName}
-              className="size-full object-cover"
-              draggable={false}
-              src={video.creatorAvatarUrl}
-            />
+            <img src={video.creatorAvatarUrl} alt={creatorName} className="h-full w-full object-cover" />
           ) : (
-            <span className="grid size-full place-items-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
-              {getInitials(creatorName)}
-            </span>
+            <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-white">{getInitials(creatorName)}</div>
           )}
         </CreatorLink>
 
-        <div className="min-w-0 flex-1">
-          <Link
-            href={watchHref}
-            className={`line-clamp-2 block font-medium leading-5 text-white transition group-hover:text-[#ffd0d0] ${
-              compact ? "text-[14px]" : "text-[15px]"
-            }`}
-          >
-            <h3>
-              {video.title}
-            </h3>
+        <div className="flex flex-col gap-1 overflow-hidden">
+          <Link href={watchHref} className="line-clamp-2 text-sm font-semibold leading-tight transition-colors group-hover:text-yt-red">
+            {video.title}
           </Link>
-          <CreatorLink
-            username={creatorUsername}
-            className="mt-1 block truncate text-sm text-[#b4b4b4] hover:text-white"
-          >
-            {creatorUsername ? `${creatorName} · @${creatorUsername}` : creatorName}
-          </CreatorLink>
-          <p className="mt-1 text-xs text-[#949494]">
-            {formatCompact(video.views)} views · {formatRelativeTime(publishedAt)}
-          </p>
+          <div className="flex flex-col text-xs text-yt-gray">
+            <CreatorLink username={creatorUsername} className="transition-colors hover:text-white" title={creatorName}>
+              {creatorName}
+            </CreatorLink>
+            <div className="flex items-center gap-1">
+              <span>{formatCompact(video.views)} views</span>
+              <span className="text-[8px]">•</span>
+              <span>{formatRelativeTime(publishedAt)}</span>
+            </div>
+          </div>
         </div>
       </div>
-    </article>
+    </div>
   );
 }
