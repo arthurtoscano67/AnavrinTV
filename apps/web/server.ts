@@ -7,9 +7,6 @@ import { Readable } from 'stream';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const WALRUS_AGGREGATOR_URL = 'https://aggregator.walrus.site';
-const WALRUS_PUBLISHER_URL = 'https://publisher.walrus.site';
-
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -20,17 +17,11 @@ async function startServer() {
 
   // --- Walrus Proxy Routes ---
   const WALRUS_PUBLISHERS = [
-    'https://publisher.walrus.site',
-    'https://wal-publisher.staketab.org'
+    'https://publisher.walrus-testnet.walrus.space'
   ];
 
   const WALRUS_AGGREGATORS = [
-    'https://aggregator.walrus.site',
-    'https://wal-aggregator.staketab.org',
-    'https://walrus-aggregator.nodes.guru',
-    'https://walrus.redundex.com',
-    'https://walrus.banansen.dev',
-    'https://walrus-aggregator.everstake.one'
+    'https://aggregator.walrus-testnet.walrus.space'
   ];
 
   // 1. Store (Proxy to Publisher with Failover)
@@ -43,7 +34,7 @@ async function startServer() {
       const timeout = setTimeout(() => controller.abort(), 600000); // 10 minutes timeout
 
       try {
-        const response = await fetch(`${publisher}/v1/store?epochs=${epochs}`, {
+        const response = await fetch(`${publisher}/v1/blobs?epochs=${epochs}`, {
           method: 'PUT',
           body: req.body,
           headers: {
@@ -81,7 +72,7 @@ async function startServer() {
     
     for (const aggregator of WALRUS_AGGREGATORS) {
       try {
-        const response = await fetch(`${aggregator}/v1/${blobId}`, {
+        const response = await fetch(`${aggregator}/v1/blobs/${blobId}`, {
           signal: AbortSignal.timeout(30000)
         });
 
@@ -106,7 +97,7 @@ async function startServer() {
 
     for (const aggregator of WALRUS_AGGREGATORS) {
       try {
-        const response = await fetch(`${aggregator}/v1/${blobId}`, {
+        const response = await fetch(`${aggregator}/v1/blobs/${blobId}`, {
           signal: AbortSignal.timeout(30000) // 30s timeout per aggregator
         });
 

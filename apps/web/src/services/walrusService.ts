@@ -58,7 +58,7 @@ export async function uploadToWalrus(
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       if (onProgress) onProgress(60); // Starting upload phase
-      const uploadTargets = [`/api/walrus/store?epochs=${epochs}`, ...WALRUS_PUBLISHERS.map((publisher) => `${publisher}/v1/store?epochs=${epochs}`)];
+      const uploadTargets = [`/api/walrus/store?epochs=${epochs}`, ...WALRUS_PUBLISHERS.map((publisher) => `${publisher}/v1/blobs?epochs=${epochs}`)];
 
       for (const target of uploadTargets) {
         try {
@@ -125,7 +125,7 @@ export async function fetchFromWalrus(blobId: string): Promise<Blob> {
     let lastError: Error | null = null;
     for (const aggregator of WALRUS_AGGREGATORS) {
       try {
-        const response = await fetch(`${aggregator}/v1/${blobId}`);
+        const response = await fetch(`${aggregator}/v1/blobs/${blobId}`);
         if (response.ok) {
           return await response.blob();
         }
@@ -145,5 +145,5 @@ export async function fetchFromWalrus(blobId: string): Promise<Blob> {
  * For true failover in <img> or <video> tags, we need a more complex approach or a proxy.
  */
 export function getWalrusUrl(blobId: string): string {
-  return `${WALRUS_AGGREGATORS[0]}/v1/${blobId}`;
+  return `${WALRUS_AGGREGATORS[0]}/v1/blobs/${blobId}`;
 }

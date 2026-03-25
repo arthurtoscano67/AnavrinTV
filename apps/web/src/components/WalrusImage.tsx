@@ -13,7 +13,7 @@ export function WalrusImage({ blobId, src, ...props }: WalrusImageProps) {
   const [error, setError] = useState(false);
 
   const imageUrl = blobId 
-    ? `${WALRUS_AGGREGATORS[currentAggregatorIndex]}/v1/${blobId}`
+    ? `${WALRUS_AGGREGATORS[currentAggregatorIndex]}/v1/blobs/${blobId}`
     : src;
 
   const handleError = () => {

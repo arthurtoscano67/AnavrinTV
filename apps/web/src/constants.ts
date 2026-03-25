@@ -1,15 +1,9 @@
 export const WALRUS_AGGREGATORS = [
-  'https://aggregator.walrus.site',
-  'https://wal-aggregator.staketab.org',
-  'https://walrus-aggregator.nodes.guru',
-  'https://walrus.redundex.com',
-  'https://walrus.banansen.dev',
-  'https://walrus-aggregator.everstake.one'
+  'https://aggregator.walrus-testnet.walrus.space'
 ];
 
 export const WALRUS_PUBLISHERS = [
-  'https://publisher.walrus.site',
-  'https://wal-publisher.staketab.org'
+  'https://publisher.walrus-testnet.walrus.space'
 ];
 
 export const WAL_TOKEN_DECIMALS = 9;
