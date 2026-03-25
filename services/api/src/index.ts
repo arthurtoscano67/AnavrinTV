@@ -73,10 +73,13 @@ const uploadIntentSchema = z.object({
   userId: z.string().min(1),
   walletAddress: z.string().min(1),
   channelId: z.string().optional(),
+  title: z.string().max(200).optional(),
+  description: z.string().max(4000).optional(),
   fileName: z.string().min(1),
   mimeType: z.string().min(1),
   sizeBytes: z.string(),
   checksumSha256: z.string().optional(),
+  uploaderSignature: z.string().optional(),
   selector: selectorSchema.default({}),
 });
 
@@ -298,24 +301,30 @@ app.post('/uploads/intents', async (req, res) => {
       user_id,
       wallet_address,
       channel_id,
+      title,
+      description,
       file_name,
       mime_type,
       size_bytes,
       checksum_sha256,
+      uploader_signature,
       tmp_object_key,
       resumable_url,
       status
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'RECEIVED')
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'RECEIVED')
     RETURNING id
     `,
     [
       input.userId,
       input.walletAddress,
       input.channelId ?? null,
+      input.title ?? null,
+      input.description ?? '',
       input.fileName,
       input.mimeType,
       input.sizeBytes,
       input.checksumSha256 ?? null,
+      input.uploaderSignature ?? null,
       tmpObjectKey,
       resumableUrl,
     ],

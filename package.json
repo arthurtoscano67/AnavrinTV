@@ -20,7 +20,7 @@
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "db:migrate": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f infra/db/migrations/001_core.sql"
+    "db:migrate": "sh -c 'for file in infra/db/migrations/*.sql; do psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f \"$file\"; done'"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

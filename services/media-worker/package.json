@@ -9,6 +9,8 @@
     "lint": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@mysten/seal": "^1.1.1",
+    "@mysten/sui": "^2.11.0",
     "@onreel/shared": "0.1.0",
     "pg": "^8.13.1",
     "pino": "^9.5.0",

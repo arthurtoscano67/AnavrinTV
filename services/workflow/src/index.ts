@@ -75,7 +75,9 @@ async function processPublishVideo(payload: Record<string, unknown>): Promise<vo
   await db.query(
     `
     UPDATE upload_intents
-    SET status = 'PUBLISHED', updated_at = now()
+    SET status = 'PUBLISHED',
+        published_at = COALESCE(published_at, now()),
+        updated_at = now()
     WHERE id = $1
     `,
     [uploadIntentId],

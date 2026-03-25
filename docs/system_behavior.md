@@ -13,6 +13,9 @@
 - `workflow_jobs` uses queue/retry/dead-letter behavior.
 - Jobs are claimed with `FOR UPDATE SKIP LOCKED` and processed idempotently.
 - Retries are exponential with upper bound; max attempts move the job to `DEAD_LETTER`.
+- `MEDIA_ENCRYPT` uses AES-256-GCM for content payloads and wraps DEKs with Seal.
+- `WALRUS_UPLOAD` persists resumable `writeBlob` checkpoints (`onStep` + `resume`) to DB metadata.
+- `CHAIN_MINT` executes the real `onreel::video_asset::mint` move call and stores tx digest/object ID.
 
 ## Upload Lifecycle States
 `RECEIVED -> VALIDATED -> TRANSCODED -> ENCRYPTED -> WALRUS_STORED -> MINTED -> INDEXED -> PUBLISHED`
@@ -30,7 +33,7 @@ If any stage fails beyond retry limit, the job dead-letters and the upload can b
 - Fee simulation accepts sponsorship inputs and applies deterministic coverage/cap/budget math.
 
 ## Current Gaps to Complete Next
-- Replace placeholder media/walrus/chain integrations with live adapters.
-- Add real payout/ad decision workers (current services are lifecycle stubs).
+- Add real transcoder outputs (HLS ladder + generated wallet thumbnail assets).
+- Add payout/ad decision workers (current services are lifecycle stubs).
 - Add RBAC and approval workflow in API and admin UI.
-- Add signed playback session token issuance and Seal key flow wiring.
+- Add signed playback session token issuance and Seal key retrieval/decrypt flow wiring.

@@ -57,10 +57,13 @@ Base URL: `http://localhost:4000`
   "userId": "user_1",
   "walletAddress": "0xabc...",
   "channelId": "channel_1",
+  "title": "Episode 1",
+  "description": "Pilot upload",
   "fileName": "clip.mp4",
   "mimeType": "video/mp4",
   "sizeBytes": "1200000000",
   "checksumSha256": "...",
+  "uploaderSignature": "base64-signature-optional",
   "selector": {"creatorTier": "verified"}
 }
 ```
