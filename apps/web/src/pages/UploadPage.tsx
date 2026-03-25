@@ -6,15 +6,10 @@ import { encryptBlob } from '../services/sealService';
 import { Video, UserProfile } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSignAndExecuteTransaction, useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
-import { Transaction } from '@mysten/sui/transactions';
+import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
 import { 
-  WAL_TOKEN_DECIMALS, 
-  WALRUS_PACKAGE_ID, 
-  WALRUS_STORAGE_OBJECT_ID, 
   STORAGE_DURATION_OPTIONS,
-  EPOCH_DURATION_MS,
-  WAL_COIN_TYPE
+  EPOCH_DURATION_MS
 } from '../constants';
 
 interface UploadPageProps {
@@ -32,7 +27,6 @@ export function UploadPage({ userProfile, onUploadSuccess }: UploadPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [storageCost, setStorageCost] = useState<number>(0);
-  const [userWalBalance, setUserWalBalance] = useState<bigint>(0n);
   const [selectedDuration, setSelectedDuration] = useState(STORAGE_DURATION_OPTIONS[1]); // Default 1 month
   const [isEncrypted, setIsEncrypted] = useState(true);
   const [uploadedVideo, setUploadedVideo] = useState<Video | null>(null);
@@ -40,7 +34,6 @@ export function UploadPage({ userProfile, onUploadSuccess }: UploadPageProps) {
   const navigate = useNavigate();
   const account = useCurrentAccount();
   const suiClient = useSuiClient();
-  const { mutate: signAndExecute } = useSignAndExecuteTransaction();
 
   useEffect(() => {
     const updateCost = async () => {
@@ -51,55 +44,6 @@ export function UploadPage({ userProfile, onUploadSuccess }: UploadPageProps) {
     };
     updateCost();
   }, [file, selectedDuration, suiClient]);
-
-  useEffect(() => {
-    const fetchBalance = async () => {
-      if (!account) {
-        setUserWalBalance(0n);
-        return;
-      }
-      try {
-        // Use getAllBalances to see everything in the wallet at once
-        const balances = await suiClient.getAllBalances({
-          owner: account.address,
-        });
-        
-        console.log('All wallet balances:', balances);
-        
-        // 1. Try exact match with WAL_COIN_TYPE
-        let walBalance = balances.find(b => b.coinType === WAL_COIN_TYPE);
-        
-        // 2. If not found, try fuzzy match for anything containing "wal"
-        if (!walBalance) {
-          walBalance = balances.find(b => 
-            b.coinType.toLowerCase().includes('::wal::wal') || 
-            b.coinType.toLowerCase().includes('::wal')
-          );
-        }
-        
-        if (walBalance) {
-          const total = BigInt(walBalance.totalBalance);
-          setUserWalBalance(total);
-          console.log(`Found WAL balance: ${total} for type: ${walBalance.coinType}`);
-        } else {
-          setUserWalBalance(0n);
-          console.log('No WAL balance found in wallet.');
-          
-          // Debug SUI
-          const suiBalance = balances.find(b => b.coinType === '0x2::sui::SUI');
-          if (suiBalance) {
-            console.log(`User has ${suiBalance.totalBalance} SUI but 0 WAL.`);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching WAL balance:', err);
-      }
-    };
-    fetchBalance();
-    // Refresh balance every 30 seconds
-    const interval = setInterval(fetchBalance, 30000);
-    return () => clearInterval(interval);
-  }, [account, suiClient]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const videoFile = acceptedFiles[0];
@@ -130,95 +74,8 @@ export function UploadPage({ userProfile, onUploadSuccess }: UploadPageProps) {
     setUploadProgress(10); // Reading file
 
     try {
-      // 1. Pay storage fee in WAL
+      // 1. Platform-sponsored storage path (no wallet WAL prepayment required)
       setUploadProgress(20);
-      
-      // Fetch all balances to find WAL resiliently
-      const balances = await suiClient.getAllBalances({
-        owner: account.address,
-      });
-      
-      // Try exact match then fuzzy match
-      let walBalance = balances.find(b => b.coinType === WAL_COIN_TYPE);
-      if (!walBalance) {
-        walBalance = balances.find(b => 
-          b.coinType.toLowerCase().includes('::wal::wal') || 
-          b.coinType.toLowerCase().includes('::wal')
-        );
-      }
-
-      if (!walBalance || BigInt(walBalance.totalBalance) === 0n) {
-        throw new Error('No WAL tokens found in your wallet. You need WAL to pay for Walrus storage.');
-      }
-
-      const actualWalCoinType = walBalance.coinType;
-
-      // Fetch the actual coins for this type
-      const { data: coins } = await suiClient.getCoins({
-        owner: account.address,
-        coinType: actualWalCoinType,
-      });
-
-      if (coins.length === 0) {
-        throw new Error('No WAL tokens found in your wallet. You need WAL to pay for Walrus storage.');
-      }
-
-      // Calculate amount in MIST (WAL has 9 decimals)
-      const cost = await calculateStorageCost(file.size, selectedDuration.epochs, suiClient);
-      const amountInMist = BigInt(Math.floor(cost * Math.pow(10, WAL_TOKEN_DECIMALS)));
-      
-      const totalWalBalance = BigInt(walBalance.totalBalance);
-      
-      if (totalWalBalance < amountInMist) {
-        const hasWal = Number(totalWalBalance) / Math.pow(10, WAL_TOKEN_DECIMALS);
-        const needsWal = Number(amountInMist) / Math.pow(10, WAL_TOKEN_DECIMALS);
-        throw new Error(`Insufficient WAL balance. You have ${hasWal.toFixed(4)} WAL but need ${needsWal.toFixed(4)} WAL for this upload.`);
-      }
-
-      const tx = new Transaction();
-      
-      // Find a coin with enough balance or merge coins
-      let primaryCoinId = coins[0].coinObjectId;
-      if (BigInt(coins[0].balance) < amountInMist) {
-        // Merge all other coins into the first one
-        const otherCoinIds = coins.slice(1).map(c => c.coinObjectId);
-        if (otherCoinIds.length > 0) {
-          tx.mergeCoins(tx.object(primaryCoinId), otherCoinIds.map(id => tx.object(id)));
-        }
-      }
-
-      // Split WAL coins for payment
-      const [walPayment] = tx.splitCoins(tx.object(primaryCoinId), [tx.pure.u64(amountInMist)]);
-      
-      const storageObj = tx.moveCall({
-        target: `${WALRUS_PACKAGE_ID}::system::reserve_space`,
-        arguments: [
-          tx.object(WALRUS_STORAGE_OBJECT_ID),
-          tx.pure.u64(BigInt(file.size)),
-          tx.pure.u32(selectedDuration.epochs),
-          walPayment,
-        ],
-      });
-
-      tx.transferObjects([storageObj], tx.pure.address(account.address));
-      
-      console.log(`Paying ${amountInMist} MIST for storage (${selectedDuration.epochs} epochs) using coin ${primaryCoinId}`);
-      
-      await new Promise((resolve, reject) => {
-        signAndExecute(
-          { transaction: tx },
-          {
-            onSuccess: (result) => {
-              console.log('Storage fee paid:', result.digest);
-              resolve(result);
-            },
-            onError: (err) => {
-              console.error('Payment failed:', err);
-              reject(new Error('Failed to pay storage fee in WAL. Make sure you have enough WAL tokens and have authorized the transaction.'));
-            }
-          }
-        );
-      });
 
       // 2. Encrypt with Seal
       setUploadProgress(30);
@@ -412,14 +269,12 @@ export function UploadPage({ userProfile, onUploadSuccess }: UploadPageProps) {
                     <div className="text-sm font-bold text-white">
                       {storageCost.toFixed(6)} WAL
                     </div>
-                    <div className={`text-[10px] font-bold ${userWalBalance < BigInt(Math.floor(storageCost * Math.pow(10, WAL_TOKEN_DECIMALS))) ? 'text-yt-red' : 'text-yt-gray'}`}>
-                      Balance: {(Number(userWalBalance) / Math.pow(10, WAL_TOKEN_DECIMALS)).toFixed(4)} WAL
+                    <div className="text-[10px] font-bold text-emerald-400">
+                      Sponsored by platform treasury
                     </div>
-                    {userWalBalance === 0n && (
-                      <div className="text-[9px] text-yt-red mt-1">
-                        Need WAL tokens for storage. Get them from Walrus Testnet faucet.
-                      </div>
-                    )}
+                    <div className="text-[9px] text-yt-gray mt-1">
+                      WAL estimate shown for transparency only.
+                    </div>
                   </div>
                 </div>
               </div>

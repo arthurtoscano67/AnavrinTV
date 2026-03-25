@@ -58,32 +58,42 @@ export async function uploadToWalrus(
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       if (onProgress) onProgress(60); // Starting upload phase
+      const uploadTargets = [`/api/walrus/store?epochs=${epochs}`, ...WALRUS_PUBLISHERS.map((publisher) => `${publisher}/v1/store?epochs=${epochs}`)];
 
-      const response = await fetch(`/api/walrus/store?epochs=${epochs}`, {
-        method: 'PUT',
-        body: blob,
-        headers: {
-          'Content-Type': 'application/octet-stream',
-        },
-        signal: AbortSignal.timeout(600000) // 10 minutes timeout
-      });
+      for (const target of uploadTargets) {
+        try {
+          const response = await fetch(target, {
+            method: 'PUT',
+            body: blob,
+            headers: {
+              'Content-Type': 'application/octet-stream',
+            },
+            signal: AbortSignal.timeout(600000), // 10 minutes timeout
+          });
 
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'No error details');
-        throw new Error(`Walrus upload failed (Attempt ${attempt + 1}): ${errorText}`);
+          if (!response.ok) {
+            const errorText = await response.text().catch(() => 'No error details');
+            throw new Error(`Upload target ${target} returned ${response.status}: ${errorText}`);
+          }
+
+          if (onProgress) onProgress(90); // Almost done
+
+          const data: WalrusUploadResponse = await response.json();
+          const blobId = data.newlyCreated?.blobObject.blobId || data.alreadyCertified?.blobId;
+          
+          if (blobId) {
+            if (onProgress) onProgress(100);
+            return blobId;
+          }
+          
+          throw new Error(`Upload target ${target} returned no blobId`);
+        } catch (targetError: any) {
+          lastError = targetError;
+          console.warn(`Walrus target failed (${target}):`, targetError);
+        }
       }
 
-      if (onProgress) onProgress(90); // Almost done
-
-      const data: WalrusUploadResponse = await response.json();
-      const blobId = data.newlyCreated?.blobObject.blobId || data.alreadyCertified?.blobId;
-      
-      if (blobId) {
-        if (onProgress) onProgress(100);
-        return blobId;
-      }
-      
-      throw new Error('No blobId returned from Walrus');
+      throw new Error(`Walrus upload failed on all targets (attempt ${attempt + 1})`);
     } catch (err: any) {
       console.warn(`Upload attempt ${attempt + 1} failed:`, err);
       lastError = err;
