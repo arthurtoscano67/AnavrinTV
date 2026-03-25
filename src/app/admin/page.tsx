@@ -29,7 +29,7 @@ function SeverityBadge({ severity }: { severity: ReportRecord["severity"] }) {
       ? "border-rose-300/20 bg-rose-300/12 text-rose-100"
       : severity === "medium"
         ? "border-amber-300/20 bg-amber-300/12 text-amber-100"
-        : "border-cyan-300/20 bg-cyan-300/12 text-cyan-100";
+      : "border-red-300/20 bg-red-300/12 text-red-100";
   return <span className={`badge ${className}`}>{severity}</span>;
 }
 
@@ -312,7 +312,7 @@ export default function AdminPage() {
     return (
       <div className="space-y-6">
         <section className="surface p-6 md:p-8">
-          <span className="badge border-cyan-300/20 bg-cyan-300/12 text-cyan-100">
+          <span className="badge border-red-300/20 bg-red-300/12 text-red-100">
             <ShieldAlert className="size-4" />
             Admin console
           </span>
@@ -360,7 +360,7 @@ export default function AdminPage() {
       <section className="surface p-6 md:p-8">
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div className="max-w-3xl">
-            <span className="badge border-cyan-300/20 bg-cyan-300/12 text-cyan-100">
+            <span className="badge border-red-300/20 bg-red-300/12 text-red-100">
               <ShieldAlert className="size-4" />
               Admin console
             </span>
@@ -384,7 +384,7 @@ export default function AdminPage() {
             <article key={item.label} className="metric-card">
               <div className="flex items-center justify-between gap-4">
                 <p className="section-label">{item.label}</p>
-                <Icon className="size-5 text-cyan-200" />
+                <Icon className="size-5 text-red-200" />
               </div>
               <p className="mt-3 text-3xl font-semibold text-white">{item.value}</p>
             </article>
@@ -543,7 +543,7 @@ export default function AdminPage() {
               <p className="section-label">Top videos</p>
               <h2 className="mt-2 text-3xl font-semibold text-white">Surface or hide content quickly</h2>
             </div>
-            <Sparkles className="size-10 text-cyan-200" />
+            <Sparkles className="size-10 text-red-200" />
           </div>
 
           <div className="mt-6 space-y-3">
@@ -612,7 +612,7 @@ export default function AdminPage() {
               <p className="section-label">Fee controls</p>
               <h2 className="mt-2 text-3xl font-semibold text-white">Platform fee schedule</h2>
             </div>
-            <Settings2 className="size-10 text-cyan-200" />
+            <Settings2 className="size-10 text-red-200" />
           </div>
 
           {settingsDraft ? (
@@ -652,7 +652,7 @@ export default function AdminPage() {
               <p className="section-label">User moderation</p>
               <h2 className="mt-2 text-3xl font-semibold text-white">Ban users and edit creator fee</h2>
             </div>
-            <UserCog className="size-10 text-cyan-200" />
+            <UserCog className="size-10 text-red-200" />
           </div>
 
           <div className="mt-6 space-y-3">
@@ -951,7 +951,7 @@ export default function AdminPage() {
       </ModalShell>
 
       {message ? (
-        <div className="rounded-[24px] border border-cyan-300/20 bg-cyan-300/10 p-4 text-sm leading-7 text-cyan-50">
+        <div className="rounded-[24px] border border-red-300/20 bg-red-300/10 p-4 text-sm leading-7 text-red-50">
           {message}
         </div>
       ) : null}

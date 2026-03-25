@@ -1172,7 +1172,7 @@ export default function UploadPage() {
       <section className="surface p-6 md:p-8">
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div className="max-w-3xl">
-            <span className="badge border-cyan-300/20 bg-cyan-300/12 text-cyan-100">
+            <span className="badge border-red-300/20 bg-red-300/12 text-red-100">
               <UploadCloud className="size-4" />
               {isBlobComposerRoute ? "Create blob" : "Profile upload"}
             </span>
@@ -1305,7 +1305,7 @@ export default function UploadPage() {
                 <label className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
                   <input
                     checked={publishAsBlob}
-                    className="size-4 accent-cyan-300"
+                    className="size-4 accent-red-300"
                     disabled={isBlobComposerRoute}
                     onChange={(event) => {
                       const checked = event.target.checked;
@@ -1331,7 +1331,7 @@ export default function UploadPage() {
                   surfaced in `/blobs` once published.
                 </p>
                 {publishAsBlob ? (
-                  <p className="mt-2 text-xs leading-6 text-cyan-100">
+                  <p className="mt-2 text-xs leading-6 text-red-100">
                     Blob V1 limit: videos must be 30 seconds or shorter.
                   </p>
                 ) : null}
@@ -1430,7 +1430,7 @@ export default function UploadPage() {
                 ) : null}
 
                 {!publishAsBlob && accessModel !== "open" ? (
-                  <div className="mt-4 rounded-2xl border border-cyan-300/12 bg-cyan-300/10 px-4 py-3 text-sm text-cyan-50">
+                  <div className="mt-4 rounded-2xl border border-red-300/12 bg-red-300/10 px-4 py-3 text-sm text-red-50">
                     {supportsPurchase ? `Buy: ${formatMistAsSui(parseSuiAmountToMist(purchasePrice) ?? BigInt(0))} SUI` : "Buy: off"}
                     {" • "}
                     {supportsRental
@@ -1471,8 +1471,8 @@ export default function UploadPage() {
                   <button
                     className={`rounded-2xl border px-4 py-2.5 text-sm font-semibold transition ${
                       sourceMode === "import"
-                        ? "border-cyan-300/35 bg-cyan-300/15 text-cyan-100"
-                        : "border-white/10 bg-white/5 text-slate-200 hover:border-cyan-300/30"
+                        ? "border-red-300/35 bg-red-300/15 text-red-100"
+                        : "border-white/10 bg-white/5 text-slate-200 hover:border-red-300/30"
                     }`}
                     onClick={() => setSourceMode("import")}
                     type="button"
@@ -1483,8 +1483,8 @@ export default function UploadPage() {
                   <button
                     className={`rounded-2xl border px-4 py-2.5 text-sm font-semibold transition ${
                       sourceMode === "record"
-                        ? "border-cyan-300/35 bg-cyan-300/15 text-cyan-100"
-                        : "border-white/10 bg-white/5 text-slate-200 hover:border-cyan-300/30"
+                        ? "border-red-300/35 bg-red-300/15 text-red-100"
+                        : "border-white/10 bg-white/5 text-slate-200 hover:border-red-300/30"
                     }`}
                     onClick={() => setSourceMode("record")}
                     type="button"
@@ -1496,8 +1496,8 @@ export default function UploadPage() {
               ) : null}
 
               {!publishAsBlob || sourceMode === "import" ? (
-                <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed border-white/12 bg-black/20 px-6 py-8 text-center transition hover:border-cyan-300/30 hover:bg-black/28">
-                  <FileVideo2 className="size-10 text-cyan-200" />
+                <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed border-white/12 bg-black/20 px-6 py-8 text-center transition hover:border-red-300/30 hover:bg-black/28">
+                  <FileVideo2 className="size-10 text-red-200" />
                   <p className="mt-4 text-lg font-semibold text-white">
                     {publishAsBlob ? "Import a short video" : "Drop any video format here"}
                   </p>
@@ -1579,7 +1579,7 @@ export default function UploadPage() {
 
             <div className="block md:col-span-2">
               <span className="text-sm font-medium text-slate-200">Thumbnail image (optional)</span>
-              <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-[24px] border border-dashed border-white/12 bg-black/20 px-6 py-6 text-center transition hover:border-cyan-300/30 hover:bg-black/28">
+              <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-[24px] border border-dashed border-white/12 bg-black/20 px-6 py-6 text-center transition hover:border-red-300/30 hover:bg-black/28">
                 <p className="text-sm font-semibold text-white">
                   {thumbnailFile ? "Replace thumbnail image" : "Upload thumbnail image"}
                 </p>
@@ -1602,7 +1602,7 @@ export default function UploadPage() {
               <label className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
                 <input
                   checked={publishNow}
-                  className="size-4 accent-cyan-300"
+                  className="size-4 accent-red-300"
                   disabled={isBlobComposerRoute || publishAsBlob}
                   onChange={(event) => setPublishNow(event.target.checked)}
                   type="checkbox"
@@ -1614,7 +1614,7 @@ export default function UploadPage() {
               </label>
 
               <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.32em] text-cyan-100/60">Seal</p>
+                <p className="text-xs uppercase tracking-[0.32em] text-red-100/60">Seal</p>
                 <p className="mt-2 text-sm font-semibold text-white">
                   Package {getMvrName() ?? "policy package"} with threshold {getSealThreshold()}
                 </p>
@@ -1637,7 +1637,7 @@ export default function UploadPage() {
                     finalized video record.
                   </p>
                 </div>
-                <LockKeyhole className="size-10 text-cyan-200" />
+                <LockKeyhole className="size-10 text-red-200" />
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -1697,7 +1697,7 @@ export default function UploadPage() {
                     ? "Uploading encrypted bytes to Walrus"
                     : "Encrypted bytes sent. Waiting for the Walrus certificate"}
                 </p>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100/70">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-100/70">
                   {Math.max(
                     0,
                     Math.min(
@@ -1711,7 +1711,7 @@ export default function UploadPage() {
 
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
                 <div
-                  className="h-full rounded-full bg-cyan-300 transition-[width] duration-300"
+                  className="h-full rounded-full bg-red-300 transition-[width] duration-300"
                   style={{
                     width: `${Math.max(
                       0,
@@ -1749,7 +1749,7 @@ export default function UploadPage() {
           ) : null}
 
           {status ? (
-            <div className="mt-4 rounded-[24px] border border-cyan-300/20 bg-cyan-300/10 p-4 text-sm leading-7 text-cyan-50">
+            <div className="mt-4 rounded-[24px] border border-red-300/20 bg-red-300/10 p-4 text-sm leading-7 text-red-50">
               {status}
             </div>
           ) : null}
@@ -1849,7 +1849,7 @@ export default function UploadPage() {
                 "The upload record stores the policy object, blob id, and wallet address for playback.",
               ].map((item) => (
                 <li key={item} className="flex gap-3">
-                  <WandSparkles className="mt-1 size-4 shrink-0 text-cyan-200" />
+                  <WandSparkles className="mt-1 size-4 shrink-0 text-red-200" />
                   <span>{item}</span>
                 </li>
               ))}
